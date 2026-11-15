@@ -18,6 +18,7 @@ import { createSunRig, applySkyEnvironment } from "./render/lighting";
 import { createParticles, SPARK, DUST, SNOW } from "./render/particles";
 import {loadRideMode} from './mode';
 import {createModeControls} from './ui/modes';
+import {createHudOptions} from './ui/hudOptions';
 
 async function main() {
   await RAPIER.init();
@@ -106,6 +107,7 @@ async function main() {
   let audioResetCount = player.resetCount;
   let pausedSceneDirty = true;
   let hudElapsed = 0;
+  createHudOptions();
   createModeControls(mode,next=>{
     mode=next;ramp.setMode!(mode);player.setMode(mode);hud.setMode(mode);
     sky.setMode(mode,(scene.fog as THREE.Fog).color);applySkyEnvironment(renderer,scene,sky.mesh);

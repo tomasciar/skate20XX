@@ -178,6 +178,32 @@ body,
   display: flex; gap: 3px; padding: 4px; border-radius: 8px;
   border: 1px solid rgba(232,240,244,0.22); background: rgba(12,18,24,0.75);
 }
+#hud-options {
+  position: absolute; z-index: 4; top: 117px; left: 24px;
+  display: flex; flex-direction: column; gap: 2px; padding: 4px; border-radius: 8px;
+  border: 1px solid rgba(232,240,244,0.22); background: rgba(12,18,24,0.75);
+}
+#hud-options button {
+  display: flex; align-items: center; gap: 9px; padding: 5px 8px; border: 0; border-radius: 5px;
+  background: transparent; font: 600 0.74rem "DM Sans", sans-serif; color: var(--foam);
+  text-align: left; white-space: nowrap; cursor: pointer;
+}
+/* A sliding switch: the knob sits right and the track fills when the option is on. */
+#hud-options button::before {
+  content: ""; flex: none; width: 26px; height: 14px; border-radius: 7px;
+  background: radial-gradient(circle at 7px 50%, var(--foam) 0 4.5px, transparent 5px), rgba(232,240,244,0.25);
+  transition: background-color 0.12s ease;
+}
+#hud-options button[aria-pressed="true"]::before {
+  background: radial-gradient(circle at 19px 50%, var(--ink) 0 4.5px, transparent 5px), var(--accent);
+}
+#hud-options button[aria-pressed="false"] { color: rgba(232,240,244,0.65); }
+#hud-options button:hover { background: rgba(232,240,244,0.1); }
+#hud-options button:focus-visible { outline: 2px solid var(--foam); outline-offset: 1px; }
+/* Display options are a menu setting: only offered while the start or pause overlay is up. */
+#app:has(#overlay.hidden) #hud-options { display: none; }
+html[data-hud-controls="off"] .hud-bottom { visibility: hidden; }
+html[data-hud-tricks="off"] #trick { display: none; }
 #mode-controls button {
   border: 0; border-radius: 5px; padding: 7px 11px; font: 600 0.76rem "DM Sans", sans-serif;
   color: var(--foam); background: transparent; cursor: pointer;
@@ -235,6 +261,7 @@ body,
 @media (max-width: 600px) {
   #audio-controls { top: auto; bottom: 76px; }
   #mode-controls { left: 16px; top: 70px; }
+  #hud-options { left: 16px; top: 114px; }
   #hud { padding: 18px 16px; }
   .overlay-card { padding: 24px 18px; max-width: 100%; }
 }
