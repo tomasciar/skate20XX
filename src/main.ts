@@ -105,7 +105,7 @@ async function main() {
       speed: player.speed, grounded: player.grounded, grinding: player.grind.active,
       verticalSpeed: player.velocity.dot(ramp.surfaceNormal), braking: lastPush < 0, steer: lastSteer,
       pumpPhase: player.pump.phase, pumpStarts: player.pump.starts,
-      trick: tricks.state.active?.id ?? null, bail: tricks.state.bail, resetCount: player.resetCount,
+      trick: tricks.state.active?.id ?? null, bail: player.crashed || tricks.state.bail, resetCount: player.resetCount,
     };
   }
 
@@ -167,8 +167,8 @@ async function main() {
       const intent = controller.update(input.state, fixedDt);
       lastPush = intent.push; lastSteer = intent.steer;
 
-      tricks.setGrab(intent.grabDX, intent.grabDY, intent.grabModifier, !player.grounded && !player.grind.active);
-      if (intent.flickReady && !player.grounded && !player.grind.active) {
+      tricks.setGrab(intent.grabDX, intent.grabDY, intent.grabModifier, !player.grounded && !player.grind.active && !player.crashed);
+      if (intent.flickReady && !player.grounded && !player.grind.active && !player.crashed) {
         tricks.tryFlick(intent.flickDX, intent.flickDY, true);
       }
 
@@ -177,18 +177,18 @@ async function main() {
       input.consume();
       if (tricks.state.bail) tricks.clearBail();
 
-      tricks.update(fixedDt, player.grounded || player.grind.active, player.uprightDot, player.speed);
+      if (!player.crashed) tricks.update(fixedDt, player.grounded || player.grind.active, player.uprightDot, player.speed);
 
       world.step();
       player.sync(false);
-      if (audioResetCount !== player.resetCount) { audio.reset(); audioResetCount = player.resetCount; }
+      if (audioResetCount !== player.resetCount) { audio.reset(); controller.reset(); tricks.reset(); audioResetCount = player.resetCount; }
       audio.step(fixedDt, audioState());
       chase.shift(player.originShift);
       if (intent.reset) chase.snap(player.position);
       acc -= fixedDt;
     }
 
-    if (player.position.y < -6) {
+    if (player.position.y < -6 && !player.crashed) {
       player.reset(ramp.spawn);
       audio.reset(); audioResetCount = player.resetCount;
       chase.snap(player.position);

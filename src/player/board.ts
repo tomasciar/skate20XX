@@ -4,6 +4,7 @@ import type { PlayerIntent } from "./controller.ts";
 import type { TrickState } from "./tricks.ts";
 import { BOARD, WHEEL_BOTTOM } from "./dimensions.ts";
 import { createSkaterVisual } from "./skaterVisual.ts";
+import { createRagdoll } from "./ragdoll.ts";
 import { createPumpCycle } from "./pump.ts";
 import { createGrindSystem } from "./grind.ts";
 import { approachTopSpeed, MAX_SPEED } from "./speed.ts";
@@ -32,6 +33,7 @@ export type BoardPlayer = {
   mesh: THREE.Group;
   body: RAPIER.RigidBody;
   grounded: boolean;
+  readonly crashed: boolean;
   readonly resetCount: number;
   readonly pump: ReturnType<typeof createPumpCycle>["state"];
   grind: ReturnType<typeof createGrindSystem>["state"];
@@ -56,6 +58,7 @@ export function createBoardPlayer(
   const grind = createGrindSystem();
   const pump = createPumpCycle();
   const visual = createSkaterVisual();
+  const ragdoll = createRagdoll(scene, world);
   scene.add(visual.root);
 
   const spawn = ramp.spawn.clone();
@@ -67,7 +70,7 @@ export function createBoardPlayer(
       .setLinearDamping(0)
       .setAngularDamping(0.35)
   );
-  world.createCollider(
+  const boardCollider = world.createCollider(
     RAPIER.ColliderDesc.cuboid(0.11, 0.04, 0.38)
       .setFriction(0.05)
       .setRestitution(0.02)
@@ -97,7 +100,10 @@ export function createBoardPlayer(
   let wheelRoll = 0;
   let ollieCooldown = 0;
   let leaveGround = 0;
-  let bailTimer = 0;
+  let crashElapsed = 0;
+  const impactVelocity = new THREE.Vector3();
+  const loosePrevious = new THREE.Vector3();
+  const loosePreviousQ = new THREE.Quaternion();
   let wheelsDown = 0;
   let followSurface = false;
   let wasOnKicker = false;
@@ -181,6 +187,14 @@ export function createBoardPlayer(
   }
 
   function reset(to: THREE.Vector3) {
+    ragdoll.clear(); visual.setRagdoll(false);
+    boardCollider.setMassProperties(MASS, {x:0,y:0,z:0}, INERTIA, {x:0,y:0,z:0,w:1});
+    boardCollider.setFriction(0.05); boardCollider.setCollisionGroups(0xffffffff);
+    if (liveTricks) {
+      liveTricks.active = null; liveTricks.grab = null; liveTricks.grabTime = liveTricks.t = 0;
+      liveTricks.boardSpin = {x:0,y:0,z:0}; liveTricks.bail = false;
+      liveTricks.message = liveTricks.lastLanded = null; liveTricks.messageAge = 0;
+    }
     resetCount++;
     pump.reset();
     grind.reset();
@@ -195,7 +209,7 @@ export function createBoardPlayer(
     body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
     body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     body.setAngvel({ x: 0, y: 0, z: 0 }, true);
-    bailTimer = 0;
+    crashElapsed = 0;
     ollieCooldown = 0;
     leaveGround = 0;
     wasOnKicker = false;
@@ -227,10 +241,51 @@ export function createBoardPlayer(
       crouch: grind.state.active ? Math.max(crouch, 0.25) : crouch,
       lean: grind.state.active ? grind.state.balance : lean,
       airborne: !grounded,
-      bail: bailTimer > 0,
+      bail: false,
       wheelRoll,
       boardSpin,
     });
+  }
+
+  function startCrash(tricks: TrickState, momentum: THREE.Vector3) {
+    if (ragdoll.active) return;
+    // Capture the current articulated pose rather than spawning a different crash model.
+    render(1, 0);
+    const rig = visual.captureRagdoll();
+    ragdoll.start(rig, momentum, ramp.surfaceNormal); visual.setRagdoll(true);
+    visual.board.position.y = 0; visual.board.rotation.set(0,0,0);
+    pump.reset(); grind.reset(); crashElapsed = 0; grounded = false; followSurface = false;
+    tricks.active = null; tricks.grab = null; tricks.grabTime = 0;
+    tricks.boardSpin = {x:0,y:0,z:0}; tricks.bail = true; tricks.message = "Bail!"; tricks.messageAge = 0;
+    boardCollider.setMassProperties(3, {x:0,y:0,z:0}, {x:0.18,y:0.18,z:0.06}, {x:0,y:0,z:0,w:1});
+    boardCollider.setFriction(0.55); boardCollider.setCollisionGroups(0x00040001);
+    body.setAngvel({x:3,y:0.5,z:1.5}, true);
+    const t = body.translation(), q = body.rotation();
+    loosePrevious.set(t.x,t.y,t.z); loosePreviousQ.set(q.x,q.y,q.z,q.w);
+    position.copy(ragdoll.focus); previousPosition.copy(position); renderPosition.copy(position);
+  }
+
+  function obstacleAhead(dt: number) {
+    if (velocity.length() < 4.5) return false;
+    const direction = velocity.clone().normalize();
+    const hit = world.castRayAndGetNormal(new RAPIER.Ray(position, direction), 0.4 + speed * dt, true, undefined, undefined, undefined, body);
+    if (!hit) return false;
+    const n = new THREE.Vector3(hit.normal.x,hit.normal.y,hit.normal.z);
+    return Math.abs(n.dot(ramp.surfaceNormal)) < 0.55 && Math.abs(n.dot(velocity)) > 4.5;
+  }
+
+  function impactFromContacts() {
+    let hit = false;
+    world.contactPairsWith(boardCollider, collider => {
+      world.contactPair(boardCollider, collider, manifold => {
+        const n = manifold.normal();
+        if (Math.abs(n.x*ramp.surfaceNormal.x + n.y*ramp.surfaceNormal.y + n.z*ramp.surfaceNormal.z) > 0.55) return;
+        let impulse = 0;
+        for (let i=0; i<manifold.numContacts(); i++) impulse += manifold.contactImpulse(i);
+        if (impulse > MASS * 3.5 || impactVelocity.length() - speed > 4.5) hit = true;
+      });
+    });
+    return hit;
   }
 
   function update(dt: number, intent: PlayerIntent, tricks: TrickState) {
@@ -239,20 +294,24 @@ export function createBoardPlayer(
       return;
     }
 
+    if (ragdoll.active) {
+      crashElapsed += dt;
+      if (crashElapsed >= 3.2) {
+        reset(ramp.spawn); tricks.bail = false; tricks.message = null; tricks.lastLanded = null; return;
+      }
+      previousPosition.copy(position); previousQuat.copy(quat); ragdoll.beginStep();
+      const t = body.translation(), q = body.rotation();
+      loosePrevious.set(t.x,t.y,t.z); loosePreviousQ.set(q.x,q.y,q.z,q.w);
+      tricks.message = "Bail!"; tricks.messageAge = 0;
+      return;
+    }
     readPose();
     previousPosition.copy(position); previousQuat.copy(quat);
-    pump.update(dt, intent.push > 0, speed, grounded && !grind.state.active && !intent.crouch && !intent.wantOllie && bailTimer <= 0 && !tricks.bail);
+    if (tricks.bail || obstacleAhead(dt)) { startCrash(tricks, velocity); return; }
+    pump.update(dt, intent.push > 0, speed, grounded && !grind.state.active && !intent.crouch && !intent.wantOllie && !tricks.bail);
     ollieCooldown = Math.max(0, ollieCooldown - dt);
     leaveGround = Math.max(0, leaveGround - dt);
     lean = THREE.MathUtils.damp(lean, intent.steer, 8, dt);
-
-    if (tricks.bail && bailTimer <= 0) bailTimer = 1;
-    if (bailTimer > 0) {
-      bailTimer = Math.max(0, bailTimer - dt);
-      if (bailTimer === 0) { reset(ramp.spawn); return; }
-      body.applyTorqueImpulse({ x: 1.2, y: 0.4, z: 2.2 }, true);
-      return;
-    }
 
     const turn = grounded ? THREE.MathUtils.lerp(1.3, 2.1, THREE.MathUtils.clamp(speed / 14, 0, 1)) : 5;
     yaw -= intent.steer * turn * dt;
@@ -317,6 +376,9 @@ export function createBoardPlayer(
 
     }
 
+    if (!grounded && leaveGround <= 0 && wheelsDown >= 2 && velocity.dot(ramp.surfaceNormal) < -20) {
+      startCrash(tricks, velocity); return;
+    }
     grounded = leaveGround <= 0 && wheelsDown >= 2;
     if (contactN.lengthSq() > 0) contactN.normalize();
     else contactN.copy(ramp.surfaceNormal);
@@ -397,15 +459,17 @@ export function createBoardPlayer(
     wheelRoll += (along / WHEEL_R) * dt;
 
     if (Math.abs(position.x) > RAMP.width / 2 + 3 || position.y < -4) {
-      reset(ramp.spawn);
+      startCrash(tricks, velocity);
     }
   }
 
   function sync(paintFrame = true) {
     originShift.set(0, 0, 0);
-    holdDeck(followSurface ? surfaceUp : ramp.surfaceNormal);
+    if (!ragdoll.active) holdDeck(followSurface ? surfaceUp : ramp.surfaceNormal);
     readPose();
-    if (speed > MAX_SPEED) {
+    if (!ragdoll.active && liveTricks && impactFromContacts()) startCrash(liveTricks, impactVelocity);
+    if (ragdoll.active) { ragdoll.sync(); position.copy(ragdoll.focus); velocity.copy(ragdoll.velocity); speed = velocity.length(); }
+    if (!ragdoll.active && speed > MAX_SPEED) {
       velocity.multiplyScalar(MAX_SPEED / speed); body.setLinvel(velocity, true); speed = MAX_SPEED;
     }
     // When you've ridden a full chunk downhill, snap origin and stream the next seeded stretch.
@@ -421,8 +485,14 @@ export function createBoardPlayer(
       originShift.copy(ramp.forward).multiplyScalar(-shift);
       position.add(originShift);
       previousPosition.add(originShift);
-      body.setTranslation({ x: position.x, y: position.y, z: position.z }, true);
-      body.setLinvel(keep, true);
+      if (ragdoll.active) {
+        const t = body.translation();
+        body.setTranslation({x:t.x+originShift.x,y:t.y+originShift.y,z:t.z+originShift.z}, true);
+        loosePrevious.add(originShift); ragdoll.shift(originShift);
+      } else {
+        body.setTranslation({ x: position.x, y: position.y, z: position.z }, true);
+        body.setLinvel(keep, true);
+      }
       ramp.scroll(shift);
     }
     if (paintFrame) render(1, poseDt);
@@ -432,6 +502,13 @@ export function createBoardPlayer(
     poseDt = dt;
     renderPosition.lerpVectors(previousPosition, position, THREE.MathUtils.clamp(alpha, 0, 1));
     renderQuat.slerpQuaternions(previousQuat, quat, THREE.MathUtils.clamp(alpha, 0, 1));
+    if (ragdoll.active) {
+      ragdoll.render(THREE.MathUtils.clamp(alpha,0,1));
+      const t = body.translation(), q = body.rotation();
+      visual.root.position.lerpVectors(loosePrevious, new THREE.Vector3(t.x,t.y,t.z), alpha);
+      visual.root.quaternion.slerpQuaternions(loosePreviousQ, new THREE.Quaternion(q.x,q.y,q.z,q.w), alpha);
+      return;
+    }
     sampleVisualSupport(renderPosition);
     const spin =
       liveTricks && (liveTricks.active || liveTricks.boardSpin.y !== 0 || liveTricks.boardSpin.z !== 0)
@@ -451,11 +528,13 @@ export function createBoardPlayer(
     crouchHolder = intent.crouchHold;
     liveTricks = tricks;
     originalUpdate(dt, intent, tricks);
+    const v = body.linvel(); impactVelocity.set(v.x,v.y,v.z);
   }
 
   reset(spawn);
 
   return {
+    get crashed() { return ragdoll.active; },
     get resetCount() { return resetCount; },
     pump: pump.state,
     grind: grind.state,
