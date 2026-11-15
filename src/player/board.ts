@@ -11,6 +11,7 @@ import { createAirRotation, describeAirRotation } from "./airRotation.ts";
 import { coastSpeed, dragSpeed, SPEED } from "./speed.ts";
 import { CARVE, carveDrag, carveLean, carveTurnRate } from "./carve.ts";
 import { createSlide, SLIDE } from "./slide.ts";
+import { judgeLanding, LANDING } from "./landing.ts";
 import { LANDSCAPE_HALF_WIDTH } from "../world/landscape.ts";
 import { courseSlope } from "../world/course.ts";
 import { RAMP, type RampWorld } from "../world/ramp.ts";
@@ -40,12 +41,16 @@ const MOUNTS = [
   { x: BOARD.wheelX, y: -0.02, z: BOARD.truckZ },
 ];
 
+export type CrashCause = 'trick' | 'obstacle' | 'inverted' | 'hardLanding' | 'impact' | 'outOfBounds';
+
 export type BoardPlayer = {
   mesh: THREE.Group;
   body: RAPIER.RigidBody;
   grounded: boolean;
   readonly canOllie: boolean;
   readonly crashed: boolean;
+  /** Why the current (or most recent) crash began; for diagnostics and tests. */
+  readonly crashCause: CrashCause | null;
   readonly resetCount: number;
   readonly ollieCount: number;
   readonly pump: ReturnType<typeof createPumpCycle>["state"];
@@ -137,6 +142,9 @@ export function createBoardPlayer(
   const ollieNormal = ramp.surfaceNormal.clone();
   const nearbyNormal = new THREE.Vector3();
   let crashElapsed = 0;
+  let crashCause: CrashCause | null = null;
+  let landingBoost = 0;
+  const landingHeading = new THREE.Vector3();
   const impactVelocity = new THREE.Vector3();
   const loosePrevious = new THREE.Vector3();
   const loosePreviousQ = new THREE.Quaternion();
@@ -327,7 +335,8 @@ export function createBoardPlayer(
     });
   }
 
-  function startCrash(tricks: TrickState, momentum: THREE.Vector3) {
+  function startCrash(tricks: TrickState, momentum: THREE.Vector3, cause: CrashCause) {
+    crashCause = cause;
     if (ragdoll.active) return;
     // Capture the current articulated pose rather than spawning a different crash model.
     render(1, 0);
@@ -413,7 +422,8 @@ export function createBoardPlayer(
     readPose();
     previousPosition.copy(position); previousQuat.copy(quat);
     previousAirOffset.copy(airOffset); previousBaseQuat.copy(baseQuat);
-    if (tricks.bail || obstacleAhead(dt)) { startCrash(tricks, velocity); return; }
+    if (tricks.bail) { startCrash(tricks, velocity, 'trick'); return; }
+    if (obstacleAhead(dt)) { startCrash(tricks, velocity, 'obstacle'); return; }
     ramp.directionAt?.(position,courseForward);
     const courseYaw=Math.atan2(-courseForward.x,courseForward.dot(ramp.forward));
     const wantSlide=intent.wantSlide ?? intent.push<0;
@@ -459,7 +469,7 @@ export function createBoardPlayer(
     }
 
     if(air.state.engaged)holdDeck();
-    if(invertedLanding()) { startCrash(tricks,velocity);return; }
+    if(invertedLanding()) { startCrash(tricks,velocity,'inverted');return; }
 
     // --- suspension rays ---
     rayDir.copy(boardUp).multiplyScalar(-1);
@@ -519,9 +529,21 @@ export function createBoardPlayer(
     if (contactN.lengthSq() > 0) contactN.normalize();
     else contactN.copy(ramp.surfaceNormal);
     const landingFromStart=introLanding && tmp.copy(position).sub(ramp.spawn).dot(ramp.surfaceNormal)<-2;
-    const landingLimit=landingFromStart ? ramp.startPlatform!.landingSpeed : 20;
-    if (!grounded && leaveGround <= 0 && wheelsDown >= 2 && velocity.dot(contactN) < -landingLimit) {
-      startCrash(tricks, velocity); return;
+    if (!grounded && leaveGround <= 0 && wheelsDown >= 2) {
+      // Touchdown: a board pointing along its travel can take a harder hit, more so the faster it rolls.
+      const impact=-velocity.dot(contactN);
+      const rolling=tmp.copy(velocity).addScaledVector(contactN,impact).length();
+      landingHeading.copy(forward).addScaledVector(contactN,-forward.dot(contactN));
+      let misalignment=rolling>1 && landingHeading.lengthSq()>1e-6
+        ? Math.acos(Math.min(1,Math.abs(tmp.dot(landingHeading))/(rolling*landingHeading.length()))) : 0;
+      if(air.state.engaged)misalignment=Math.max(misalignment,Math.acos(THREE.MathUtils.clamp(boardUp.dot(contactN),-1,1)));
+      const landing=judgeLanding(impact,rolling,misalignment);
+      if (impact > (landingFromStart ? ramp.startPlatform!.landingSpeed : landing.limit)) {
+        startCrash(tricks, velocity, 'hardLanding'); return;
+      }
+      landingBoost=landing.boost;
+      tricks.landing=landing.grade;
+      if(landing.grade && impact>=LANDING.callout) { tricks.message=`${landing.grade} Landing`;tricks.messageAge=0; }
     }
     grounded = leaveGround <= 0 && wheelsDown >= 2;
     if (grounded && landingFromStart) introLanding=false;
@@ -539,7 +561,7 @@ export function createBoardPlayer(
         const courseRight=new THREE.Vector3().crossVectors(ramp.forward,ramp.surfaceNormal);
         yaw=Math.atan2(-forward.dot(courseRight),forward.dot(ramp.forward));
         const landedFlip=describeAirRotation(air.state);
-        if(landedFlip) { tricks.message=tricks.lastLanded=landedFlip;tricks.messageAge=0; }
+        if(landedFlip) { tricks.lastLanded=landedFlip;tricks.message=tricks.landing ? `${landedFlip} · ${tricks.landing}` : landedFlip;tricks.messageAge=0; }
         air.reset();airOffset.set(0,0,0);
       }
       const n = contactN.lengthSq() > 0.5 ? contactN : ramp.surfaceNormal.clone();
@@ -550,6 +572,7 @@ export function createBoardPlayer(
         // Keep the speed you had going up the face, so the lip throws you.
         wasOnKicker = false;
         leaveGround = 0.35;
+        landingBoost = 0;
         grounded = false;
         followSurface = false;
         holdDeck();
@@ -575,6 +598,8 @@ export function createBoardPlayer(
         } else {
           // A real push adds momentum at low speed. Gravity supplies the downhill acceleration.
           if(pump.state.active)vel.addScaledVector(rollingDirection,SPEED.pushAcceleration*pump.state.weight*dt);
+          // A well-aimed landing pumps a little of the touchdown back into the roll.
+          vel.addScaledVector(rollingDirection,landingBoost);
           // Hard carves scrub speed, so wide S-turns check a fast descent.
           const rolling = vel.length();
           vel.multiplyScalar(Math.max(0, 1 - carveDrag(rolling, lean) * dt / Math.max(rolling, 0.001)));
@@ -600,6 +625,7 @@ export function createBoardPlayer(
             tricks.message='Boost!';tricks.messageAge=0;
           }
         }
+        landingBoost = 0;
         vel.addScaledVector(n, normalSpeed);
         body.setLinvel({ x: vel.x, y: vel.y, z: vel.z }, true);
         velocity.copy(vel);
@@ -644,7 +670,7 @@ export function createBoardPlayer(
     wheelRoll += (along / WHEEL_R) * dt;
 
     if (Math.abs(ramp.roadOffset?.(position) ?? position.x) > LANDSCAPE_HALF_WIDTH - 10 || tmp.copy(position).sub(ramp.anchor).dot(ramp.surfaceNormal) < -50) {
-      startCrash(tricks, velocity);
+      startCrash(tricks, velocity, 'outOfBounds');
     }
   }
 
@@ -652,7 +678,7 @@ export function createBoardPlayer(
     originShift.set(0, 0, 0);
     if (!ragdoll.active) holdDeck(followSurface ? surfaceUp : ramp.surfaceNormal);
     readPose();
-    if (!ragdoll.active && liveTricks && impactFromContacts()) startCrash(liveTricks, impactVelocity);
+    if (!ragdoll.active && liveTricks && impactFromContacts()) startCrash(liveTricks, impactVelocity, 'impact');
     if (ragdoll.active) { ragdoll.sync(); position.copy(ragdoll.focus); velocity.copy(ragdoll.velocity); speed = velocity.length(); }
     // When you've ridden a full chunk downhill, snap origin and stream the next seeded stretch.
     const along = position.clone().sub(ramp.anchor).dot(ramp.forward);
@@ -719,6 +745,7 @@ export function createBoardPlayer(
 
   return {
     get crashed() { return ragdoll.active; },
+    get crashCause() { return crashCause; },
     get resetCount() { return resetCount; },
     get ollieCount() { return ollieCount; },
     get canOllie() { return canOllie(); },

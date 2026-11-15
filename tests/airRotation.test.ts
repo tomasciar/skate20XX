@@ -173,7 +173,7 @@ test('a complete flip can land and reset controls; an inverted touchdown ragdoll
     assert.ok(stopped && inverted);
     if(complete) {
       assert.ok(landed);assert.equal(f.player.crashed,false);assert.equal(f.player.aerial.engaged,false);
-      assert.equal(f.tricks.state.message,'Frontflip');assert.equal(f.tricks.state.lastLanded,'Frontflip');
+      assert.equal(f.tricks.state.message,'Frontflip · Perfect');assert.equal(f.tricks.state.lastLanded,'Frontflip');
     }
     else {assert.equal(f.player.crashed,true);assert.equal(f.player.aerial.active,false);}
     f.world.free();

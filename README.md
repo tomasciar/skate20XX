@@ -73,6 +73,10 @@ Landing within about 40 degrees of upright rides away and names any completed ro
 
 Board tricks (Shift + arrows in the air) can be chained: once the board is caught, flick again, as many times as the airtime allows. A press made mid-trick is buffered and starts on the catch. Keep the trick input held to keep the board turning: a single takes 0.45 s and each extra rotation adds about 0.22 s, up to a quadruple (Double/Triple/Quadruple Kickflip, 360/540/720 Shove-It). Releasing finishes the rotation in progress. Landing names the whole combo; touching down mid-rotation is a bail. Tuning values are at the top of `src/player/tricks.ts`.
 
+## Landings
+
+A touchdown is judged by how hard the wheels hit the surface and how well the board points along its travel (landing switch counts as aligned). Up to 20 m/s into the surface always rides away. Beyond that, a board within 15 degrees of its travel absorbs an extra 0.25 m/s of impact per m/s of rolling speed, so big airs at 200 mph are landable when they are straight; the allowance fades to nothing by 45 degrees, where a heavy touchdown bails. Gentle crooked landings still slide and shed speed rather than crash. Landing within 5 degrees is Perfect and within 15 is Clean: both pump a little of the touchdown back into rolling speed (10% / 5%, at most 2 m/s), and the grade is shown after the trick or flip name, or on its own after a heavy touchdown. Mid-flip, tilt from the surface counts as misalignment. Tuning values are in `src/player/landing.ts`.
+
 ## Sound
 
 Audio starts after clicking or pressing Enter to ride. Separate, band-limited wheel rumble and soft wind textures respond to actual speed; a gentle airborne wind baseline keeps jumps from going silent; rolling stops in the air, rail grinding has a metallic scrape, and braking/carving add a wheel scrub. Push strokes, ollies, tricks, landings, rail catches/exits, and bails have distinct effects triggered by physics transitions. Ollie clicks follow successful physics pops, including rail exits, so grade changes and suspension contact chatter stay quiet.

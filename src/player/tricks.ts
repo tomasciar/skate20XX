@@ -1,5 +1,6 @@
 import { classifyGrab, GRABS } from "./grabs.ts";
 import type { GrabDef, GrabFacing } from "./grabs.ts";
+import type { LandingGrade } from "./landing.ts";
 export type TrickId =
   | "kickflip"
   | "heelflip"
@@ -65,6 +66,8 @@ export type TrickState = {
   combo: string[];
   /** Counts every trick start, so repeats of one trick are distinguishable. */
   started: number;
+  /** Set by the player on the tick of a graded touchdown; consumed by the next update. */
+  landing?: LandingGrade | null;
   boardSpin: { x: number; y: number; z: number };
   lastLanded: string | null;
   bail: boolean;
@@ -255,12 +258,14 @@ export function createTrickSystem() {
         state.messageAge = 0;
       } else {
         if (state.active) state.combo.push(trickName(state.active, done));
-        state.lastLanded = state.message = state.combo.join(" + ");
+        state.lastLanded = state.combo.join(" + ");
+        state.message = state.landing ? `${state.lastLanded} · ${state.landing}` : state.lastLanded;
         state.messageAge = 0;
       }
       endTrick();
       state.combo.length = 0; queued = null;
     }
+    state.landing = null;
   }
 
   function clearBail() {
@@ -273,7 +278,7 @@ export function createTrickSystem() {
     grabDX=grabDY=0;grabPress=undefined;
     state.grab = null; state.grabTime = 0;
     endTrick(); state.bail = false;
-    state.combo.length = 0; queued = null;
+    state.combo.length = 0; queued = null; state.landing = null;
     state.message = state.lastLanded = null; state.messageAge = 0;
   }
   return { state, setGrab, setGround, tryFlick, holdFlick, update, clearBail, reset };
