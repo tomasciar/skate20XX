@@ -27,6 +27,25 @@ const TRICKS: TrickDef[] = [
   { id: "hardflip", name: "Hardflip", spinX: 0, spinY: -Math.PI, spinZ: -Math.PI * 2, duration: 0.5 },
 ];
 
+/** Holding the trick input keeps the board turning, up to this many rotations of one trick. */
+export const MAX_SPINS = 4;
+/** A press this soon after a trick starts replaces it, so a diagonal's second arrow still counts. */
+const REPLACE_WINDOW = 0.06;
+/** Foot animation progress held while the board keeps spinning under raised feet. */
+const FOOT_CLEAR = 0.63;
+/** Shortest time the feet take to come back down for the catch. */
+const MIN_CATCH = 0.16;
+/** Fraction of a rotation that may be missing (or overshot) on touchdown. */
+const LAND_TOLERANCE = 0.0785;
+const COUNTS = ["", "Double ", "Triple ", "Quadruple "];
+
+export function trickName(trick: TrickDef, spins: number) {
+  if (spins <= 1) return trick.name;
+  if (trick.id === "shoveit") return `${spins * 180} Shove-It`;
+  if (trick.id === "fs180") return `FS ${spins * 180}`;
+  return (COUNTS[spins - 1] ?? `${spins}x `) + trick.name;
+}
+
 export type GroundTrick = { name: string; manual: number; grab: GrabDef | null };
 const MANUAL: GroundTrick = {name:'Manual',manual:1,grab:null};
 const NOSE_MANUAL: GroundTrick = {name:'Nose Manual',manual:-1,grab:null};
@@ -38,7 +57,14 @@ export type TrickState = {
   grab: GrabDef | null;
   grabTime: number;
   active: TrickDef | null;
+  /** Foot animation time of the active trick, 0..duration. */
   t: number;
+  /** Rotations the active trick is showing or committed to (1 = single). */
+  spins: number;
+  /** Tricks completed since takeoff, in order. */
+  combo: string[];
+  /** Counts every trick start, so repeats of one trick are distinguishable. */
+  started: number;
   boardSpin: { x: number; y: number; z: number };
   lastLanded: string | null;
   bail: boolean;
@@ -57,12 +83,21 @@ export function createTrickSystem() {
     grabTime: 0,
     active: null,
     t: 0,
+    spins: 0,
+    combo: [],
+    started: 0,
     boardSpin: { x: 0, y: 0, z: 0 },
     lastLanded: null,
     bail: false,
     message: null,
     messageAge: 0,
   };
+
+  // Active trick progress. `turns` counts rotations; while the input is held the board cruises at
+  // the single trick's opening rate, and on release it eases out into the next whole rotation.
+  let turns=0, target=0, held=false, dirX=0, dirY=0, elapsed=0;
+  let easeFrom=0, easeTime=0, easeT=0, foot=0, footFrom=0, catchTime=0;
+  let queued: { dx: number; dy: number } | null = null;
 
   function classifyFlick(dx: number, dy: number): TrickDef | null {
     const mag = Math.hypot(dx, dy);
@@ -88,15 +123,37 @@ export function createTrickSystem() {
   }
 
   function tryFlick(dx: number, dy: number, airborne: boolean) {
-    if (!airborne || state.active || state.grab) return;
+    if (!airborne || state.grab) return;
     const trick = classifyFlick(dx, dy);
     if (!trick) return;
+    if (state.active) {
+      if (elapsed >= REPLACE_WINDOW) { queued = { dx, dy }; return; }
+      if (trick === state.active) return;
+      state.active = trick; dirX = Math.sign(dx); dirY = Math.sign(dy);
+      state.message = trickName(trick, state.spins); state.messageAge = 0;
+      return;
+    }
     state.active = trick;
     state.t = 0;
+    state.spins = 1;
+    state.started++;
     state.boardSpin = { x: 0, y: 0, z: 0 };
     state.message = trick.name;
     state.messageAge = 0;
     state.bail = false;
+    turns = target = elapsed = foot = 0; held = false;
+    dirX = Math.sign(dx); dirY = Math.sign(dy);
+  }
+
+  /** Call every tick with the held trick direction (0,0 when released). A hold has to start with the trick. */
+  function holdFlick(dx: number, dy: number) {
+    if (!state.active) return;
+    held = (held || elapsed === 0) && Math.sign(dx) === dirX && Math.sign(dy) === dirY;
+  }
+
+  function endTrick() {
+    state.active = null; state.t = 0; state.spins = 0;
+    state.boardSpin = { x: 0, y: 0, z: 0 };
   }
 
   function setGrab(dx: number, dy: number, enabled: boolean, airborne: boolean, facing?: GrabFacing, press?: number) {
@@ -152,51 +209,72 @@ export function createTrickSystem() {
       }
     }
 
-    if (state.active) {
-      state.t += dt;
-      const u = Math.min(1, state.t / state.active.duration);
-      // ease-out spin
-      const e = 1 - Math.pow(1 - u, 2);
-      state.boardSpin.x = state.active.spinX * e;
-      state.boardSpin.y = state.active.spinY * e;
-      state.boardSpin.z = state.active.spinZ * e;
+    if (state.bail) { state.combo.length = 0; queued = null; }
+    const trick = state.active;
+    if (trick) {
+      const D = trick.duration;
+      elapsed += dt;
+      if (!target && held && turns < MAX_SPINS - 1) {
+        turns = Math.min(MAX_SPINS - 1, turns + 2 * dt / D);
+        foot = Math.min(FOOT_CLEAR, foot + dt / D);
+      } else {
+        if (!target) {
+          target = Math.floor(turns) + 1;
+          easeFrom = target - turns; easeTime = easeFrom * D; easeT = 0;
+          footFrom = foot; catchTime = Math.max(easeTime, MIN_CATCH);
+        }
+        easeT += dt;
+        // ease-out spin
+        const left = 1 - Math.min(1, easeT / easeTime);
+        turns = target - easeFrom * left * left;
+        foot = footFrom + (1 - footFrom) * Math.min(1, easeT / catchTime);
+      }
+      state.t = foot * D;
+      state.boardSpin.x = trick.spinX * turns;
+      state.boardSpin.y = trick.spinY * turns;
+      state.boardSpin.z = trick.spinZ * turns;
+      const spins = target || Math.floor(turns) + 1;
+      if (spins !== state.spins) {
+        state.spins = spins; state.message = trickName(trick, spins); state.messageAge = 0;
+      }
 
-      if (u >= 1) {
-        // finished rotation — keep final orientation until land
+      // Caught: the board is back under the feet, so another trick or a grab can start.
+      if (!grounded && target && easeT >= easeTime && easeT >= catchTime) {
+        state.combo.push(trickName(trick, target));
+        endTrick();
+        if (queued) { const next = queued; queued = null; tryFlick(next.dx, next.dy, true); }
       }
     }
 
     // Landing resolution
-    if (grounded && (state.active || state.boardSpin.y !== 0 || state.boardSpin.z !== 0)) {
-      const incomplete = state.active !== null && state.t < state.active.duration * 0.72;
-
-      if (incomplete) {
+    if (grounded && (state.active || state.combo.length)) {
+      const done = Math.round(turns);
+      if (state.active && (done < 1 || Math.abs(turns - done) > LAND_TOLERANCE)) {
         state.bail = true;
         state.message = "Bail!";
         state.messageAge = 0;
-      } else if (state.active) {
-        state.lastLanded = state.active.name;
-        state.message = state.active.name;
+      } else {
+        if (state.active) state.combo.push(trickName(state.active, done));
+        state.lastLanded = state.message = state.combo.join(" + ");
         state.messageAge = 0;
       }
-
-      state.active = null;
-      state.t = 0;
-      state.boardSpin = { x: 0, y: 0, z: 0 };
+      endTrick();
+      state.combo.length = 0; queued = null;
     }
   }
 
   function clearBail() {
     state.bail = false;
+    state.combo.length = 0; queued = null;
   }
 
   function reset() {
     clearGround();
     grabDX=grabDY=0;grabPress=undefined;
     state.grab = null; state.grabTime = 0;
-    state.active = null; state.t = 0; state.bail = false;
-    state.boardSpin = { x: 0, y: 0, z: 0 };
+    endTrick(); state.bail = false;
+    state.combo.length = 0; queued = null;
     state.message = state.lastLanded = null; state.messageAge = 0;
   }
-  return { state, setGrab, setGround, tryFlick, update, clearBail, reset };
+  return { state, setGrab, setGround, tryFlick, holdFlick, update, clearBail, reset };
 }

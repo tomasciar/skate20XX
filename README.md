@@ -69,6 +69,10 @@ Press Space in the air to switch WASD from steering to whole-body rotation: W fr
 
 Landing within about 40 degrees of upright rides away and names any completed rotation (Frontflip, Backflip, Barrel Roll, Corkscrew, with Double/Triple counts). Touching down further over ragdolls. Rails can only be caught upright. A Space press in the air never charges or triggers an ollie, even if it is still held on landing.
 
+## Board tricks
+
+Board tricks (Shift + arrows in the air) can be chained: once the board is caught, flick again, as many times as the airtime allows. A press made mid-trick is buffered and starts on the catch. Keep the trick input held to keep the board turning: a single takes 0.45 s and each extra rotation adds about 0.22 s, up to a quadruple (Double/Triple/Quadruple Kickflip, 360/540/720 Shove-It). Releasing finishes the rotation in progress. Landing names the whole combo; touching down mid-rotation is a bail. Tuning values are at the top of `src/player/tricks.ts`.
+
 ## Sound
 
 Audio starts after clicking or pressing Enter to ride. Separate, band-limited wheel rumble and soft wind textures respond to actual speed; a gentle airborne wind baseline keeps jumps from going silent; rolling stops in the air, rail grinding has a metallic scrape, and braking/carving add a wheel scrub. Push strokes, ollies, tricks, landings, rail catches/exits, and bails have distinct effects triggered by physics transitions. Ollie clicks follow successful physics pops, including rail exits, so grade changes and suspension contact chatter stay quiet.

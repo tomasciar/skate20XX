@@ -48,7 +48,7 @@ test('animated feet keep connected legs, return for the catch and never repeat w
         const end=shin.localToWorld(new THREE.Vector3(0,0.5,0));
         assert.ok(end.distanceTo(ankle)<0.001,`${trick.name}: shin separated from the kicked foot`);
         assert.ok(Math.abs(shin.scale.y-RIDER.lowerLeg)<0.00001,'leg bone length changed');
-        if(tricks.state.t>=trick.duration) {
+        if(!tricks.state.active) {
           assert.ok(foot(side).position.distanceTo(new THREE.Vector3(side*0.255,FOOT_Y,0))<1e-8);
           assert.ok(foot(side).quaternion.angleTo(new THREE.Quaternion())<1e-8);
         }

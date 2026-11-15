@@ -138,8 +138,9 @@ test('board flick tricks and held grabs remain independent of whole-body flips',
           assert.ok(Math.abs(board.worldToLocal(sole).y-BOARD.gripY)<0.00001);
         }
       } else {
-        assert.equal(f.tricks.state.active?.id,'kickflip');
-        assert.ok(f.tricks.state.boardSpin.z<0);
+        if(f.tricks.state.active) {
+          assert.equal(f.tricks.state.active.id,'kickflip');assert.ok(f.tricks.state.boardSpin.z<0);
+        } else assert.deepEqual(f.tricks.state.combo,['Kickflip']);
       }
     }
     assert.ok(inverted);

@@ -20,6 +20,9 @@ export type PlayerIntent = {
   flickDX: number;
   flickDY: number;
   flickReady: boolean;
+  /** Trick direction still held (Shift + arrows); keeps the current board trick spinning. */
+  flickHoldDX?: number;
+  flickHoldDY?: number;
 };
 
 export function createController() {
@@ -74,6 +77,8 @@ export function createController() {
       flickDX: input.flickDX,
       flickDY: input.flickDY,
       flickReady: input.flickReady,
+      flickHoldDX: input.trickModifier ? input.arrowDX ?? 0 : 0,
+      flickHoldDY: input.trickModifier ? input.arrowDY ?? 0 : 0,
     };
 
     // consume one-shot reset

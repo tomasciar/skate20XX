@@ -158,7 +158,7 @@ async function main() {
       speed: player.speed, grounded: player.grounded, grinding: player.grind.active,
       verticalSpeed: player.velocity.dot(ramp.surfaceNormal), braking: player.slide.active && player.slide.amount > 0.12, steer: lastSteer,
       pumpPhase: player.pump.phase, pumpStarts: player.pump.starts,
-      trick: tricks.state.active?.id ?? null, bail: player.crashed || tricks.state.bail, resetCount: player.resetCount,
+      trick: tricks.state.active ? `${tricks.state.active.id}:${tricks.state.started}` : null, bail: player.crashed || tricks.state.bail, resetCount: player.resetCount,
       ollieCount: player.ollieCount,
     };
   }
@@ -230,6 +230,7 @@ async function main() {
       if (intent.flickReady && !player.grounded && !player.grind.active && !player.crashed) {
         tricks.tryFlick(intent.flickDX, intent.flickDY, true);
       }
+      tricks.holdFlick(intent.flickHoldDX ?? 0, intent.flickHoldDY ?? 0);
 
       if (intent.reset) { tricks.reset(); controller.reset(); }
       player.update(fixedDt, intent, tricks.state);
