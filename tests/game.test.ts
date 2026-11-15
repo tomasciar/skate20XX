@@ -57,7 +57,7 @@ test('two minutes of downhill physics stream continuously with bounded scene and
   // At the end of a chunk, generated terrain still extends beyond the visible horizon.
   assert.ok(RAMP.chunksAhead * RAMP.chunkLength > fog.far + 20);
   const tricks = createTrickSystem();
-  const idle = { push: 0, steer: 0, crouch: false, crouchHold: 0, wantOllie: false, olliePower: 0, reset: false, flickDX: 0, flickDY: 0, flickReady: false };
+  const idle = { grabModifier: false, grabDX: 0, grabDY: 0, push: 0, steer: 0, crouch: false, crouchHold: 0, wantOllie: false, olliePower: 0, reset: false, flickDX: 0, flickDY: 0, flickReady: false };
   const dt = 1 / 120;
   world.timestep = dt;
   let previous = 0, jumps = 0, maxColliders = 0, contactChecks = 0;

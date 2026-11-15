@@ -1,3 +1,5 @@
+import { classifyGrab } from "./grabs.ts";
+import type { GrabDef } from "./grabs.ts";
 export type TrickId =
   | "kickflip"
   | "heelflip"
@@ -26,6 +28,8 @@ const TRICKS: TrickDef[] = [
 ];
 
 export type TrickState = {
+  grab: GrabDef | null;
+  grabTime: number;
   active: TrickDef | null;
   t: number;
   boardSpin: { x: number; y: number; z: number };
@@ -37,6 +41,8 @@ export type TrickState = {
 
 export function createTrickSystem() {
   const state: TrickState = {
+    grab: null,
+    grabTime: 0,
     active: null,
     t: 0,
     boardSpin: { x: 0, y: 0, z: 0 },
@@ -70,7 +76,7 @@ export function createTrickSystem() {
   }
 
   function tryFlick(dx: number, dy: number, airborne: boolean) {
-    if (!airborne || state.active) return;
+    if (!airborne || state.active || state.grab) return;
     const trick = classifyFlick(dx, dy);
     if (!trick) return;
     state.active = trick;
@@ -81,7 +87,18 @@ export function createTrickSystem() {
     state.bail = false;
   }
 
+  function setGrab(dx: number, dy: number, enabled: boolean, airborne: boolean) {
+    const selected = enabled && airborne && !state.active ? classifyGrab(dx, dy) : null;
+    if (selected?.id !== state.grab?.id) state.grabTime = 0;
+    state.grab = selected;
+    if (selected) { state.message = selected.name; state.messageAge = 0; }
+  }
+
   function update(dt: number, grounded: boolean, _uprightDot: number, _speed: number) {
+    if (state.grab) {
+      if (grounded) { state.lastLanded = state.grab.name; state.grab = null; }
+      else { state.grabTime += dt; state.message = state.grab.name; state.messageAge = 0; }
+    }
     if (state.message) {
       state.messageAge += dt;
       if (state.messageAge > 1.4) {
@@ -128,9 +145,10 @@ export function createTrickSystem() {
   }
 
   function reset() {
+    state.grab = null; state.grabTime = 0;
     state.active = null; state.t = 0; state.bail = false;
     state.boardSpin = { x: 0, y: 0, z: 0 };
     state.message = state.lastLanded = null; state.messageAge = 0;
   }
-  return { state, tryFlick, update, clearBail, reset };
+  return { state, setGrab, tryFlick, update, clearBail, reset };
 }

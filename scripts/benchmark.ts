@@ -9,7 +9,7 @@ await RAPIER.init();
 const world = new RAPIER.World({ x: 0, y: -18, z: 0 }); world.timestep = 1 / 120;
 const scene = new THREE.Scene(), ramp = createRamp(scene, world), player = createBoardPlayer(scene, world, ramp);
 const tricks = createTrickSystem();
-const intent = { push: 1, steer: 0, crouch: false, crouchHold: 0, wantOllie: false, olliePower: 0, reset: false, flickDX: 0, flickDY: 0, flickReady: false };
+const intent = { grabModifier: false, grabDX: 0, grabDY: 0, push: 1, steer: 0, crouch: false, crouchHold: 0, wantOllie: false, olliePower: 0, reset: false, flickDX: 0, flickDY: 0, flickReady: false };
 const split = process.argv.includes('--split-render');
 const samples: number[] = [], streams: number[] = [], preparations: number[] = [];
 const prepare = process.argv.includes("--prepare");

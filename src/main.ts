@@ -61,6 +61,7 @@ async function main() {
 
   // Let the suspension settle on the asphalt before the first frame
   const idle = {
+    grabModifier: false, grabDX: 0, grabDY: 0,
     push: 0,
     steer: 0,
     crouch: false,
@@ -166,6 +167,7 @@ async function main() {
       const intent = controller.update(input.state, fixedDt);
       lastPush = intent.push; lastSteer = intent.steer;
 
+      tricks.setGrab(intent.grabDX, intent.grabDY, intent.grabModifier, !player.grounded && !player.grind.active);
       if (intent.flickReady && !player.grounded && !player.grind.active) {
         tricks.tryFlick(intent.flickDX, intent.flickDY, true);
       }

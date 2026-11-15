@@ -21,6 +21,7 @@ Open the local URL printed by Vite. Click or press Enter to start.
 | **A / D** | Carve on the road; freely rotate in the air (180s / 360s); balance on rails |
 | **Space** | Hold to crouch, release to ollie |
 | **Arrow keys** (air) | Up shove-it, down 180, left kickflip, right heelflip; diagonals varial / hardflip |
+| **Shift + arrows** (air) | Hold up nose grab, down tail grab, left melon, right indy; release to let go |
 | **R** | Restart the run |
 | **Esc** | Pause / resume |
 | **M** | Mute / unmute sound |
@@ -42,6 +43,8 @@ Generation rules live in `src/world/generation.ts`; scenery in `src/world/scener
 Speed gains taper toward a 199 mph ceiling: on a straight downhill run, the rider reaches 180 mph in roughly 30 seconds. W starts a push only at or below 20 mph; a stroke already underway finishes if speed crosses the cutoff, then no new stroke starts until speed drops again. Downhill acceleration continues without pushing above 20 mph. S brakes, and the physical velocity is capped even in the air. Physics runs at 120 Hz for the faster travel.
 
 Ollie onto a rail with the board aligned along it to automatically catch a 50–50 grind. Keep the balance marker centered using A/D; holding too far to one side slips off. Release Space to ollie out, or ride off the end. S brakes on rails too. Grinds preserve momentum and include gravity and sliding friction; they work facing either direction. Longer 48 m rail sections appear every fourth chunk, with shorter rails mixed into other encounters.
+
+Shift changes only the arrow trick controls: movement, gravity, and A/D steering continue normally. Hold Shift with an arrow in the air to tuck the board and hold a grab; release either key to let go. Grabs cannot start during a flip or grind, and landing clears the grab.
 
 A/D rotations are unrestricted. An airborne 180 can land switch while retaining downhill momentum. The camera stays pointed downhill throughout.
 
@@ -66,4 +69,4 @@ npm test
 npm run build
 ```
 
-Tests cover 10,000 generated layouts, input consumption, and two minutes of actual Rapier simulation with repeated jumps, a wedge launch, braking, high-speed acceleration, 180s, switch landings, rail catches/exits, and bounded streamed geometry/colliders. Additional tests cover grind balance, rail endpoints, the speed curve, joint geometry, planted soles, smooth pose transitions, the push cutoff and complete stroke behavior, coasting sway and load response, visibility/streaming coverage, interpolation across origin shifts, adaptive resolution, shorter leg proportions, and wheel contact gaps on asphalt and ramps (within 2 mm). Audio tests cover event timing, repeated-state suppression, speed mixing, synthesized buffers, smooth loop boundaries and frequency balance, mute/volume persistence, and pause/resume cleanup using a simulated audio context. Tests run without a browser; rendering and the final sound mix still need browser playtesting.
+Tests cover 10,000 generated layouts, input consumption, and two minutes of actual Rapier simulation with repeated jumps, a wedge launch, braking, high-speed acceleration, 180s, switch landings, rail catches/exits, and bounded streamed geometry/colliders. Additional tests cover grind balance, rail endpoints, the speed curve, joint geometry, planted soles, smooth pose transitions, the push cutoff and complete stroke behavior, coasting sway and load response, visibility/streaming coverage, interpolation across origin shifts, adaptive resolution, shorter leg proportions, and wheel contact gaps on asphalt and ramps (within 2 mm). Grab tests cover Shift routing, release/landing behavior, flip exclusion, and hand-to-board contact. Audio tests cover event timing, repeated-state suppression, speed mixing, synthesized buffers, smooth loop boundaries and frequency balance, mute/volume persistence, and pause/resume cleanup using a simulated audio context. Tests run without a browser; rendering and the final sound mix still need browser playtesting.

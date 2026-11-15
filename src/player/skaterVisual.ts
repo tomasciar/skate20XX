@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { BOARD, FOOT_Y, RIDER } from "./dimensions.ts";
+import type { GrabDef } from "./grabs.ts";
 import type { PumpState } from "./pump.ts";
 import { createRiderMotion, solveArm, solveLimb } from "./pose.ts";
 
@@ -10,6 +11,7 @@ export type SkaterVisual = {
   wheels: THREE.Object3D[];
   resetPose: () => void;
   setPose: (opts: {
+    grab?: GrabDef | null;
     pump?: PumpState;
     dt: number;
     speed: number;
@@ -125,9 +127,19 @@ export function createSkaterVisual(): SkaterVisual {
     m.quaternion.setFromUnitVectors(axis, direction.normalize());
   }
   const motion = createRiderMotion();
+  let grabBlend = 0;
+  let heldGrab: GrabDef | null = null;
   function setPose(opts: Parameters<SkaterVisual['setPose']>[0]) {
     const m = motion.update(opts.dt, opts.crouch, opts.lean, opts.airborne && !opts.grinding, opts.push, opts.verticalSpeed, opts.speed, opts.pump, opts.grinding);
-    const c = THREE.MathUtils.clamp(m.crouch + m.air * 0.25 + m.kneeLoad, 0, 1);
+    const selectedGrab = opts.airborne && !opts.grinding && !opts.bail ? opts.grab : null;
+    // Blend out before changing hands or grip targets, avoiding a hand snapping across the board.
+    if (selectedGrab && (!heldGrab || heldGrab.id === selectedGrab.id || grabBlend < 0.02)) heldGrab = selectedGrab;
+    const grabbing = !!selectedGrab && heldGrab?.id === selectedGrab.id;
+    grabBlend = THREE.MathUtils.damp(grabBlend, grabbing ? 1 : 0, 14, opts.dt);
+    if (!opts.airborne || opts.grinding || opts.bail) grabBlend = 0;
+    if (!selectedGrab && grabBlend < 0.002) { heldGrab = null; grabBlend = 0; }
+    const c = THREE.MathUtils.clamp(m.crouch + m.air * 0.25 + m.kneeLoad + grabBlend, 0, 1);
+    board.position.y = grabBlend * 0.28;
     const rhythm = Math.sin(m.time * 5.2);
     const breathing = Math.sin(m.time * 2.4) * 0.003;
     const roadMotion = Math.sin(opts.wheelRoll * 0.025) * Math.min(opts.speed / 80, 1) * 0.003 * (1 - m.air);
@@ -135,13 +147,13 @@ export function createSkaterVisual(): SkaterVisual {
     for (const w of wheels) w.rotation.x = opts.wheelRoll;
     // Wheel contacts stay fixed. Weight shifts belong to the rider, not a rolling wheel group.
     board.rotation.set(opts.boardSpin.x, opts.boardSpin.y, opts.boardSpin.z);
-    const hipY = RIDER.hipHeight - c * 0.22 - m.landing - m.push * (0.035 + Math.abs(m.lean) * 0.025) + breathing + roadMotion;
+    const hipY = RIDER.hipHeight - c * 0.22 - grabBlend * 0.04 - m.landing - m.push * (0.035 + Math.abs(m.lean) * 0.025) + breathing + roadMotion;
     hips.position.set(pushSwing * 0.012 + m.sway * 0.5, hipY, 0.025 + c * 0.1 - m.lean * 0.065 + m.sway);
-    torso.rotation.set(-0.08 - c * 0.25 - m.brake * 0.1, -0.15 + pushSwing * 0.07 + m.sway * 2, m.lean * 0.13 - m.sway * 1.2);
+    torso.rotation.set(-0.08 - c * 0.25 - m.brake * 0.1 - grabBlend * 0.27, -0.15 + pushSwing * 0.07 + m.sway * 2, m.lean * 0.13 - m.sway * 1.2);
     head.rotation.set(c * 0.1, -Math.PI / 2 + 0.25 - m.lean * 0.12, -m.lean * 0.08);
     for (const l of legs) {
       // Only the pushing foot leaves the grip; all other weight shifts preserve the stance.
-      l.foot.position.set(l.side * 0.255, FOOT_Y, 0);
+      l.foot.position.set(l.side * 0.255, FOOT_Y + board.position.y, 0);
       if (l.side === 1) {
         const phase = m.pushPhase;
         const lift = Math.max(0, Math.sin(phase));
@@ -162,6 +174,12 @@ export function createSkaterVisual(): SkaterVisual {
       const hand = new THREE.Vector3(a.side * spread + m.lean * 0.04 - m.sway,
         0.03 + c * 0.14 + m.air * 0.12 + a.side * pushSwing * 0.035,
         -0.13 - c * 0.16 + a.side * pushSwing * 0.11 + rhythm * 0.009);
+      if (heldGrab && a.side === heldGrab.hand) {
+        const grip = new THREE.Vector3(heldGrab.grip.x, heldGrab.grip.y + board.position.y, heldGrab.grip.z);
+        // Convert the fixed board grip into the leaning torso's coordinate system.
+        grip.sub(hips.position).applyQuaternion(torso.quaternion.clone().invert());
+        hand.lerp(grip, grabBlend);
+      }
       const solved = solveArm(shoulder, hand, a.side);
       segment(a.upper, shoulder, solved.joint);
       segment(a.sleeve, shoulder, shoulder.clone().lerp(solved.joint, 0.55));
@@ -172,7 +190,7 @@ export function createSkaterVisual(): SkaterVisual {
     // Keep the feet in board space; leaning the whole skeleton used to lift one sole.
     rider.rotation.set(opts.bail ? 1.1 : 0, Math.PI / 2, opts.bail ? 0.8 : 0);
   }
-  return { root, board, wheels, setPose, resetPose: motion.reset };
+  return { root, board, wheels, setPose, resetPose() { motion.reset(); grabBlend = 0; heldGrab = null; board.position.y = 0; } };
 }
 
 /** Keep animated joints separate; combine only rigid details within the deck, head, and shoes. */

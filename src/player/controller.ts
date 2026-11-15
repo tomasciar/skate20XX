@@ -2,6 +2,9 @@ import type { InputState } from "../input.ts";
 
 export type PlayerIntent = {
   /** 1 push, -1 brake / roll back */
+  grabModifier: boolean;
+  grabDX: number;
+  grabDY: number;
   push: number;
   steer: number;
   crouch: boolean;
@@ -40,6 +43,9 @@ export function createController() {
     const push = (input.push ? 1 : 0) - (input.brake ? 1 : 0);
 
     const intent: PlayerIntent = {
+      grabModifier: input.grabModifier,
+      grabDX: input.grabDX,
+      grabDY: input.grabDY,
       push,
       steer,
       crouch: input.crouch,
@@ -49,7 +55,7 @@ export function createController() {
       reset: input.reset,
       flickDX: input.flickDX,
       flickDY: input.flickDY,
-      flickReady: input.flickReady,
+      flickReady: input.flickReady && !input.grabModifier,
     };
 
     // consume one-shot reset
