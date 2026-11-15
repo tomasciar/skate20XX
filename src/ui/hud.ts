@@ -39,6 +39,11 @@ export function createHud() {
       document.getElementById("grind-balance")!.hidden = true;
     }
     if (grind?.active) return;
+    if (tricks.ground) {
+      trickEl.textContent=tricks.ground.manual
+        ? `${tricks.ground.name} · ${Math.floor(tricks.groundMeters)} m` : tricks.ground.name;
+      trickEl.classList.add('show');trickEl.classList.remove('bail');return;
+    }
     if (tricks.message) {
       trickEl.textContent = tricks.message;
       trickEl.classList.add("show");

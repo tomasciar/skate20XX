@@ -6,6 +6,8 @@ export type PlayerIntent = {
   grabDX: number;
   grabDY: number;
   grabPress?: number;
+  groundDX?: number;
+  groundDY?: number;
   toggleAirFlip?: boolean;
   push: number;
   steer: number;
@@ -57,6 +59,8 @@ export function createController() {
       grabDX: input.grabDX,
       grabDY: input.grabDY,
       grabPress: input.grabPress,
+      groundDX: input.grabModifier ? 0 : input.arrowDX ?? 0,
+      groundDY: input.grabModifier ? 0 : input.arrowDY ?? 0,
       toggleAirFlip,
       push,
       steer,

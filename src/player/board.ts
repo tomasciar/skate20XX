@@ -241,6 +241,7 @@ export function createBoardPlayer(
     boardCollider.setMassProperties(MASS, {x:0,y:0,z:0}, INERTIA, {x:0,y:0,z:0,w:1});
     boardCollider.setFriction(0.05); boardCollider.setCollisionGroups(0xffffffff);
     if (liveTricks) {
+      liveTricks.ground = null; liveTricks.groundTime = liveTricks.groundMeters = 0;
       liveTricks.active = null; liveTricks.grab = null; liveTricks.grabTime = liveTricks.t = 0;
       liveTricks.boardSpin = {x:0,y:0,z:0}; liveTricks.bail = false;
       liveTricks.message = liveTricks.lastLanded = null; liveTricks.messageAge = 0;
@@ -293,6 +294,7 @@ export function createBoardPlayer(
       headForward: ramp.directionAt?.(at,courseForward) ?? ramp.forward,
       headFrame: air.state.engaged && !grounded ? headFrame.copy(renderQuat).multiply(renderBaseQuat.invert()) : undefined,
       grab: liveTricks?.grab ?? null,
+      groundTrick: liveTricks?.ground ?? null,
       trick: liveTricks?.active ?? null,
       trickTime: liveTricks?.t ?? 0,
       pump: pump.state,
@@ -325,6 +327,7 @@ export function createBoardPlayer(
     ollieGrace = pendingOllie = 0; nearGround = false;
     air.reset();airOffset.set(0,0,0);previousAirOffset.set(0,0,0);
     tricks.active = null; tricks.grab = null; tricks.grabTime = 0;
+    tricks.ground = null; tricks.groundTime = tricks.groundMeters = 0;
     tricks.boardSpin = {x:0,y:0,z:0}; tricks.bail = true; tricks.message = "Bail!"; tricks.messageAge = 0;
     boardCollider.setMassProperties(3, {x:0,y:0,z:0}, {x:0.18,y:0.18,z:0.06}, {x:0,y:0,z:0,w:1});
     boardCollider.setFriction(0.55); boardCollider.setCollisionGroups(0x00040001);
@@ -400,7 +403,7 @@ export function createBoardPlayer(
     const courseYaw=Math.atan2(-courseForward.x,courseForward.dot(ramp.forward));
     air.update(dt,intent.toggleAirFlip ?? false,intent.push,intent.steer,!grounded && !grind.state.active,yaw-courseYaw);
     aeroTuck=THREE.MathUtils.damp(aeroTuck,THREE.MathUtils.clamp(intent.crouchHold,0,1),12,dt);
-    pump.update(dt, intent.push > 0, speed, grounded && !grind.state.active && !intent.crouch && !intent.wantOllie && !tricks.bail);
+    pump.update(dt, intent.push > 0, speed, grounded && !grind.state.active && !tricks.ground && !intent.crouch && !intent.wantOllie && !tricks.bail);
     ollieCooldown = Math.max(0, ollieCooldown - dt);
     leaveGround = Math.max(0, leaveGround - dt);
     ollieGrace = Math.max(0, ollieGrace - dt);

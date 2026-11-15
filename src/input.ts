@@ -3,6 +3,9 @@ export type InputState = {
   grabDX: number;
   grabDY: number;
   grabPress: number;
+  /** Held trick stick, including when Shift is not pressed. */
+  arrowDX?: number;
+  arrowDY?: number;
   push: boolean;
   brake: boolean;
   left: boolean;
@@ -28,6 +31,8 @@ export function createInput(): {
     grabDX: 0,
     grabDY: 0,
     grabPress: 0,
+    arrowDX: 0,
+    arrowDY: 0,
     push: false,
     brake: false,
     left: false,
@@ -135,7 +140,8 @@ export function createInput(): {
 
   /** Arrow keys are the trick stick. Held pairs count as diagonals. */
   function queueTrick() {
-    if (state.grabModifier) { state.grabPress++; return; }
+    state.grabPress++;
+    if (state.grabModifier) return;
     const x = (arrows.right ? 1 : 0) - (arrows.left ? 1 : 0);
     const y = (arrows.down ? 1 : 0) - (arrows.up ? 1 : 0);
     if (x === 0 && y === 0) return;
@@ -146,8 +152,10 @@ export function createInput(): {
   window.addEventListener("keyup", onKeyUp);
 
   function beginFrame() {
-    state.grabDX = state.grabModifier ? (arrows.right ? 1 : 0) - (arrows.left ? 1 : 0) : 0;
-    state.grabDY = state.grabModifier ? (arrows.down ? 1 : 0) - (arrows.up ? 1 : 0) : 0;
+    state.arrowDX = (arrows.right ? 1 : 0) - (arrows.left ? 1 : 0);
+    state.arrowDY = (arrows.down ? 1 : 0) - (arrows.up ? 1 : 0);
+    state.grabDX = state.grabModifier ? state.arrowDX : 0;
+    state.grabDY = state.grabModifier ? state.arrowDY : 0;
     state.crouchPressed ||= state.crouch && !crouchWasDown;
     state.crouchReleased ||= !state.crouch && crouchWasDown;
     crouchWasDown = state.crouch;
@@ -168,6 +176,7 @@ export function createInput(): {
   function clear() {
     consume();
     shifts.clear(); state.grabModifier = false; state.grabDX = state.grabDY = 0;
+    state.arrowDX = state.arrowDY = 0;
     state.push = state.brake = state.left = state.right = state.crouch = false;
     arrows.up = arrows.down = arrows.left = arrows.right = false;
     crouchWasDown = false;

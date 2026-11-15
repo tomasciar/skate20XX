@@ -1,4 +1,4 @@
-import { classifyGrab } from "./grabs.ts";
+import { classifyGrab, GRABS } from "./grabs.ts";
 import type { GrabDef, GrabFacing } from "./grabs.ts";
 export type TrickId =
   | "kickflip"
@@ -27,7 +27,14 @@ const TRICKS: TrickDef[] = [
   { id: "hardflip", name: "Hardflip", spinX: 0, spinY: -Math.PI, spinZ: -Math.PI * 2, duration: 0.5 },
 ];
 
+export type GroundTrick = { name: string; manual: number; grab: GrabDef | null };
+const MANUAL: GroundTrick = {name:'Manual',manual:1,grab:null};
+const NOSE_MANUAL: GroundTrick = {name:'Nose Manual',manual:-1,grab:null};
+
 export type TrickState = {
+  ground: GroundTrick | null;
+  groundTime: number;
+  groundMeters: number;
   grab: GrabDef | null;
   grabTime: number;
   active: TrickDef | null;
@@ -41,7 +48,11 @@ export type TrickState = {
 
 export function createTrickSystem() {
   let grabDX=0, grabDY=0, grabPress: number | undefined;
+  let groundDX=0, groundDY=0, groundPress: number | undefined;
   const state: TrickState = {
+    ground: null,
+    groundTime: 0,
+    groundMeters: 0,
     grab: null,
     grabTime: 0,
     active: null,
@@ -102,7 +113,34 @@ export function createTrickSystem() {
     if (selected) { state.message = selected.name; state.messageAge = 0; }
   }
 
-  function update(dt: number, grounded: boolean, _uprightDot: number, _speed: number) {
+  function clearGround() {
+    state.ground = null; state.groundTime = state.groundMeters = 0;
+    groundDX=groundDY=0;groundPress=undefined;
+  }
+
+  function setGround(dx: number, dy: number, allowed: boolean, facing?: GrabFacing, press?: number) {
+    if (!allowed || state.active || state.bail || (!dx && !dy)) { clearGround(); return; }
+    if (state.ground && dx===groundDX && dy===groundDY && press===groundPress) return;
+    if (dy) state.ground = dy>0 ? MANUAL : NOSE_MANUAL;
+    else {
+      const direction=classifyGrab(dx,0,facing)?.direction;
+      // Riding grabs reach the deck in place rather than pulling it into an aerial tweak.
+      const grab=direction==='back' ? GRABS.melon : direction==='nose' ? GRABS.nosegrab
+        : direction==='tail' ? GRABS.tailgrab : GRABS.indy;
+      state.ground={name:grab.name,manual:0,grab};
+    }
+    groundDX=dx;groundDY=dy;groundPress=press;
+    state.groundTime=state.groundMeters=0;
+  }
+
+  function update(dt: number, grounded: boolean, _uprightDot: number, speed: number) {
+    if (state.ground) {
+      if (!grounded || state.bail) clearGround();
+      else {
+        state.groundTime += dt; state.groundMeters += Math.max(0,speed)*dt;
+        state.message=state.ground.name;state.messageAge=0;
+      }
+    }
     if (state.grab) {
       if (grounded) { state.lastLanded = state.grab.name; state.grab = null; }
       else { state.grabTime += dt; state.message = state.grab.name; state.messageAge = 0; }
@@ -153,11 +191,12 @@ export function createTrickSystem() {
   }
 
   function reset() {
+    clearGround();
     grabDX=grabDY=0;grabPress=undefined;
     state.grab = null; state.grabTime = 0;
     state.active = null; state.t = 0; state.bail = false;
     state.boardSpin = { x: 0, y: 0, z: 0 };
     state.message = state.lastLanded = null; state.messageAge = 0;
   }
-  return { state, setGrab, tryFlick, update, clearBail, reset };
+  return { state, setGrab, setGround, tryFlick, update, clearBail, reset };
 }

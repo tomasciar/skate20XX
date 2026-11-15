@@ -36,7 +36,7 @@ async function fixture(pitch=0) {
     player.body.setTranslation(normal.clone().multiplyScalar(0.16+BOARD.wheelRadius+0.02+meters),true);
     player.body.setLinvel({x:0,y:0,z:0},true);
   };
-  return {world,player,normal,update,tick,gap};
+  return {world,player,tricks,normal,update,tick,gap};
 }
 
 test('Space charges and pops across a small wheel gap, including uphill, without faking contact',async()=>{
@@ -109,4 +109,32 @@ test('tolerance cannot provide a second midair ollie or block airborne flip cont
     f.player.reset(new THREE.Vector3(0,0.02,0));f.tick();
     assert.equal(f.player.ollieCount,0,'reset must discard any buffered request');
   } finally {f.world.free();}
+});
+
+test('Space charges and releases an ollie from either manual, including uphill, without pushing',async()=>{
+  for(const pitch of [0,0.08]) for(const direction of [-1,1]) {
+    const f=await fixture(pitch);
+    try {
+      f.tricks.setGround(0,direction,true);
+      for(let i=0;i<40;i++)f.tick({...idle,push:1});
+      assert.equal(f.player.pump.active,false,'both feet must stay planted during a manual');
+      assert.equal(f.player.ollieCount,0);assert.equal(f.player.canOllie,true);
+      const controller=createController();
+      const input:InputState={grabModifier:false,grabDX:0,grabDY:0,grabPress:0,arrowDY:direction,push:false,brake:false,
+        left:false,right:false,crouch:true,crouchPressed:true,crouchReleased:false,reset:false,
+        flickDX:0,flickDY:0,flickReady:false};
+      for(let i=0;i<30;i++) {
+        const intent=controller.update(input,dt,!f.player.grounded,f.player.canOllie);
+        f.tick(intent);input.crouchPressed=false;
+        assert.equal(f.player.grounded,true);
+      }
+      input.crouch=false;input.crouchReleased=true;
+      const intent=controller.update(input,dt,!f.player.grounded,f.player.canOllie);
+      assert.equal(intent.wantOllie,true);f.tick(intent);
+      f.tricks.update(dt,f.player.grounded,1,f.player.speed);
+      assert.equal(f.player.ollieCount,1);assert.equal(f.player.grounded,false);
+      assert.ok(f.player.velocity.dot(f.normal)>5);
+      assert.equal(f.tricks.state.ground,null,'manual must end on takeoff');
+    } finally {f.world.free();}
+  }
 });

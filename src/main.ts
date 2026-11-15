@@ -212,8 +212,11 @@ async function main() {
         player.canOllie || player.grind.active);
       lastPush = player.aerial.active ? 0 : intent.push; lastSteer = player.aerial.active ? 0 : intent.steer;
 
+      const grabFacing=screenGrabFacing(player.forward,ramp.directionAt?.(player.position,courseDirection) ?? ramp.forward,ramp.surfaceNormal);
+      tricks.setGround(intent.groundDX ?? 0,intent.groundDY ?? 0,player.grounded && !player.grind.active && !player.crashed,
+        grabFacing,intent.grabPress);
       tricks.setGrab(intent.grabDX, intent.grabDY, intent.grabModifier, !player.grounded && !player.grind.active && !player.crashed,
-        screenGrabFacing(player.forward,ramp.directionAt?.(player.position,courseDirection) ?? ramp.forward,ramp.surfaceNormal),intent.grabPress);
+        grabFacing,intent.grabPress);
       if (intent.flickReady && !player.grounded && !player.grind.active && !player.crashed) {
         tricks.tryFlick(intent.flickDX, intent.flickDY, true);
       }
