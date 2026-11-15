@@ -102,7 +102,7 @@ async function main() {
   let hudElapsed = 0;
   const alongCourse = new THREE.Vector3();
   // Sparks and dust follow what the board is doing; rates are per second so they look the same at any refresh rate.
-  const effect = { owed: 0, wasAirborne: false, fallSpeed: 0, at: new THREE.Vector3(), motion: new THREE.Vector3() };
+  const effect = { owed: 0, wasAirborne: false, fallSpeed: 0, at: new THREE.Vector3(), behind: new THREE.Vector3(), motion: new THREE.Vector3() };
   function emitEffects(dt: number) {
     const airborne = !player.grounded && !player.grind.active;
     if (player.crashed) { effect.wasAirborne = false; effect.owed = 0; return; }
@@ -125,13 +125,15 @@ async function main() {
     const carving = player.grounded && lastSteer !== 0 && player.speed > 16;
     const rate = grinding ? 110 : braking ? 70 : carving ? 40 : 0;
     if (!rate) { effect.owed = 0; return; }
+    // Dust is kicked up by the trailing wheels, so it starts just past the tail in the direction of travel.
+    effect.behind.copy(effect.at).addScaledVector(player.velocity, -1.1 / Math.max(player.speed, 0.001));
     for (effect.owed += rate * dt; effect.owed >= 1; effect.owed--) {
       if (grinding) {
         effect.motion.copy(player.velocity).multiplyScalar(0.45 + Math.random() * 0.3).addScaledVector(ramp.surfaceNormal, 0.8 + Math.random() * 2.2);
         particles.emit(SPARK, effect.at, effect.motion, 3.2);
       } else {
         effect.motion.copy(player.velocity).multiplyScalar(braking ? 0.3 : 0.5).addScaledVector(ramp.surfaceNormal, 0.4);
-        particles.emit(DUST, effect.at, effect.motion, 1.1, braking ? 1 : 0.8);
+        particles.emit(DUST, effect.behind, effect.motion, 1.1, braking ? 1 : 0.8);
       }
     }
   }
