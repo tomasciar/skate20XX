@@ -98,7 +98,7 @@ async function main() {
   let running = false;
   let last = performance.now();
   let acc = 0;
-  let lastPush = 0, lastSteer = 0;
+  let lastSteer = 0;
   let audioResetCount = player.resetCount;
   let pausedSceneDirty = true;
   let hudElapsed = 0;
@@ -123,7 +123,7 @@ async function main() {
     if (airborne) effect.fallSpeed = vertical;
     effect.wasAirborne = airborne;
     const grinding = player.grind.active && player.speed > 2;
-    const braking = player.grounded && lastPush < 0 && player.speed > 3;
+    const braking = player.grounded && player.slide.active && player.slide.amount > 0.12 && player.speed > 3;
     const carving = player.grounded && lastSteer !== 0 && player.speed > 16;
     const rate = grinding ? 110 : braking ? 70 : carving ? 40 : 0;
     if (!rate) { effect.owed = 0; return; }
@@ -146,7 +146,7 @@ async function main() {
   function audioState(): RideAudioState {
     return {
       speed: player.speed, grounded: player.grounded, grinding: player.grind.active,
-      verticalSpeed: player.velocity.dot(ramp.surfaceNormal), braking: lastPush < 0, steer: lastSteer,
+      verticalSpeed: player.velocity.dot(ramp.surfaceNormal), braking: player.slide.active && player.slide.amount > 0.12, steer: lastSteer,
       pumpPhase: player.pump.phase, pumpStarts: player.pump.starts,
       trick: tricks.state.active?.id ?? null, bail: player.crashed || tricks.state.bail, resetCount: player.resetCount,
       ollieCount: player.ollieCount,
@@ -172,7 +172,7 @@ async function main() {
 
   function pause() {
     running = false; acc = 0; pausedSceneDirty = true;
-    lastPush = lastSteer = 0;
+    lastSteer = 0;
     audio.setRunning(false);
     input.clear(); controller.reset(); hud.showOverlay();
   }
@@ -210,10 +210,10 @@ async function main() {
     while (acc >= fixedDt) {
       const intent = controller.update(input.state, fixedDt, !player.grounded && !player.grind.active && !player.crashed,
         player.canOllie || player.grind.active);
-      lastPush = player.aerial.active ? 0 : intent.push; lastSteer = player.aerial.active ? 0 : intent.steer;
+      lastSteer = player.aerial.active ? 0 : intent.steer;
 
       const grabFacing=screenGrabFacing(player.forward,ramp.directionAt?.(player.position,courseDirection) ?? ramp.forward,ramp.surfaceNormal);
-      tricks.setGround(intent.groundDX ?? 0,intent.groundDY ?? 0,player.grounded && !player.grind.active && !player.crashed,
+      tricks.setGround(intent.groundDX ?? 0,intent.groundDY ?? 0,player.grounded && !player.grind.active && !player.crashed && !player.slide.active && intent.push>=0,
         grabFacing,intent.grabPress);
       tricks.setGrab(intent.grabDX, intent.grabDY, intent.grabModifier, !player.grounded && !player.grind.active && !player.crashed,
         grabFacing,intent.grabPress);

@@ -26,6 +26,8 @@ export type SkaterVisual = {
   setPose: (opts: {
     grab?: GrabDef | null;
     groundTrick?: GroundTrick | null;
+    /** Signed load while skidding sideways along the road. */
+    slide?: number;
     headForward?: THREE.Vector3;
     /** World rotation of a whole-body flip; the head keeps its course aim relative to it. */
     headFrame?: THREE.Quaternion;
@@ -164,6 +166,7 @@ export function createSkaterVisual(): SkaterVisual {
   let rearHeadHeld=false;
   const kickRotation=new THREE.Quaternion(),kickEuler=new THREE.Euler();
   function setPose(opts: Parameters<SkaterVisual['setPose']>[0]) {
+    const slide=opts.airborne || opts.grinding || opts.bail ? 0 : THREE.MathUtils.clamp(opts.slide ?? 0,-1,1);
     const m = motion.update(opts.dt, opts.crouch, opts.lean, opts.airborne && !opts.grinding, opts.push, opts.verticalSpeed, opts.speed, opts.pump, opts.grinding);
     const riding = !opts.airborne && !opts.grinding && !opts.bail;
     const groundGrab = riding ? opts.groundTrick?.grab : null;
@@ -189,7 +192,7 @@ export function createSkaterVisual(): SkaterVisual {
     deck.position.copy(gripPivot).sub(gripPivot.clone().applyEuler(deck.rotation));
     carveTilt.setFromAxisAngle(riderX, tilt);
     const tweak = heldGroundGrab ? RIDING_GRAB : heldGrab?.tweak ?? TUCK;
-    const c = THREE.MathUtils.lerp(THREE.MathUtils.clamp(m.crouch+m.air*0.25+m.kneeLoad+Math.abs(manual)*0.25,0,1),tweak.crouch,grabBlend);
+    const c = THREE.MathUtils.lerp(THREE.MathUtils.clamp(m.crouch+m.air*0.25+m.kneeLoad+Math.abs(manual)*0.25+Math.abs(slide)*0.5,0,1),tweak.crouch,grabBlend);
     const grabPose = grabTransform(tweak,grabBlend);
     const stance = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),RIDER.stanceY);
     board.position.copy(grabPose.offset).applyQuaternion(stance);
@@ -215,9 +218,9 @@ export function createSkaterVisual(): SkaterVisual {
     const grabHand=heldGrab?.hand ?? 1;
     const hipY = RIDER.hipHeight - c * 0.22 - grabBlend * tweak.hipDrop - m.landing - m.push * (0.035 + Math.abs(m.lean) * 0.025) + breathing + roadMotion;
     hips.position.set(pushSwing * 0.012 + m.sway * 0.5 + tweak.hipX*grabBlend + manual*0.16 - grabHand*ridingGrabBlend*0.08,
-      hipY - Math.abs(carve)*0.03, 0.025 + c * 0.1 - m.lean * 0.065*(1-grabBlend) - carve*0.09 + m.sway);
+      hipY - Math.abs(carve)*0.03, 0.025 + c * 0.1 - m.lean * 0.065*(1-grabBlend) - carve*0.09 + m.sway + slide*0.07);
     // Toeside carves fold the chest over the toes; heelside carves sit back over the heels.
-    torso.rotation.set(THREE.MathUtils.lerp(-0.08-c*0.25-m.brake*0.1,tweak.chestPitch,grabBlend) - carve*(carve>0 ? 0.26 : 0.14),
+    torso.rotation.set(THREE.MathUtils.lerp(-0.08-c*0.25-m.brake*0.1,tweak.chestPitch,grabBlend) - carve*(carve>0 ? 0.26 : 0.14) - slide*0.15,
       -0.15+pushSwing*0.07+m.sway*2, m.lean*0.13-m.sway*1.2+tweak.chestRoll*grabBlend - manual*0.12 - grabHand*ridingGrabBlend*0.95);
     for (const l of legs) {
       // Only the pushing foot leaves the grip; all other weight shifts preserve the stance.
@@ -250,7 +253,7 @@ export function createSkaterVisual(): SkaterVisual {
     }
     for (const a of arms) {
       const shoulder = new THREE.Vector3(a.side * 0.17, 0.36, 0);
-      const spread = 0.27 + m.air * 0.13 + (opts.grinding ? 0.10 : 0) + Math.abs(manual)*0.1;
+      const spread = 0.27 + m.air * 0.13 + (opts.grinding ? 0.10 : 0) + Math.abs(manual)*0.1 + Math.abs(slide)*0.1;
       const hand = new THREE.Vector3(a.side * spread + m.lean * 0.04 - m.sway,
         0.03 + c * 0.14 + m.air * 0.12 + a.side * pushSwing * 0.035,
         -0.13 - c * 0.16 + a.side * pushSwing * 0.11 + rhythm * 0.009);

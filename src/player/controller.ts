@@ -1,7 +1,6 @@
 import type { InputState } from "../input.ts";
 
 export type PlayerIntent = {
-  /** 1 push, -1 brake / roll back */
   grabModifier: boolean;
   grabDX: number;
   grabDY: number;
@@ -9,6 +8,7 @@ export type PlayerIntent = {
   groundDX?: number;
   groundDY?: number;
   toggleAirFlip?: boolean;
+  /** 1 push, -1 slide; controls pitch while aerial flip mode is active. */
   push: number;
   steer: number;
   crouch: boolean;

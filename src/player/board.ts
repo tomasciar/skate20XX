@@ -10,6 +10,7 @@ import { createGrindSystem } from "./grind.ts";
 import { createAirRotation, describeAirRotation } from "./airRotation.ts";
 import { coastSpeed, dragSpeed, SPEED } from "./speed.ts";
 import { CARVE, carveDrag, carveLean, carveTurnRate } from "./carve.ts";
+import { createSlide, SLIDE } from "./slide.ts";
 import { LANDSCAPE_HALF_WIDTH } from "../world/landscape.ts";
 import { courseSlope } from "../world/course.ts";
 import { RAMP, type RampWorld } from "../world/ramp.ts";
@@ -47,6 +48,7 @@ export type BoardPlayer = {
   readonly ollieCount: number;
   readonly pump: ReturnType<typeof createPumpCycle>["state"];
   readonly aerial: ReturnType<typeof createAirRotation>["state"];
+  readonly slide: ReturnType<typeof createSlide>["state"];
   grind: ReturnType<typeof createGrindSystem>["state"];
   speed: number;
   forward: THREE.Vector3;
@@ -69,6 +71,7 @@ export function createBoardPlayer(
   const grind = createGrindSystem();
   const pump = createPumpCycle();
   const air = createAirRotation();
+  const slide = createSlide();
   const visual = createSkaterVisual();
   const ragdoll = createRagdoll(scene, world);
   scene.add(visual.root);
@@ -249,6 +252,7 @@ export function createBoardPlayer(
     resetCount++;
     ollieCount=0;
     pump.reset();
+    slide.reset();
     air.reset();airOffset.set(0,0,0);previousAirOffset.set(0,0,0);
     grind.reset();
     visual.resetPose();
@@ -294,7 +298,8 @@ export function createBoardPlayer(
       headForward: ramp.directionAt?.(at,courseForward) ?? ramp.forward,
       headFrame: air.state.engaged && !grounded ? headFrame.copy(renderQuat).multiply(renderBaseQuat.invert()) : undefined,
       grab: liveTricks?.grab ?? null,
-      groundTrick: liveTricks?.ground ?? null,
+      groundTrick: slide.state.active ? null : liveTricks?.ground ?? null,
+      slide: slide.state.amount*slide.state.side,
       trick: liveTricks?.active ?? null,
       trickTime: liveTricks?.t ?? 0,
       pump: pump.state,
@@ -305,7 +310,7 @@ export function createBoardPlayer(
       grinding: grind.state.active,
       crouch: grind.state.active ? Math.max(crouch, 0.25) : crouch,
       lean: grind.state.active ? grind.state.balance : lean * travelSide,
-      carve: grounded && !grind.state.active ? carveLean(speed, lean) * travelSide : 0,
+      carve: grounded && !grind.state.active ? carveLean(speed, lean) * travelSide * (1-slide.state.amount) : 0,
       airborne: !grounded,
       bail: false,
       wheelRoll,
@@ -324,6 +329,7 @@ export function createBoardPlayer(
     ragdoll.start(rig, momentum, ramp.surfaceNormal); visual.setRagdoll(true);
     visual.board.position.set(0,0,0); visual.board.rotation.set(0,0,0);
     pump.reset(); grind.reset(); crashElapsed = 0; grounded = false; followSurface = false;
+    slide.reset();
     ollieGrace = pendingOllie = 0; nearGround = false;
     air.reset();airOffset.set(0,0,0);previousAirOffset.set(0,0,0);
     tricks.active = null; tricks.grab = null; tricks.grabTime = 0;
@@ -403,7 +409,7 @@ export function createBoardPlayer(
     const courseYaw=Math.atan2(-courseForward.x,courseForward.dot(ramp.forward));
     air.update(dt,intent.toggleAirFlip ?? false,intent.push,intent.steer,!grounded && !grind.state.active,yaw-courseYaw);
     aeroTuck=THREE.MathUtils.damp(aeroTuck,THREE.MathUtils.clamp(intent.crouchHold,0,1),12,dt);
-    pump.update(dt, intent.push > 0, speed, grounded && !grind.state.active && !tricks.ground && !intent.crouch && !intent.wantOllie && !tricks.bail);
+    pump.update(dt, intent.push > 0, speed, grounded && intent.push>=0 && !grind.state.active && !slide.state.active && !tricks.ground && !intent.crouch && !intent.wantOllie && !tricks.bail);
     ollieCooldown = Math.max(0, ollieCooldown - dt);
     leaveGround = Math.max(0, leaveGround - dt);
     ollieGrace = Math.max(0, ollieGrace - dt);
@@ -413,15 +419,20 @@ export function createBoardPlayer(
       pendingOlliePower = intent.olliePower;
     }
     const steering=air.state.active ? 0 : intent.steer;
-    lean = THREE.MathUtils.damp(lean, steering, grounded ? CARVE.response : 8, dt);
+    const slideYaw=slide.update(dt,intent.push<0,steering,yaw,
+      Math.atan2(-velocity.x,velocity.dot(ramp.forward)),speed,
+      (grounded || canOllie()) && !grind.state.active && !air.state.engaged);
+    lean = THREE.MathUtils.damp(lean, slide.state.active ? 0 : steering, grounded ? CARVE.response : 8, dt);
 
     // On the road the trucks turn as weight shifts onto an edge; in the air the rider spins freely.
-    yaw -= grounded ? lean * carveTurnRate(speed) * dt : steering * 5 * dt;
+    if (slide.state.active) yaw=slideYaw;
+    else yaw = slideYaw - (grounded ? lean * carveTurnRate(speed) * dt : steering * 5 * dt);
     yaw = Math.atan2(Math.sin(yaw), Math.cos(yaw));
 
     if (grind.update(dt, position, velocity, forward, ramp.surfaceNormal, ramp.grindRails,
       steering, intent.wantOllie, intent.push < 0, !tricks.active && leaveGround <= 0 && boardUp.dot(ramp.surfaceNormal)>0.8,aeroTuck)) {
       if(intent.wantOllie)ollieCount++;
+      slide.reset();
       air.reset();airOffset.set(0,0,0);
       const facing=forward.dot(grind.tangent)>=0 ? 1 : -1;
       tmp.copy(grind.tangent).multiplyScalar(facing);
@@ -487,7 +498,7 @@ export function createBoardPlayer(
       const sz = tz - forward.z * along;
       const sideMag = Math.hypot(sx, sy, sz);
       if (sideMag > 0.08) {
-        const grip = Math.min(sideMag * 18, 40) * dt;
+        const grip = Math.min(sideMag * 18, 40) * dt * (1-slide.state.amount);
         body.applyImpulse({ x: (-sx / sideMag) * grip, y: (-sy / sideMag) * grip, z: (-sz / sideMag) * grip }, true);
       }
 
@@ -542,9 +553,10 @@ export function createBoardPlayer(
         // A 180 changes stance, not momentum: land switch and keep rolling downhill.
         const rollingDirection = travel.clone().multiplyScalar(vel.dot(travel) < -0.1 ? -1 : 1);
 
-        if (intent.push < 0) {
-          // Brake along actual motion, without accelerating backwards.
-          vel.multiplyScalar(Math.max(0, 1 - 24 * dt / Math.max(vel.length(), 0.001)));
+        if (slide.state.active || intent.push < 0) {
+          // A sideways slide scrubs speed along the existing motion instead of steering it across the road.
+          const resistance=slide.state.active ? SLIDE.deceleration*(0.2+0.8*slide.state.amount) : SLIDE.deceleration;
+          vel.multiplyScalar(Math.max(0, 1 - resistance * dt / Math.max(vel.length(), 0.001)));
         } else {
           // A real push adds momentum at low speed. Gravity supplies the downhill acceleration.
           if(pump.state.active)vel.addScaledVector(rollingDirection,SPEED.pushAcceleration*pump.state.weight*dt);
@@ -557,13 +569,13 @@ export function createBoardPlayer(
 
         // Carve along the board, but keep the speed you carried onto a ramp.
         let spd = vel.length();
-        if (spd > 0.5 && intent.push >= 0) {
+        if (spd > 0.5 && intent.push >= 0 && !slide.state.active) {
           // Wheels only roll along the board: whatever travels across them slides and bleeds speed.
           const alignment = vel.dot(rollingDirection) / spd;
           spd = Math.max(0, spd - CARVE.slide * (1 - alignment * alignment) * dt);
         }
         const carved = rollingDirection.multiplyScalar(spd);
-        vel.lerp(carved, 1 - Math.exp(-dt / CARVE.grip));
+        if (!slide.state.active) vel.lerp(carved, 1 - Math.exp(-dt / CARVE.grip));
 
         vel.addScaledVector(n, normalSpeed);
         body.setLinvel({ x: vel.x, y: vel.y, z: vel.z }, true);
@@ -588,6 +600,9 @@ export function createBoardPlayer(
       holdDeck();
     }
 
+    if (slide.state.active) {
+      tricks.message='Boardslide';tricks.messageAge=0;
+    }
     if (pendingOllie > 0 && canOllie()) {
       ollieCount++;
       const hop = 4.4 + pendingOlliePower * 2.2 + Math.min(speed, 40) * 0.13;
@@ -598,10 +613,11 @@ export function createBoardPlayer(
       ollieCooldown = 0.3;
       ollieGrace = pendingOllie = 0;
       nearGround = grounded = followSurface = false;
+      slide.reset();
       holdDeck();
     }
 
-    const along = Math.max(0, velocity.dot(forward));
+    const along = velocity.dot(forward);
     wheelRoll += (along / WHEEL_R) * dt;
 
     if (Math.abs(ramp.roadOffset?.(position) ?? position.x) > LANDSCAPE_HALF_WIDTH - 10 || tmp.copy(position).sub(ramp.anchor).dot(ramp.surfaceNormal) < -50) {
@@ -685,6 +701,7 @@ export function createBoardPlayer(
     get canOllie() { return canOllie(); },
     pump: pump.state,
     aerial: air.state,
+    slide: slide.state,
     grind: grind.state,
     originShift,
     mesh: visual.root,
