@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { BOARD, FOOT_Y, RIDER } from "./dimensions.ts";
 import type { RagdollRig, RagdollPart, RagdollJoint } from "./ragdoll.ts";
+import { TUCK, grabTransform } from "./grabPose.ts";
 import type { GrabDef } from "./grabs.ts";
 import type { PumpState } from "./pump.ts";
 import { createRiderMotion, solveArm, solveLimb } from "./pose.ts";
@@ -78,6 +79,7 @@ export function createSkaterVisual(): SkaterVisual {
   const pelvis = mesh(hips, new THREE.CapsuleGeometry(0.11, 0.1, 4, 10), pants); pelvis.rotation.z = Math.PI / 2;
   const torso = new THREE.Group(); hips.add(torso);
   const chest = mesh(torso, new THREE.CylinderGeometry(0.16, 0.13, 0.36, 12), shirt, 0, 0.23, 0);
+  chest.name = 'chest';
   chest.scale.z = 0.65;
   box(torso, [0.23, 0.025, 0.15], shirt, 0, 0.065, 0);
   box(torso, [0.085, 0.06, 0.008], sole, -0.065, 0.29, -0.105);
@@ -142,8 +144,12 @@ export function createSkaterVisual(): SkaterVisual {
     grabBlend = THREE.MathUtils.damp(grabBlend, grabbing ? 1 : 0, 14, opts.dt);
     if (!opts.airborne || opts.grinding || opts.bail) grabBlend = 0;
     if (!selectedGrab && grabBlend < 0.002) { heldGrab = null; grabBlend = 0; }
-    const c = THREE.MathUtils.clamp(m.crouch + m.air * 0.25 + m.kneeLoad + grabBlend, 0, 1);
-    board.position.y = grabBlend * 0.28;
+    if (opts.boardSpin.x || opts.boardSpin.y || opts.boardSpin.z) { grabBlend = 0; heldGrab = null; }
+    const tweak = heldGrab?.tweak ?? TUCK;
+    const c = THREE.MathUtils.lerp(THREE.MathUtils.clamp(m.crouch+m.air*0.25+m.kneeLoad,0,1),tweak.crouch,grabBlend);
+    const grabPose = grabTransform(tweak,grabBlend);
+    const stance = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI/2);
+    board.position.copy(grabPose.offset).applyQuaternion(stance);
     const rhythm = Math.sin(m.time * 5.2);
     const breathing = Math.sin(m.time * 2.4) * 0.003;
     const roadMotion = Math.sin(opts.wheelRoll * 0.025) * Math.min(opts.speed / 80, 1) * 0.003 * (1 - m.air);
@@ -151,13 +157,16 @@ export function createSkaterVisual(): SkaterVisual {
     for (const w of wheels) w.rotation.x = opts.wheelRoll;
     // Wheel contacts stay fixed. Weight shifts belong to the rider, not a rolling wheel group.
     board.rotation.set(opts.boardSpin.x, opts.boardSpin.y, opts.boardSpin.z);
-    const hipY = RIDER.hipHeight - c * 0.22 - grabBlend * 0.04 - m.landing - m.push * (0.035 + Math.abs(m.lean) * 0.025) + breathing + roadMotion;
-    hips.position.set(pushSwing * 0.012 + m.sway * 0.5, hipY, 0.025 + c * 0.1 - m.lean * 0.065 + m.sway);
-    torso.rotation.set(-0.08 - c * 0.25 - m.brake * 0.1 - grabBlend * 0.27, -0.15 + pushSwing * 0.07 + m.sway * 2, m.lean * 0.13 - m.sway * 1.2);
+    if (grabBlend > 0) board.quaternion.premultiply(stance.clone().multiply(grabPose.rotation).multiply(stance.clone().invert()));
+    const hipY = RIDER.hipHeight - c * 0.22 - grabBlend * tweak.hipDrop - m.landing - m.push * (0.035 + Math.abs(m.lean) * 0.025) + breathing + roadMotion;
+    hips.position.set(pushSwing * 0.012 + m.sway * 0.5 + tweak.hipX*grabBlend, hipY, 0.025 + c * 0.1 - m.lean * 0.065*(1-grabBlend) + m.sway);
+    torso.rotation.set(THREE.MathUtils.lerp(-0.08-c*0.25-m.brake*0.1,tweak.chestPitch,grabBlend),
+      -0.15+pushSwing*0.07+m.sway*2, m.lean*0.13-m.sway*1.2+tweak.chestRoll*grabBlend);
     head.rotation.set(c * 0.1, -Math.PI / 2 + 0.25 - m.lean * 0.12, -m.lean * 0.08);
     for (const l of legs) {
       // Only the pushing foot leaves the grip; all other weight shifts preserve the stance.
-      l.foot.position.set(l.side * 0.255, FOOT_Y + board.position.y, 0);
+      l.foot.position.set(l.side*0.255,FOOT_Y,0).applyQuaternion(grabPose.rotation).add(grabPose.offset);
+      l.foot.quaternion.copy(grabPose.rotation);
       if (l.side === 1) {
         const phase = m.pushPhase;
         const lift = Math.max(0, Math.sin(phase));
@@ -167,9 +176,11 @@ export function createSkaterVisual(): SkaterVisual {
         l.foot.position.y += m.push * (lift * 0.06 - stroke * 0.10);
       }
       const hip = new THREE.Vector3(l.side * 0.095, 0, 0).add(hips.position);
-      const ankle = l.foot.position.clone().add(new THREE.Vector3(0, 0.06, 0));
-      // Both knees bend toward the chest's forward direction (-Z in rider space).
-      const solved = solveLimb(hip, ankle, new THREE.Vector3(0, 0, -1), RIDER.upperLeg, RIDER.lowerLeg);
+      const ankle = l.foot.position.clone().add(new THREE.Vector3(0,0.06,0).applyQuaternion(l.foot.quaternion));
+      // Rear tucks fold the knees down below the hips, rather than up through the waist.
+      const pole=tweak.kneePole;
+      const kneePole=pole ? new THREE.Vector3(pole.x*grabBlend,pole.y*grabBlend,THREE.MathUtils.lerp(-1,pole.z,grabBlend)) : new THREE.Vector3(0,0,-1);
+      const solved = solveLimb(hip, ankle, kneePole, RIDER.upperLeg, RIDER.lowerLeg);
       segment(l.thigh, hip, solved.joint); segment(l.shin, solved.joint, solved.end); l.knee.position.copy(solved.joint);
     }
     for (const a of arms) {
@@ -179,7 +190,7 @@ export function createSkaterVisual(): SkaterVisual {
         0.03 + c * 0.14 + m.air * 0.12 + a.side * pushSwing * 0.035,
         -0.13 - c * 0.16 + a.side * pushSwing * 0.11 + rhythm * 0.009);
       if (heldGrab && a.side === heldGrab.hand) {
-        const grip = new THREE.Vector3(heldGrab.grip.x, heldGrab.grip.y + board.position.y, heldGrab.grip.z);
+        const grip = new THREE.Vector3(heldGrab.grip.x,heldGrab.grip.y,heldGrab.grip.z).applyQuaternion(grabPose.rotation).add(grabPose.offset);
         // Convert the fixed board grip into the leaning torso's coordinate system.
         grip.sub(hips.position).applyQuaternion(torso.quaternion.clone().invert());
         hand.lerp(grip, grabBlend);
@@ -202,7 +213,7 @@ export function createSkaterVisual(): SkaterVisual {
       parts.push({ id, center, rotation: reference.getWorldQuaternion(new THREE.Quaternion()), objects, mass, shape });
     };
     part('pelvis', pelvis, pelvis.getWorldPosition(new THREE.Vector3()), [pelvis], 12, { kind: 'capsule', length: 0.3, radius: 0.10 });
-    const torsoObjects = torso.children.filter(o => o instanceof THREE.Mesh && !o.name);
+    const torsoObjects = torso.children.filter(o => o instanceof THREE.Mesh && (!o.name || o===chest));
     part('torso', torso, point(torso,0,0.23), torsoObjects, 24, { kind: 'box', half: new THREE.Vector3(0.15,0.18,0.09) });
     part('head', head, point(head), [head], 5, { kind: 'ball', radius: 0.115 });
     joints.push({ a: 'pelvis', b: 'torso', anchor: point(torso,0,0.08), kind: 'ball' },
@@ -233,7 +244,7 @@ export function createSkaterVisual(): SkaterVisual {
     }
     return { parts,joints };
   }
-  return { root, board, wheels, setPose, captureRagdoll, setRagdoll(active: boolean) { rider.visible = !active; }, resetPose() { motion.reset(); grabBlend = 0; heldGrab = null; board.position.y = 0; } };
+  return { root, board, wheels, setPose, captureRagdoll, setRagdoll(active: boolean) { rider.visible = !active; }, resetPose() { motion.reset(); grabBlend = 0; heldGrab = null; board.position.set(0,0,0); board.quaternion.identity(); } };
 }
 
 /** Keep animated joints separate; combine only rigid details within the deck, head, and shoes. */

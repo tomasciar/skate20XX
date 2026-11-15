@@ -1,5 +1,5 @@
 import { classifyGrab } from "./grabs.ts";
-import type { GrabDef } from "./grabs.ts";
+import type { GrabDef, GrabFacing } from "./grabs.ts";
 export type TrickId =
   | "kickflip"
   | "heelflip"
@@ -40,6 +40,7 @@ export type TrickState = {
 };
 
 export function createTrickSystem() {
+  let grabDX=0, grabDY=0, grabPress: number | undefined;
   const state: TrickState = {
     grab: null,
     grabTime: 0,
@@ -87,9 +88,16 @@ export function createTrickSystem() {
     state.bail = false;
   }
 
-  function setGrab(dx: number, dy: number, enabled: boolean, airborne: boolean) {
-    const selected = enabled && airborne && !state.active ? classifyGrab(dx, dy) : null;
+  function setGrab(dx: number, dy: number, enabled: boolean, airborne: boolean, facing?: GrabFacing, press?: number) {
+    if(!enabled || !airborne || state.active || state.bail || (!dx && !dy)) {
+      state.grab=null;state.grabTime=0;grabDX=grabDY=0;grabPress=press;return;
+    }
+    // Facing is sampled on a fresh press/direction, never again during the hold.
+    const fresh=!state.grab || dx!==grabDX || dy!==grabDY || press!==grabPress;
+    const selected = fresh ? classifyGrab(dx,dy,facing) : state.grab;
+    if(fresh)state.grabTime=0;
     if (selected?.id !== state.grab?.id) state.grabTime = 0;
+    grabDX=dx;grabDY=dy;grabPress=press;
     state.grab = selected;
     if (selected) { state.message = selected.name; state.messageAge = 0; }
   }
@@ -145,6 +153,7 @@ export function createTrickSystem() {
   }
 
   function reset() {
+    grabDX=grabDY=0;grabPress=undefined;
     state.grab = null; state.grabTime = 0;
     state.active = null; state.t = 0; state.bail = false;
     state.boardSpin = { x: 0, y: 0, z: 0 };

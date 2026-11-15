@@ -5,6 +5,7 @@ export type PlayerIntent = {
   grabModifier: boolean;
   grabDX: number;
   grabDY: number;
+  grabPress?: number;
   push: number;
   steer: number;
   crouch: boolean;
@@ -46,6 +47,7 @@ export function createController() {
       grabModifier: input.grabModifier,
       grabDX: input.grabDX,
       grabDY: input.grabDY,
+      grabPress: input.grabPress,
       push,
       steer,
       crouch: input.crouch,

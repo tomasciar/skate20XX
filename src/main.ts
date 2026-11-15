@@ -7,6 +7,7 @@ import { createRamp } from "./world/ramp";
 import { createBoardPlayer } from "./player/board";
 import { createController } from "./player/controller";
 import { createTrickSystem } from "./player/tricks";
+import { screenGrabFacing } from "./player/grabs";
 import { createChaseCamera } from "./camera/chase";
 import { createGameAudio } from "./audio/sound";
 import type { RideAudioState } from "./audio/events";
@@ -167,7 +168,8 @@ async function main() {
       const intent = controller.update(input.state, fixedDt);
       lastPush = intent.push; lastSteer = intent.steer;
 
-      tricks.setGrab(intent.grabDX, intent.grabDY, intent.grabModifier, !player.grounded && !player.grind.active && !player.crashed);
+      tricks.setGrab(intent.grabDX, intent.grabDY, intent.grabModifier, !player.grounded && !player.grind.active && !player.crashed,
+        screenGrabFacing(player.forward,ramp.forward,ramp.surfaceNormal),intent.grabPress);
       if (intent.flickReady && !player.grounded && !player.grind.active && !player.crashed) {
         tricks.tryFlick(intent.flickDX, intent.flickDY, true);
       }

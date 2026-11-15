@@ -53,10 +53,13 @@ test('ragdoll uses the rider model, retains momentum, stays joined, and cleans u
     rag.clear(); assert.equal(world.bodies.len(),1); assert.equal(world.colliders.len(),1); assert.equal(world.impulseJoints.len(),0);
     assert.equal(rag.active,false); assert.equal(scene.getObjectByName('crash-ragdoll'),undefined);
   }
-  // A tucked grab must transfer into physics without snapping joints apart.
-  for (let i=0;i<240;i++) visual.setPose({...pose,airborne:true,grab:GRABS.indy});
-  rag.start(visual.captureRagdoll(),new THREE.Vector3(0,0,-30),new THREE.Vector3(0,1,0));
-  for (let i=0;i<120;i++) { rag.beginStep();world.step();rag.sync();checkAnchors(world); }
+  // Tucked and extended grabs must transfer to physics without snapping joints apart.
+  for (const grab of [GRABS.indy,GRABS.tomahawk,GRABS.pushout,GRABS.nosebone]) {
+    for (let i=0;i<240;i++) visual.setPose({...pose,airborne:true,grab});
+    rag.start(visual.captureRagdoll(),new THREE.Vector3(0,0,-30),new THREE.Vector3(0,1,0));
+    for (let i=0;i<120;i++) { rag.beginStep();world.step();rag.sync();try { checkAnchors(world); } catch(error) { throw new Error(`${grab.id} frame ${i}: ${String(error)}`); } }
+    rag.clear();
+  }
   rag.clear(); assert.equal(world.maxCcdSubsteps,originalCcdSubsteps);
   world.free();
 });

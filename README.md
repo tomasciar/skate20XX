@@ -21,7 +21,7 @@ Open the local URL printed by Vite. Click or press Enter to start.
 | **A / D** | Carve on the road; freely rotate in the air (180s / 360s); balance on rails |
 | **Space** | Hold to crouch, release to ollie |
 | **Arrow keys** (air) | Up shove-it, down 180, left kickflip, right heelflip; diagonals varial / hardflip |
-| **Shift + arrows** (air) | Hold up nose grab, down tail grab, left melon, right indy; release to let go |
+| **Shift + arrows** (air) | Press a screen direction to choose a grab/tweak; hold to lock it through spins |
 | **R** | Restart the run |
 | **Esc** | Pause / resume |
 | **M** | Mute / unmute sound |
@@ -44,7 +44,7 @@ Speed gains taper toward a 199 mph ceiling: on a straight downhill run, the ride
 
 Ollie onto a rail with the board aligned along it to automatically catch a 50–50 grind. Keep the balance marker centered using A/D; holding too far to one side slips off. Release Space to ollie out, or ride off the end. S brakes on rails too. Grinds preserve momentum and include gravity and sliding friction; they work facing either direction. Longer 48 m rail sections appear every fourth chunk, with shorter rails mixed into other encounters.
 
-Shift changes only the arrow trick controls: movement, gravity, and A/D steering continue normally. Hold Shift with an arrow in the air to tuck the board and hold a grab; release either key to let go. Grabs cannot start during a flip or grind, and landing clears the grab.
+Shift changes only the arrow trick controls: movement, gravity, and A/D steering continue normally. Hold Shift with an arrow in the air for a whole-body grab tweak; release either key to let go. Each arrow press chooses a direction from the rider’s current facing on screen: toward the chest pushes the board outward, away from the chest pulls it behind into a tomahawk-style grab, and toward the nose or tail gives a boned extension. A left-facing rider uses Left to push out and Right to grab behind. The selected trick stays locked through spins until the arrow is released; the next press recalculates it. The backward grab keeps the hips raised, folds the knees below the waist and lifts the board behind the rider. Hands and feet follow the translated/tilted board throughout the hold. Grabs cannot start during a flip or grind, and landing clears the grab.
 
 A/D rotations are unrestricted. An airborne 180 can land switch while retaining downhill momentum. The camera stays pointed downhill throughout.
 

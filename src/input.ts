@@ -2,6 +2,7 @@ export type InputState = {
   grabModifier: boolean;
   grabDX: number;
   grabDY: number;
+  grabPress: number;
   push: boolean;
   brake: boolean;
   left: boolean;
@@ -26,6 +27,7 @@ export function createInput(): {
     grabModifier: false,
     grabDX: 0,
     grabDY: 0,
+    grabPress: 0,
     push: false,
     brake: false,
     left: false,
@@ -133,7 +135,7 @@ export function createInput(): {
 
   /** Arrow keys are the trick stick. Held pairs count as diagonals. */
   function queueTrick() {
-    if (state.grabModifier) return;
+    if (state.grabModifier) { state.grabPress++; return; }
     const x = (arrows.right ? 1 : 0) - (arrows.left ? 1 : 0);
     const y = (arrows.down ? 1 : 0) - (arrows.up ? 1 : 0);
     if (x === 0 && y === 0) return;

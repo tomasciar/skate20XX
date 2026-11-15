@@ -253,8 +253,11 @@ export function createBoardPlayer(
     // Capture the current articulated pose rather than spawning a different crash model.
     render(1, 0);
     const rig = visual.captureRagdoll();
+    const releasedBoard = visual.board.getWorldPosition(new THREE.Vector3());
+    const releasedRotation = visual.board.getWorldQuaternion(new THREE.Quaternion());
+    body.setTranslation(releasedBoard,true); body.setRotation(releasedRotation,true);
     ragdoll.start(rig, momentum, ramp.surfaceNormal); visual.setRagdoll(true);
-    visual.board.position.y = 0; visual.board.rotation.set(0,0,0);
+    visual.board.position.set(0,0,0); visual.board.rotation.set(0,0,0);
     pump.reset(); grind.reset(); crashElapsed = 0; grounded = false; followSurface = false;
     tricks.active = null; tricks.grab = null; tricks.grabTime = 0;
     tricks.boardSpin = {x:0,y:0,z:0}; tricks.bail = true; tricks.message = "Bail!"; tricks.messageAge = 0;
