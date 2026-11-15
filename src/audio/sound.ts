@@ -1,6 +1,6 @@
 import { synthesizeLoop } from './textures.ts';
 import type { RideTexture } from './textures.ts';
-import { MAX_SPEED } from '../player/speed.ts';
+import { MPH_PER_MPS } from '../player/speed.ts';
 import { createSoundEvents } from './events.ts';
 import type { RideAudioState, SoundEvent, RideSound } from './events.ts';
 
@@ -65,7 +65,9 @@ export function synthesizeEffect(kind: RideSound, sampleRate: number) {
 }
 
 export function rideMix(state: RideAudioState) {
-  const speed = Math.max(0, Math.min(1, state.speed / MAX_SPEED));
+  // This only bounds audio gain; riding speed itself has no ceiling.
+  const fullMixSpeed=199/MPH_PER_MPS;
+  const speed = Math.max(0, Math.min(1, state.speed / fullMixSpeed));
   return {
     roll: state.grounded && !state.grinding && state.speed > 0.4 ? 0.04 + Math.sqrt(speed) * 0.14 : 0,
     wind: !state.grounded && !state.grinding ? 0.045 + Math.sqrt(speed) * 0.075 : Math.sqrt(speed) * 0.045,

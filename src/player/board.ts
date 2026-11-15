@@ -8,7 +8,7 @@ import { createRagdoll } from "./ragdoll.ts";
 import { createPumpCycle } from "./pump.ts";
 import { createGrindSystem } from "./grind.ts";
 import { createAirRotation, describeAirRotation } from "./airRotation.ts";
-import { approachTopSpeed, MAX_SPEED } from "./speed.ts";
+import { coastSpeed, dragSpeed, SPEED } from "./speed.ts";
 import { CARVE, carveDrag, carveLean, carveTurnRate } from "./carve.ts";
 import { LANDSCAPE_HALF_WIDTH } from "../world/landscape.ts";
 import { courseSlope } from "../world/course.ts";
@@ -127,6 +127,7 @@ export function createBoardPlayer(
   let visualHeightOffset = -0.11;
   let poseDt = 0;
   let posePush = 0;
+  let aeroTuck = 0;
   const supportPoints = MOUNTS.map(()=>new THREE.Vector3());
   const supportUp = new THREE.Vector3(), supportDown = new THREE.Vector3();
   const supportCandidate = new THREE.Vector3(), supportOrigin = new THREE.Vector3();
@@ -240,6 +241,7 @@ export function createBoardPlayer(
     visual.resetPose();
     visualHeightOffset = -0.11;
     poseDt = posePush = 0;
+    aeroTuck=0;
     ramp.reset();
     yaw = 0;
     const q = facingQuat();
@@ -372,6 +374,7 @@ export function createBoardPlayer(
     previousAirOffset.copy(airOffset); previousBaseQuat.copy(baseQuat);
     if (tricks.bail || obstacleAhead(dt)) { startCrash(tricks, velocity); return; }
     air.update(dt,intent.toggleAirFlip ?? false,intent.push,intent.steer,!grounded && !grind.state.active,yaw);
+    aeroTuck=THREE.MathUtils.damp(aeroTuck,THREE.MathUtils.clamp(intent.crouchHold,0,1),12,dt);
     pump.update(dt, intent.push > 0, speed, grounded && !grind.state.active && !intent.crouch && !intent.wantOllie && !tricks.bail);
     ollieCooldown = Math.max(0, ollieCooldown - dt);
     leaveGround = Math.max(0, leaveGround - dt);
@@ -383,7 +386,7 @@ export function createBoardPlayer(
     yaw = Math.atan2(Math.sin(yaw), Math.cos(yaw));
 
     if (grind.update(dt, position, velocity, forward, ramp.surfaceNormal, ramp.grindRails,
-      steering, intent.wantOllie, intent.push < 0, !tricks.active && leaveGround <= 0 && boardUp.dot(ramp.surfaceNormal)>0.8)) {
+      steering, intent.wantOllie, intent.push < 0, !tricks.active && leaveGround <= 0 && boardUp.dot(ramp.surfaceNormal)>0.8,aeroTuck)) {
       if(intent.wantOllie)ollieCount++;
       air.reset();airOffset.set(0,0,0);
       yaw = Math.cos(yaw) >= 0 ? 0 : Math.PI;
@@ -493,15 +496,14 @@ export function createBoardPlayer(
           // Brake along actual motion, without accelerating backwards.
           vel.multiplyScalar(Math.max(0, 1 - 24 * dt / Math.max(vel.length(), 0.001)));
         } else {
-          // Diminishing speed gains only when riding downhill. Uphill turns still lose speed.
-          const downhill = THREE.MathUtils.clamp(-rollingDirection.y/Math.sin(RAMP.angleDeg*Math.PI/180),0,1.3);
-          const gain = (approachTopSpeed(vel.length(), dt, pump.state.active) - vel.length()) * downhill;
-          const gravityAlong = -18 * rollingDirection.y;
-          vel.addScaledVector(rollingDirection, gain - Math.max(0, gravityAlong) * dt);
+          // A real push adds momentum at low speed. Gravity supplies the downhill acceleration.
+          if(pump.state.active)vel.addScaledVector(rollingDirection,SPEED.pushAcceleration*pump.state.weight*dt);
           // Hard carves scrub speed, so wide S-turns check a fast descent.
           const rolling = vel.length();
           vel.multiplyScalar(Math.max(0, 1 - carveDrag(rolling, lean) * dt / Math.max(rolling, 0.001)));
         }
+        const rollingSpeed=vel.length();
+        if(rollingSpeed>0)vel.multiplyScalar(coastSpeed(rollingSpeed,dt,aeroTuck,n.y)/rollingSpeed);
 
         // Carve along the board, but keep the speed you carried onto a ramp.
         let spd = vel.length();
@@ -541,6 +543,12 @@ export function createBoardPlayer(
         leaveGround = Math.max(leaveGround, 0.35);
       }
       followSurface = false;
+      // Air resistance acts on the ballistic motion too; the world still applies gravity once.
+      const airSpeed=velocity.length();
+      if(airSpeed>0) {
+        velocity.multiplyScalar(dragSpeed(airSpeed,dt,aeroTuck)/airSpeed);
+        body.setLinvel(velocity,true);
+      }
       holdDeck();
     }
 
@@ -558,9 +566,6 @@ export function createBoardPlayer(
     readPose();
     if (!ragdoll.active && liveTricks && impactFromContacts()) startCrash(liveTricks, impactVelocity);
     if (ragdoll.active) { ragdoll.sync(); position.copy(ragdoll.focus); velocity.copy(ragdoll.velocity); speed = velocity.length(); }
-    if (!ragdoll.active && speed > MAX_SPEED) {
-      velocity.multiplyScalar(MAX_SPEED / speed); body.setLinvel(velocity, true); speed = MAX_SPEED;
-    }
     // When you've ridden a full chunk downhill, snap origin and stream the next seeded stretch.
     const along = position.clone().sub(ramp.anchor).dot(ramp.forward);
     if (along > RAMP.chunkLength) {

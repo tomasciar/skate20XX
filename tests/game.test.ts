@@ -138,7 +138,7 @@ test('two minutes of downhill physics stream continuously with bounded scene and
   }
   assert.ok(player.speed < 1, `braking did not stop the board: ${player.speed}`);
   assert.ok(player.velocity.dot(ramp.forward) >= -0.05, 'braking must not drive backwards');
-  // Verify the actual body follows the speed curve, rather than just its pure helper.
+  // Preserve the fast downhill feel while allowing gravity and resistance to set the speed.
   player.reset(ramp.spawn);
   let mphAt40 = 0;
   const coastSounds=createSoundEvents();
@@ -148,13 +148,23 @@ test('two minutes of downhill physics stream continuously with bounded scene and
       verticalSpeed:player.velocity.dot(ramp.surfaceNormal),ollieCount:player.ollieCount,resetCount:player.resetCount,
       braking:false,steer:0,pumpPhase:player.pump.phase,pumpStarts:player.pump.starts,trick:null,bail:player.crashed});
     assert.ok(sounds.every(sound=>sound.kind!=='ollie' && sound.kind!=='land'),`false jump/landing sound while coasting at frame ${i}`);
-    assert.ok(player.speed * 2.23694 <= 199.001);
+    assert.ok(Number.isFinite(player.speed) && player.speed>=0);
     if (i > 120 && i % 120 === 0) verifyWheelContacts();
     if (i === 40 * 120 - 1) mphAt40 = player.speed * 2.23694;
   }
   assert.ok(contactChecks > 100);
   assert.ok(mphAt40 > 180, `only ${mphAt40} mph after 40 seconds`);
-  assert.ok(player.speed * 2.23694 > 195);
+  assert.ok(player.speed * 2.23694 > 175);
+
+  // Carrying speed above the old cap must decelerate smoothly on the road and in the air.
+  for(const height of [0,20]) {
+    player.reset(ramp.spawn.clone().addScaledVector(ramp.surfaceNormal,height));
+    for(let i=0;i<(height===0?90:1);i++) { player.update(dt,idle,tricks.state);world.step();player.sync(); }
+    player.body.setLinvel(ramp.forward.clone().multiplyScalar(120),true);
+    player.update(dt,idle,tricks.state);world.step();player.sync();
+    assert.ok(player.speed>115,`high-speed motion was clamped at height ${height}: ${player.speed}`);
+    assert.equal(player.crashed,false);
+  }
 
   // Full 180s are available in either direction while airborne.
   for (const steer of [-1, 1]) {

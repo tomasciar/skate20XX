@@ -3,23 +3,9 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { GRIND_HEIGHT } from '../src/player/dimensions.ts';
 import { createGrindSystem } from '../src/player/grind.ts';
-import { approachTopSpeed, MAX_SPEED, MPH_PER_MPS } from '../src/player/speed.ts';
+import { MPH_PER_MPS } from '../src/player/speed.ts';
 const normal = new THREE.Vector3(0, 1, 0), forward = new THREE.Vector3(0, 0, -1);
 const rails = [{ id: 'test', start: new THREE.Vector3(0, 1, 0), end: new THREE.Vector3(0, 1, -20) }];
-
-test('speed climbs quickly to 180 then approaches 199 with diminishing gains', () => {
-  let speed = 0, at10 = 0, at20 = 0;
-  for (let i = 1; i <= 120 * 120; i++) {
-    const next = approachTopSpeed(speed, 1 / 120, true);
-    assert.ok(next >= speed && next <= MAX_SPEED);
-    speed = next;
-    if (i === 10 * 120) at10 = speed;
-    if (i === 20 * 120) at20 = speed;
-    if (i === 25 * 120) assert.ok(speed * MPH_PER_MPS >= 180);
-  }
-  assert.ok(at10 > at20 - at10);
-  assert.ok(speed * MPH_PER_MPS > 198);
-});
 
 test('landing aligned on a rail locks trucks and keeps longitudinal momentum', () => {
   const grind = createGrindSystem(), position = new THREE.Vector3(0.15, 1.25, -3), velocity = new THREE.Vector3(0, -2, -15);
@@ -74,4 +60,14 @@ test('graded rails constrain the trucks and ollie exit to their own surface norm
     grind.update(1/120,position,velocity,tangent,normal,[rail],0,true,false,true);
     assert.ok(Math.abs(velocity.dot(up)-6.5)<1e-6);
   }
+});
+
+
+test('rail slides retain speeds above the former 199 mph cap and slow progressively',()=>{
+  const grind=createGrindSystem(),position=new THREE.Vector3(0,1+GRIND_HEIGHT,-3);
+  const startSpeed=250/MPH_PER_MPS,velocity=forward.clone().multiplyScalar(startSpeed).addScaledVector(normal,-1);
+  grind.update(1/120,position,velocity,forward,normal,rails,0,false,false,true);
+  assert.ok(grind.state.active);
+  assert.ok(velocity.length()*MPH_PER_MPS>249);
+  assert.ok(velocity.length()<startSpeed);
 });

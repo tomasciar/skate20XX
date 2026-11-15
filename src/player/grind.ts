@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GRIND_HEIGHT } from './dimensions.ts';
-import { MAX_SPEED } from './speed.ts';
+import { dragSpeed } from './speed.ts';
 
 export type GrindRail = { id: string; start: THREE.Vector3; end: THREE.Vector3; normal?: THREE.Vector3 };
 export type GrindState = { active: boolean; balance: number; meters: number; message: string | null };
@@ -21,7 +21,7 @@ export function createGrindSystem() {
   }
   function update(dt: number, position: THREE.Vector3, velocity: THREE.Vector3,
     forward: THREE.Vector3, normal: THREE.Vector3, rails: readonly GrindRail[],
-    steer: number, ollie: boolean, braking: boolean, canCatch: boolean) {
+    steer: number, ollie: boolean, braking: boolean, canCatch: boolean, tuck = 0) {
     cooldown = Math.max(0, cooldown - dt);
     if (!state.active && cooldown === 0 && canCatch && velocity.length() > 2) {
       for (const rail of rails) {
@@ -55,7 +55,7 @@ export function createGrindSystem() {
     const signedSpeed = velocity.dot(tangent);
     const gravity = -18 * tangent.y;
     const friction = (braking ? 24 : 0.45) * direction;
-    const speed = Math.max(0, Math.min(MAX_SPEED, (signedSpeed + (gravity - friction) * dt) * direction));
+    const speed = dragSpeed(Math.max(0,(signedSpeed + (gravity - friction) * dt)*direction),dt,tuck);
     velocity.copy(tangent).multiplyScalar(speed * direction);
     position.copy(rail.start).addScaledVector(tangent, along).addScaledVector(railNormal, TRUCK_HEIGHT);
     state.meters += speed * dt;
