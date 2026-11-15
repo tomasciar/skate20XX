@@ -1,3 +1,5 @@
+import { LANDING_SPEED } from '../player/speed.ts';
+
 export type RideAudioState = {
   speed: number;
   grounded: boolean;
@@ -10,6 +12,7 @@ export type RideAudioState = {
   trick: string | null;
   bail: boolean;
   resetCount: number;
+  ollieCount: number;
 };
 export type RideSound = 'push' | 'ollie' | 'land' | 'grindOn' | 'grindOff' | 'trick' | 'bail';
 export type SoundEvent = { kind: RideSound; strength: number };
@@ -22,16 +25,18 @@ export function createSoundEvents() {
     const old = previous; previous = { ...state };
     if (!old || old.resetCount !== state.resetCount) { fallSpeed = 0; airTime = 0; return []; }
     const sounds: SoundEvent[] = [];
+    // Suspension contact and course-relative vertical speed can fluctuate on changing grades.
+    // Only a pop actually applied by physics makes an ollie sound, including an ollie off a rail.
+    if(state.ollieCount>old.ollieCount && !state.bail) sounds.push({kind:'ollie',strength:0.35});
     if (state.bail && !old.bail) sounds.push({ kind: 'bail', strength: 0.8 });
     if (state.grinding && !old.grinding) sounds.push({ kind: 'grindOn', strength: 0.6 });
     if (!state.grinding && old.grinding) sounds.push({ kind: 'grindOff', strength: 0.35 });
     const supported = state.grounded || state.grinding, wasSupported = old.grounded || old.grinding;
     if (!supported) {
       airTime += dt; fallSpeed = Math.min(fallSpeed, state.verticalSpeed);
-      if (wasSupported && state.verticalSpeed > 2) sounds.push({ kind: 'ollie', strength: 0.35 });
     } else {
-      // Reject suspension contact chatter and tiny rail corrections.
-      if (!wasSupported && !state.grinding && airTime > 0.08 && fallSpeed < -1.5 && !state.bail) {
+      // Reject suspension contact chatter, tiny rail corrections, and skims that drop less than the smallest jump.
+      if (!wasSupported && !state.grinding && airTime > 0.08 && fallSpeed <= -LANDING_SPEED && !state.bail) {
         sounds.push({ kind: 'land', strength: Math.min(1, 0.2 + Math.abs(fallSpeed) / 14) });
       }
       fallSpeed = 0; airTime = 0;

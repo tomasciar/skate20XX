@@ -39,6 +39,7 @@ export type BoardPlayer = {
   grounded: boolean;
   readonly crashed: boolean;
   readonly resetCount: number;
+  readonly ollieCount: number;
   readonly pump: ReturnType<typeof createPumpCycle>["state"];
   readonly aerial: ReturnType<typeof createAirRotation>["state"];
   grind: ReturnType<typeof createGrindSystem>["state"];
@@ -105,6 +106,7 @@ export function createBoardPlayer(
   const rayDir = new THREE.Vector3();
   const tmp = new THREE.Vector3();
   let resetCount = 0;
+  let ollieCount = 0;
   let grounded = false;
   let speed = 0;
   let uprightDot = 1;
@@ -231,6 +233,7 @@ export function createBoardPlayer(
       liveTricks.message = liveTricks.lastLanded = null; liveTricks.messageAge = 0;
     }
     resetCount++;
+    ollieCount=0;
     pump.reset();
     air.reset();airOffset.set(0,0,0);previousAirOffset.set(0,0,0);
     grind.reset();
@@ -381,6 +384,7 @@ export function createBoardPlayer(
 
     if (grind.update(dt, position, velocity, forward, ramp.surfaceNormal, ramp.grindRails,
       steering, intent.wantOllie, intent.push < 0, !tricks.active && leaveGround <= 0 && boardUp.dot(ramp.surfaceNormal)>0.8)) {
+      if(intent.wantOllie)ollieCount++;
       air.reset();airOffset.set(0,0,0);
       yaw = Math.cos(yaw) >= 0 ? 0 : Math.PI;
       body.setTranslation(position, true); body.setLinvel(velocity, true);
@@ -514,6 +518,7 @@ export function createBoardPlayer(
         velocity.copy(vel);
 
         if (intent.wantOllie && ollieCooldown <= 0) {
+          ollieCount++;
           const hop = 4.4 + intent.olliePower * 2.2 + Math.min(speed, 40) * 0.13;
           const lin = vel.clone();
           lin.addScaledVector(n, hop);
@@ -622,6 +627,7 @@ export function createBoardPlayer(
   return {
     get crashed() { return ragdoll.active; },
     get resetCount() { return resetCount; },
+    get ollieCount() { return ollieCount; },
     pump: pump.state,
     aerial: air.state,
     grind: grind.state,

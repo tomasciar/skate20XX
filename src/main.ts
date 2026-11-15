@@ -12,6 +12,7 @@ import { createChaseCamera } from "./camera/chase";
 import { createGameAudio } from "./audio/sound";
 import type { RideAudioState } from "./audio/events";
 import { createHud } from "./ui/hud";
+import { LANDING_SPEED } from "./player/speed";
 import { createSky } from "./render/sky";
 import { createSunRig, applySkyEnvironment } from "./render/lighting";
 import { createParticles, SPARK, DUST } from "./render/particles";
@@ -108,7 +109,7 @@ async function main() {
     if (player.crashed) { effect.wasAirborne = false; effect.owed = 0; return; }
     const vertical = player.velocity.dot(ramp.surfaceNormal);
     effect.at.copy(player.renderPosition).addScaledVector(ramp.surfaceNormal, -0.06);
-    if (effect.wasAirborne && player.grounded && effect.fallSpeed < -2) {
+    if (effect.wasAirborne && player.grounded && effect.fallSpeed <= -LANDING_SPEED) {
       // Touchdown: a ring of dust sized by how hard the wheels came down.
       const puffs = Math.round(THREE.MathUtils.clamp(-effect.fallSpeed * 1.6, 4, 20));
       for (let i = 0; i < puffs; i++) {
@@ -126,7 +127,7 @@ async function main() {
     const rate = grinding ? 110 : braking ? 70 : carving ? 40 : 0;
     if (!rate) { effect.owed = 0; return; }
     // Dust is kicked up by the trailing wheels, so it starts just past the tail in the direction of travel.
-    effect.behind.copy(effect.at).addScaledVector(player.velocity, -1.1 / Math.max(player.speed, 0.001));
+    effect.behind.copy(effect.at).addScaledVector(player.velocity, -0.9 / Math.max(player.speed, 0.001));
     for (effect.owed += rate * dt; effect.owed >= 1; effect.owed--) {
       if (grinding) {
         effect.motion.copy(player.velocity).multiplyScalar(0.45 + Math.random() * 0.3).addScaledVector(ramp.surfaceNormal, 0.8 + Math.random() * 2.2);
@@ -147,6 +148,7 @@ async function main() {
       verticalSpeed: player.velocity.dot(ramp.surfaceNormal), braking: lastPush < 0, steer: lastSteer,
       pumpPhase: player.pump.phase, pumpStarts: player.pump.starts,
       trick: tricks.state.active?.id ?? null, bail: player.crashed || tricks.state.bail, resetCount: player.resetCount,
+      ollieCount: player.ollieCount,
     };
   }
 

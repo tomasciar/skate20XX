@@ -1,3 +1,4 @@
+import { LANDING_SPEED } from '../src/player/speed.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { synthesizeLoop } from '../src/audio/textures.ts';
@@ -7,17 +8,25 @@ import type { RideAudioState, RideSound } from '../src/audio/events.ts';
 import { createGameAudio, readAudioPreferences, rideMix, synthesizeEffect } from '../src/audio/sound.ts';
 
 const base: RideAudioState = { speed: 12, grounded: true, grinding: false, verticalSpeed: 0,
-  braking: false, steer: 0, pumpPhase: 0, pumpStarts: 0, trick: null, bail: false, resetCount: 1 };
+  braking: false, steer: 0, pumpPhase: 0, pumpStarts: 0, trick: null, bail: false, resetCount: 1, ollieCount: 0 };
 const dt = 1 / 120;
 
 test('sound events follow actual jumps and impacts without retriggering on held states', () => {
   const events = createSoundEvents();
   assert.deepEqual(events.step(dt, base), []);
-  const air = { ...base, grounded: false, verticalSpeed: 7 };
+  const air = { ...base, grounded: false, verticalSpeed: 7, ollieCount: 1 };
   assert.deepEqual(events.step(dt, air).map(e => e.kind), ['ollie']);
   for (let i = 0; i < 30; i++) assert.deepEqual(events.step(dt, { ...air, verticalSpeed: -8 }), []);
   const landing = events.step(dt, base); assert.equal(landing[0]!.kind, 'land'); assert.ok(landing[0]!.strength > 0.5);
   assert.deepEqual(events.step(dt, base), []);
+  // Skimming just above the road and settling back is silent, however long it lasted.
+  for (const fall of [-1, -3, -(LANDING_SPEED - 0.1)]) {
+    for (let i = 0; i < 40; i++) assert.deepEqual(events.step(dt, { ...base, grounded: false, verticalSpeed: fall }), []);
+    assert.deepEqual(events.step(dt, base), [], `a ${fall} m/s touchdown should be silent`);
+  }
+  // The smallest real ollie comes down at about 5 m/s and is heard.
+  for (let i = 0; i < 40; i++) events.step(dt, { ...base, grounded: false, verticalSpeed: -5 });
+  assert.deepEqual(events.step(dt, base).map(e => e.kind), ['land']);
   assert.deepEqual(events.step(dt, { ...base, grinding: true }).map(e => e.kind), ['grindOn']);
   assert.deepEqual(events.step(dt, { ...base, grinding: true }), []);
   assert.deepEqual(events.step(dt, base).map(e => e.kind), ['grindOff']);
@@ -39,6 +48,28 @@ test('pushes play at foot contact, tricks and bails play once, resets are silent
   // Contact chatter should never sound like repeated landings.
   events.step(dt, { ...base, resetCount: 2, grounded: false, verticalSpeed: -0.5 });
   assert.deepEqual(events.step(dt, { ...base, resetCount: 2 }), []);
+});
+
+test('changing grades and brief wheel-contact losses cannot produce a pop sound without a physics ollie',()=>{
+  const events=createSoundEvents();events.step(dt,base);
+  // Captured on the rolling course without pressing Space: the old detector treated
+  // these course-relative speeds as jumps, although the board was millimetres above support.
+  for(const verticalSpeed of [9.85,13.33,6.19]) {
+    const skim={...base,grounded:false,verticalSpeed};
+    for(let i=0;i<20;i++)assert.deepEqual(events.step(dt,skim),[]);
+    assert.deepEqual(events.step(dt,base),[]);
+  }
+  const popped={...base,grounded:false,verticalSpeed:5,ollieCount:1};
+  assert.deepEqual(events.step(dt,popped).map(e=>e.kind),['ollie']);
+  for(let i=0;i<20;i++)assert.deepEqual(events.step(dt,popped),[]);
+  events.step(dt,{...popped,grounded:true});
+  assert.deepEqual(events.step(dt,{...popped,ollieCount:2}).map(e=>e.kind),['ollie']);
+  // Rail pops use the same signal; falling off a rail does not.
+  events.step(dt,{...base,ollieCount:2,grounded:false,grinding:true});
+  assert.deepEqual(events.step(dt,{...popped,ollieCount:2}).map(e=>e.kind),['grindOff']);
+  events.step(dt,{...base,ollieCount:2,grounded:false,grinding:true});
+  assert.deepEqual(events.step(dt,{...popped,ollieCount:3}).map(e=>e.kind),['ollie','grindOff']);
+  assert.deepEqual(events.step(dt,{...base,resetCount:2,ollieCount:0}),[]);
 });
 
 test('mix responds to speed and removes road sounds in air and on rails', () => {
@@ -100,11 +131,11 @@ test('audio initializes on start only, remembers controls, mutes, pauses, and fr
   assert.deepEqual(readAudioPreferences(storage), { muted: true, volume: 0.3 });
   audio.setRunning(true); await Promise.resolve();
   assert.equal(creations, 1); assert.equal(context.sources.length, 4); assert.equal(context.gains[0]!.gain.value, 0);
-  audio.step(dt, base); audio.step(dt, { ...base, grounded: false, verticalSpeed: 7 });
+  audio.step(dt, base); audio.step(dt, { ...base, grounded: false, verticalSpeed: 7, ollieCount: 1 });
   assert.equal(context.sources.length, 4, 'muted actions must not create queued effects');
   audio.setMuted(false); assert.equal(context.gains[0]!.gain.value, 0.3);
   audio.mix(base); assert.ok(context.gains[1]!.gain.value > 0);
-  audio.reset(); audio.step(dt, base); audio.step(dt, { ...base, grounded: false, verticalSpeed: 7 });
+  audio.reset(); audio.step(dt, base); audio.step(dt, { ...base, grounded: false, verticalSpeed: 7, ollieCount: 1 });
   assert.equal(context.sources.length, 5);
   audio.setRunning(false); assert.equal(context.gains[0]!.gain.value, 0);
   await new Promise(resolve => setTimeout(resolve, 100));

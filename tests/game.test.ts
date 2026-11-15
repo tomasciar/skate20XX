@@ -9,6 +9,7 @@ import { createTrickSystem } from '../src/player/tricks.ts';
 import { createInput } from '../src/input.ts';
 import { BOARD } from '../src/player/dimensions.ts';
 import { createController } from '../src/player/controller.ts';
+import { createSoundEvents } from '../src/audio/events.ts';
 
 test('10,000 seeded chunks remain reproducible, spaced, and passable', () => {
   const kinds = new Set(), districts = new Set();
@@ -110,6 +111,7 @@ test('two minutes of downhill physics stream continuously with bounded scene and
     maxColliders = Math.max(maxColliders, world.colliders.len());
   }
   assert.ok(previous > 1000, `only traveled ${previous}`); assert.ok(jumps > 20);
+  assert.ok(player.ollieCount>0,'successful ollies must be reported to audio');
   const live = RAMP.chunksBehind + 1 + RAMP.chunksAhead, full = live + RAMP.prepareLead;
   assert.ok(maxColliders <= full + 4, `unbounded colliders: ${maxColliders}`);
   assert.ok(ramp.mesh.children.length <= full + 3);
@@ -126,6 +128,7 @@ test('two minutes of downhill physics stream continuously with bounded scene and
     peakHeight = Math.max(peakHeight, player.position.clone().sub(ramp.anchor).dot(ramp.surfaceNormal));
   }
   assert.ok(peakHeight > 1.5, `wedge did not launch: ${peakHeight}`);
+  assert.equal(player.ollieCount,0,'rolling off a kicker must not report a popped ollie');
   assert.ok(ramp.distance > 70, 'wedge should not cause a reset');
 
   player.reset(ramp.spawn);
@@ -138,8 +141,13 @@ test('two minutes of downhill physics stream continuously with bounded scene and
   // Verify the actual body follows the speed curve, rather than just its pure helper.
   player.reset(ramp.spawn);
   let mphAt40 = 0;
+  const coastSounds=createSoundEvents();
   for (let i = 0; i < 60 * 120; i++) {
     player.update(dt, { ...idle, push: 1 }, tricks.state); world.step(); player.sync();
+    const sounds=coastSounds.step(dt,{speed:player.speed,grounded:player.grounded,grinding:player.grind.active,
+      verticalSpeed:player.velocity.dot(ramp.surfaceNormal),ollieCount:player.ollieCount,resetCount:player.resetCount,
+      braking:false,steer:0,pumpPhase:player.pump.phase,pumpStarts:player.pump.starts,trick:null,bail:player.crashed});
+    assert.ok(sounds.every(sound=>sound.kind!=='ollie' && sound.kind!=='land'),`false jump/landing sound while coasting at frame ${i}`);
     assert.ok(player.speed * 2.23694 <= 199.001);
     if (i > 120 && i % 120 === 0) verifyWheelContacts();
     if (i === 40 * 120 - 1) mphAt40 = player.speed * 2.23694;
@@ -185,6 +193,7 @@ test('two minutes of downhill physics stream continuously with bounded scene and
   }
   player.update(dt, { ...idle, wantOllie: true }, tricks.state); world.step(); player.sync();
   assert.equal(player.grind.active, false);
+  assert.equal(player.ollieCount,1,'ollie exits from rails must report one pop');
   assert.ok(player.velocity.dot(ramp.surfaceNormal) > 5);
   player.reset(ramp.spawn); assert.equal(player.grind.active, false);
   // Presentation interpolation never changes the simulated pose, including an origin shift.
