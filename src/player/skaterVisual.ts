@@ -153,6 +153,8 @@ export function createSkaterVisual(): SkaterVisual {
   let heldGrab: GrabDef | null = null;
   const faceForward = new THREE.Vector3(0,0,-1), headAim = new THREE.Vector3();
   const headWorld = new THREE.Quaternion(), headParent = new THREE.Quaternion();
+  const rearGrabHead=new THREE.Quaternion(),rearHeadAngles=new THREE.Euler(0,0,0,'YXZ');
+  let rearHeadHeld=false;
   const kickRotation=new THREE.Quaternion(),kickEuler=new THREE.Euler();
   function setPose(opts: Parameters<SkaterVisual['setPose']>[0]) {
     const m = motion.update(opts.dt, opts.crouch, opts.lean, opts.airborne && !opts.grinding, opts.push, opts.verticalSpeed, opts.speed, opts.pump, opts.grinding);
@@ -249,6 +251,19 @@ export function createSkaterVisual(): SkaterVisual {
     headWorld.setFromUnitVectors(faceForward,headAim);
     if(opts.headFrame)headWorld.premultiply(opts.headFrame);
     head.quaternion.copy(torso.getWorldQuaternion(headParent)).invert().multiply(headWorld);
+    const rearGrab=heldGrab?.direction==='back' && grabBlend>0;
+    if(rearGrab) {
+      if(!rearHeadHeld) {
+        // Hold a comfortable neck pose through the grab instead of twisting to keep a world-space gaze.
+        rearHeadAngles.setFromQuaternion(head.quaternion,'YXZ');
+        rearHeadAngles.x=THREE.MathUtils.clamp(rearHeadAngles.x,-0.35,0.35);
+        rearHeadAngles.y=THREE.MathUtils.clamp(rearHeadAngles.y,-1.45,1.45);
+        rearHeadAngles.z=THREE.MathUtils.clamp(rearHeadAngles.z,-0.15,0.15);
+        rearGrabHead.setFromEuler(rearHeadAngles);
+      }
+      head.quaternion.slerp(rearGrabHead,grabBlend);
+    }
+    rearHeadHeld=rearGrab;
   }
   function captureRagdoll(): RagdollRig {
     root.updateMatrixWorld(true);
@@ -289,7 +304,7 @@ export function createSkaterVisual(): SkaterVisual {
     }
     return { parts,joints };
   }
-  return { root, board, deck, wheels, setPose, captureRagdoll, setRagdoll(active: boolean) { rider.visible = !active; if (active) { carve = 0; deck.rotation.z = 0; deck.position.set(0,0,0); } }, resetPose() { motion.reset(); grabBlend = 0; carve = 0; deck.rotation.z = 0; deck.position.set(0,0,0); heldGrab = null; board.position.set(0,0,0); board.quaternion.identity(); } };
+  return { root, board, deck, wheels, setPose, captureRagdoll, setRagdoll(active: boolean) { rider.visible = !active; if (active) { carve = 0; deck.rotation.z = 0; deck.position.set(0,0,0); } }, resetPose() { motion.reset(); grabBlend = 0; carve = 0; rearHeadHeld = false; deck.rotation.z = 0; deck.position.set(0,0,0); heldGrab = null; board.position.set(0,0,0); board.quaternion.identity(); } };
 }
 
 /** Keep animated joints separate; combine only rigid details within the deck, head, and shoes. */

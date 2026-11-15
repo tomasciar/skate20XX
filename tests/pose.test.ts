@@ -27,7 +27,7 @@ test('head stays aimed down the course through spins, crouches and grabs',()=>{
   const course=new THREE.Vector3(0,-Math.sin(0.24),-Math.cos(0.24));
   for(const yaw of [0,Math.PI/2,Math.PI,Math.PI*1.5,Math.PI*2]) {
     visual.root.rotation.set(-0.24,yaw,0);
-    for(const pose of [base,{...base,crouch:1,lean:1},{...base,airborne:true,grab:GRABS.tomahawk},
+    for(const pose of [base,{...base,crouch:1,lean:1},{...base,airborne:true,grab:GRABS.pushout},
       {...base,airborne:true,grab:GRABS.nosebone}]) {
       for(let frame=0;frame<80;frame++)visual.setPose({...pose,headForward:course});
       const head=visual.root.getObjectByName('head')!;
@@ -35,6 +35,27 @@ test('head stays aimed down the course through spins, crouches and grabs',()=>{
       assert.ok(facing.dot(course)>0.999999,'face turned back toward the camera');
     }
   }
+});
+
+test('backward grab keeps the head comfortable through spins and restores course aim on release',()=>{
+  const visual=createSkaterVisual(),head=visual.root.getObjectByName('head')!;
+  const course=new THREE.Vector3(0,0,-1),pose={...base,airborne:true,grab:GRABS.tomahawk,headForward:course};
+  visual.setPose({...pose,grab:null});
+  for(let frame=0;frame<180;frame++) {
+    const previous=head.quaternion.clone();visual.setPose(pose);
+    assert.ok(previous.angleTo(head.quaternion)<0.15,'head snapped into the grab');
+  }
+  const held=head.quaternion.clone();
+  const angles=new THREE.Euler().setFromQuaternion(held,'YXZ');
+  assert.ok(Math.abs(angles.y)<Math.PI/2,'neck turned backwards');
+  for(let frame=0;frame<120;frame++) {
+    visual.root.rotation.y=(frame+1)/120*Math.PI;
+    visual.setPose(pose);
+    assert.ok(held.angleTo(head.quaternion)<0.00001,'head twisted independently of the held grab');
+  }
+  for(let frame=0;frame<180;frame++)visual.setPose({...pose,grab:null});
+  const forward=new THREE.Vector3(0,0,-1).applyQuaternion(head.getWorldQuaternion(new THREE.Quaternion()));
+  assert.ok(forward.dot(course)>0.99999);
 });
 
 test('knees bend forward and elbows back with constant bone lengths and no overextension', () => {
