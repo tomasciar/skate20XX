@@ -5,7 +5,7 @@ export const START_PLATFORM={height:17,width:7,back:-4,front:10,
   /** Allow a full ollie off the introductory drop while keeping later hard landings unchanged. */
   landingSpeed:28,
 } as const;
-export const START_BOOST={along:42,length:36,width:2.8,x:4.8,speed:150/MPH_PER_MPS} as const;
+export const START_BOOST={along:42,length:36,width:2.8,x:4.8,speed:120/MPH_PER_MPS} as const;
 const top=new THREE.MeshStandardMaterial({color:0x29343f,roughness:0.95});
 const frame=new THREE.MeshStandardMaterial({color:0xe5683e,roughness:0.65,metalness:0.15});
 const paint=new THREE.MeshStandardMaterial({color:0xffd35a,roughness:0.6});
