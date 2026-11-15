@@ -15,7 +15,7 @@ export function readAudioPreferences(storage?: Pick<Storage, 'getItem'>): AudioP
 
 /** Deterministic synthesis keeps effects local and avoids audio downloads on startup. */
 export function synthesizeEffect(kind: RideSound, sampleRate: number) {
-  const duration = { push: 0.22, ollie: 0.13, land: 0.28, grindOn: 0.16, grindOff: 0.12, trick: 0.24, bail: 0.48 }[kind];
+  const duration = { push: 0.22, ollie: 0.065, land: 0.28, grindOn: 0.16, grindOff: 0.12, trick: 0.24, bail: 0.48 }[kind];
   const samples = new Float32Array(Math.ceil(duration * sampleRate));
   let seed = 1977, smooth = 0;
   const smoothing = 1 - Math.exp(-2 * Math.PI * 650 / sampleRate);
@@ -24,14 +24,15 @@ export function synthesizeEffect(kind: RideSound, sampleRate: number) {
     const noise = ((seed >>> 0) / 4294967296) * 2 - 1;
     smooth += (noise - smooth) * smoothing;
     const t = i / sampleRate, u = t / duration;
-    const attack = Math.min(1, t / 0.003);
+    const attack = Math.min(1, t / (kind === 'ollie' ? 0.001 : 0.003));
     const end = Math.min(1, (duration - t) / 0.015);
     let value = 0;
     // Short resonant wood/metal transients carry the identity; texture stays underneath.
     if (kind === 'push') value = (smooth * 0.20 + Math.sin(2 * Math.PI * 94 * t) * 0.12) * Math.sin(Math.PI * u);
-    if (kind === 'ollie') value = Math.sin(2 * Math.PI * 180 * t) * 0.42 * Math.exp(-t * 45)
-      + Math.sin(2 * Math.PI * 480 * t) * 0.22 * Math.exp(-t * 75)
-      + Math.sin(2 * Math.PI * 1350 * t) * 0.10 * Math.exp(-t * 130) + smooth * 0.07 * Math.exp(-u * 8);
+    // A dry, quiet deck tap: no low pitched ringing or bounce-like tail.
+    if (kind === 'ollie') value = Math.sin(2 * Math.PI * 620 * t) * 0.16 * Math.exp(-t * 120)
+      + Math.sin(2 * Math.PI * 1170 * t) * 0.055 * Math.exp(-t * 190)
+      + smooth * 0.04 * Math.exp(-t * 140);
     if (kind === 'land') value = (Math.sin(2 * Math.PI * 78 * t) * 0.45
       + Math.sin(2 * Math.PI * 164 * t) * 0.18 + smooth * 0.10) * Math.exp(-u * 6);
     if (kind === 'grindOn' || kind === 'grindOff') value = (smooth * 0.07 + Math.sin(2 * Math.PI * 1250 * t) * 0.24

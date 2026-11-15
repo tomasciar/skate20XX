@@ -28,7 +28,7 @@ export function createSoundEvents() {
     const supported = state.grounded || state.grinding, wasSupported = old.grounded || old.grinding;
     if (!supported) {
       airTime += dt; fallSpeed = Math.min(fallSpeed, state.verticalSpeed);
-      if (wasSupported && state.verticalSpeed > 2) sounds.push({ kind: 'ollie', strength: 0.6 });
+      if (wasSupported && state.verticalSpeed > 2) sounds.push({ kind: 'ollie', strength: 0.35 });
     } else {
       // Reject suspension contact chatter and tiny rail corrections.
       if (!wasSupported && !state.grinding && airTime > 0.08 && fallSpeed < -1.5 && !state.bail) {
