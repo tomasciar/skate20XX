@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { bakeSceneryCollision } from '../src/world/collision.ts';
 import { makeLandscape, landscapeHeight, LANDSCAPE_X } from '../src/world/landscape.ts';
+import * as scenery from '../src/world/scenery.ts';
 import { makeScenery, makeCone, makeFence, makePicnic, makeSign } from '../src/world/scenery.ts';
 import { seededRandom } from '../src/world/generation.ts';
 import { createRamp, RAMP } from '../src/world/ramp.ts';
@@ -25,18 +26,25 @@ test('all scenery templates collide where their visible meshes are, including ne
   const props = [makeScenery('village',0,seededRandom(2)),makeScenery('village',1,seededRandom(3)),
     makeScenery('grove',1,seededRandom(4)),makeScenery('ridge',0,seededRandom(5)),
     makeScenery('grove',2,seededRandom(6)),makeCone(),makeFence(),makePicnic(),makeSign('grove',0)];
-  for (let i=0;i<props.length;i++) { const prop=props[i]!;prop.position.x=i*12;prop.rotation.y=i*0.17;prop.scale.set(1,1+i*0.03,1);root.add(prop); }
+  // Every building and prop builder, so new architecture cannot ship without matching collision.
+  const builders=Object.entries(scenery).filter(([name,value])=>/^make[A-Z]/.test(name) && typeof value==='function'
+    && !['makeScenery','makeCone','makeFence','makePicnic','makeSign','makePaving','makeTree','makeHedge','makeYardFence','makeLamp'].includes(name));
+  assert.ok(builders.length>=28,`only ${builders.length} builders found`);
+  for(const [index,[,build]] of builders.entries()) props.push((build as (rng:()=>number)=>THREE.Group)(seededRandom(40+index)));
+  props.push(scenery.makeHedge(),scenery.makeYardFence(),scenery.makeLamp(1,seededRandom(8)));
+  for(const style of ['pine','cedar','broadleaf','birch','autumn','fruit','snag'] as const) props.push(scenery.makeTree(seededRandom(9),style));
+  for (let i=0;i<props.length;i++) { const prop=props[i]!;prop.position.x=i*12;prop.rotation.y=i*0.17;prop.scale.set(1,1+(i%9)*0.03,1);root.add(prop); }
   const baked = addCollision(world,root);world.step();root.updateMatrixWorld(true);
   let expectedMeshes=0;root.traverse(o=>{if(o instanceof THREE.Mesh)expectedMeshes++;});
   assert.equal(baked.meshCount,expectedMeshes);
   const raycaster = new THREE.Raycaster();
   const down = new THREE.Vector3(0,-1,0).applyQuaternion(root.quaternion);
   for (let i=0;i<props.length;i++) {
-    const origin = new THREE.Vector3(i*12,25,0).applyMatrix4(root.matrixWorld);
+    const origin = new THREE.Vector3(i*12,90,0).applyMatrix4(root.matrixWorld);
     raycaster.set(origin,down);
     const visual = raycaster.intersectObject(props[i]!,true)[0];
     assert.ok(visual,`probe missed template ${i}`);
-    const physical=world.castRayAndGetNormal(new RAPIER.Ray(origin,down),50,true);
+    const physical=world.castRayAndGetNormal(new RAPIER.Ray(origin,down),120,true);
     assert.ok(physical);assert.ok(Math.abs(physical.timeOfImpact-visual.distance)<0.002,`template ${i} collision mismatch`);
   }
   world.free();
@@ -70,7 +78,9 @@ test('generated trees stop physical objects and rich scenery keeps a bounded phy
   await RAPIER.init();
   const scene = new THREE.Scene(), world = new RAPIER.World({x:0,y:-18,z:0});world.timestep=1/120;
   const ramp = createRamp(scene,world);world.step();scene.updateMatrixWorld(true);
-  assert.equal(world.colliders.len(),8); // one combined terrain/road/scenery collider per chunk
+  // One combined terrain/road/scenery collider per chunk: the live window plus the chunks prepared ahead of it.
+  const live=RAMP.chunksBehind+1+RAMP.chunksAhead, full=live+RAMP.prepareLead;
+  assert.equal(world.colliders.len(),full);
   assert.ok(ramp.mesh.children.every(chunk=>chunk.userData.solidMeshes>100));
   const chunk = ramp.mesh.children.find(c=>c.position.z===0)!;
   const trunks = chunk.children.find(o=>o instanceof THREE.Mesh && (o.material as THREE.MeshStandardMaterial).color.getHex()===0x5a4030) as THREE.Mesh;
@@ -88,8 +98,8 @@ test('generated trees stop physical objects and rich scenery keeps a bounded phy
   // Complete an incremental preparation across an origin change, then keep streaming.
   ramp.prepareNextChunk(0);ramp.scroll(70);world.step();
   assert.ok(ramp.mesh.children.every(chunk=>chunk.visible));
-  for(let i=0;i<20;i++){ramp.prepareNextChunk();ramp.scroll(70);world.step();assert.ok(world.colliders.len()<=12);}
-  ramp.reset();world.step();assert.equal(world.colliders.len(),8);
+  for(let i=0;i<20;i++){ramp.prepareNextChunk();ramp.scroll(70);world.step();assert.ok(world.colliders.len()<=full+3);}
+  ramp.reset();world.step();assert.equal(world.colliders.len(),live);
   const player=createBoardPlayer(scene,world,ramp),tricks=createTrickSystem();
   const along=20,x=150;
   const ground=ramp.anchor.clone().addScaledVector(ramp.forward,along).add(new THREE.Vector3(x,0,0)).addScaledVector(ramp.surfaceNormal,landscapeHeight(x,along)-RAMP.thickness/2);

@@ -9,13 +9,18 @@ export function createAirRotation() {
   const state: AirRotationState = {active:false,engaged:false,pitch:0,roll:0};
   const rotation=new THREE.Quaternion(), velocity=new THREE.Vector3();
   const target=new THREE.Vector3(), axis=new THREE.Vector3(), step=new THREE.Quaternion();
+  const UP=new THREE.Vector3(0,1,0), counted=new THREE.Vector3();
   function reset() { state.active=state.engaged=false;state.pitch=state.roll=0;rotation.identity();velocity.set(0,0,0); }
-  function update(dt: number, toggle: boolean, pitch: number, roll: number, airborne: boolean) {
+  /**
+   * `heading` is the board's yaw away from straight down the course. Inputs are read in the course's frame
+   * (the camera's), so W always tumbles forward down the hill, whichever way the board happens to point.
+   */
+  function update(dt: number, toggle: boolean, pitch: number, roll: number, airborne: boolean, heading = 0) {
     if(!airborne) { reset();return; }
     if(toggle) { state.active=!state.active;state.engaged=true; }
     // Switching back to steering preserves the aerial pose without continuing to tumble.
     if(!state.active) { velocity.set(0,0,0);return; }
-    target.set(-pitch,0,-roll);
+    target.set(-pitch,0,-roll).applyAxisAngle(UP,-heading);
     if(target.lengthSq()>1)target.normalize();
     target.multiplyScalar(AIR_ROTATION_SPEED);
     velocity.lerp(target,1-Math.exp(-14*dt));
@@ -24,7 +29,9 @@ export function createAirRotation() {
       axis.copy(velocity).multiplyScalar(1/speed);
       step.setFromAxisAngle(axis,speed*dt);
       rotation.multiply(step).normalize();
-      state.pitch+=velocity.x*dt;state.roll+=velocity.z*dt;
+      // Count turns in the course frame too, so a flip is named for how it looked.
+      counted.copy(velocity).applyAxisAngle(UP,heading);
+      state.pitch+=counted.x*dt;state.roll+=counted.z*dt;
     }
   }
   return {state,rotation,update,reset};

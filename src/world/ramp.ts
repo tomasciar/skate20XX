@@ -1,11 +1,14 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { CHUNK_LENGTH, planChunk, seededRandom } from "./generation.ts";
-import { makeCone, makeScenery, makeSign, makeFence, makePicnic } from "./scenery.ts";
+import { makeCone } from "./scenery.ts";
+import { populateDistrict } from "./districts.ts";
+import { SUN_DIRECTION, createShadowBuilder } from "./shadows.ts";
+import { landscapeHeight } from "./landscape.ts";
 import { bakeSceneryCollisionSteps } from "./collision.ts";
 import { courseHeight, courseSlope, COURSE_STEP } from "./course.ts";
 import { placeScenery } from "./placement.ts";
-import { makeLandscape, landscapeHeight } from "./landscape.ts";
+import { makeLandscape } from "./landscape.ts";
 import type { GrindRail } from "../player/grind.ts";
 import RAPIER from "@dimforge/rapier3d-compat";
 
@@ -62,12 +65,14 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
   scene.add(hill);
 
   const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-angle, 0, 0));
+  // The sun as seen from the tilted hill frame that all chunk geometry is built in.
+  const sunOnHill = SUN_DIRECTION.clone().applyQuaternion(q.clone().invert());
   const surfaceNormal = new THREE.Vector3(0, 1, 0).applyQuaternion(q).normalize();
   const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(q).normalize();
 
   const asphaltSource = makeAsphaltTexture();
-  const metersPerTile = 7;
-  asphaltSource.repeat.set(RAMP.width / 6, RAMP.chunkLength / metersPerTile);
+  // One tile spans the full road width, so its wheel-path wear lines up with the lanes.
+  asphaltSource.repeat.set(1, RAMP.chunkLength / 14);
   const mats = makeSharedMaterials();
 
   const chunks = new Map<number, Chunk>();
@@ -87,7 +92,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
     part.body.setRotation({ x: part.rot.x, y: part.rot.y, z: part.rot.z, w: part.rot.w }, true);
   }
 
-  const asphaltMaterial = new THREE.MeshStandardMaterial({ map: asphaltSource, roughness: 0.95 });
+  const asphaltMaterial = new THREE.MeshStandardMaterial({ map: asphaltSource, roughness: 0.92 });
 
   function destroyChunk(index: number) {
     const chunk = chunks.get(index);
@@ -101,8 +106,9 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
       if (!(obj instanceof THREE.Mesh)) return;
       if (!obj.geometry.userData.shared) obj.geometry.dispose();
       const mat = obj.material;
-      if (mat instanceof THREE.MeshStandardMaterial && mat.map && mat.map !== asphaltSource) {
-        mat.map.dispose();
+      // Only textures made for this chunk (district signs) go with it; shared maps stay loaded.
+      if (mat instanceof THREE.MeshStandardMaterial && mat.userData.perChunk) {
+        mat.map?.dispose();
         mat.dispose();
       }
     });
@@ -115,7 +121,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
   function* generateChunk(index: number): Generator<void> {
     destroyChunk(index);
     const rng = seededRandom(Math.imul(index, 2654435761) ^ 0x9e3779b9);
-    const { district, encounters } = planChunk(index);
+    const { district, entering, encounters } = planChunk(index);
     const root = new THREE.Group(); root.visible = false;
     const baseHeight=courseHeight(index*RAMP.chunkLength);
     const zBase = -(index - cursor) * RAMP.chunkLength;
@@ -146,7 +152,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
     root.add(warpCourse(deck));
 
     for (const side of [-1, 1] as const) {
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.28,0.5,RAMP.chunkLength,1,1,RAMP.chunkLength/COURSE_STEP), mats.rail);
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.28,0.5,RAMP.chunkLength,1,1,RAMP.chunkLength/COURSE_STEP), mats.barrier);
       rail.position.set(side * (RAMP.width / 2 + 0.08), RAMP.thickness / 2 + 0.18, -RAMP.chunkLength / 2);
       rail.castShadow = true;
       root.add(warpCourse(rail));
@@ -174,81 +180,51 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
       path.position.set(side*10.5,0.20,-RAMP.chunkLength/2); path.receiveShadow = true; root.add(warpCourse(path));
     }
     yield;
+    const shadows = createShadowBuilder(sunOnHill), bounds = new THREE.Box3();
+    const groundAt = (x: number, z: number) => landscapeHeight(x,index*RAMP.chunkLength-z)-baseHeight+0.1;
+    const roadAt = (_x: number, z: number) => RAMP.thickness/2+courseHeight(index*RAMP.chunkLength-z)-baseHeight+0.025;
+    /** Shadow of something standing on the road; it stays on the asphalt. */
+    function shadeOnRoad(caster: THREE.Object3D, round = false) {
+      caster.updateMatrixWorld(true);
+      shadows.add(bounds.setFromObject(caster), round ? 'round' : 'box', roadAt, -RAMP.width/2+0.1, RAMP.width/2-0.1);
+    }
     function plant(object: THREE.Object3D, x: number, along: number, yaw = 0) {
-      root.add(placeScenery(object,x,along,index*RAMP.chunkLength,baseHeight,angle,yaw));
-    }
-
-    const treeRows = 5 + Math.floor(rng() * 3);
-    for (let i = 0; i < treeRows; i++) {
-      const along = 6 + rng() * (RAMP.chunkLength - 12);
-      for (const side of [-1, 1] as const) {
-        if (rng() < 0.18) continue;
-        const tree = makeTree(mats, rng, district === "ridge" ? 0.85 : district === "village" ? 0.25 : 0.55);
-        plant(tree, side * (RAMP.width / 2 + 4.4 + rng() * 4.5), along);
-        if (rng() > 0.45) {
-          const pole = makeLamp(mats, side, rng);
-          plant(pole,side*(RAMP.width/2+1.1+rng()*0.6),along-2-rng()*3);
-        }
+      const placed = placeScenery(object,x,along,index*RAMP.chunkLength,baseHeight,angle,yaw);
+      // Roadside shadows are draped on the terrain, which runs underneath the raised road and footpath,
+      // so each stays on its own verge. Street lamps stand inside that strip and go without.
+      const verge = 11.6;
+      if (object.userData.shadow !== 'none' && Math.abs(x) >= verge) {
+        // Measure the prop itself, not the terrace it may stand on.
+        placed.updateMatrixWorld(true);
+        shadows.add(bounds.setFromObject(object), object.userData.shadow === 'round' ? 'round' : 'box', groundAt,
+          x > 0 ? verge : -Infinity, x > 0 ? Infinity : -verge);
       }
-      yield;
+      root.add(placed);
     }
 
-    for (let i = 0; i < 5; i++) {
-      for (const side of [-1, 1]) {
-        const prop = makeScenery(district, i + index, rng);
-        plant(prop, side * (14 + rng() * 5), 8+i*13, side > 0 ? -Math.PI/2 : Math.PI/2);
-        yield;
-      }
-    }
-    const sign = makeSign(district, index);
-    plant(sign,9.8,5);
-
-    // Forest belts and settled fields fill the middle distance on both sides.
-    for (let i=0; i<30; i++) {
-      const side = i%2 ? -1 : 1, along = 3+rng()*64;
-      const x = side*(26+rng()*110);
-      const tree = makeTree(mats,rng,district === "ridge" ? 0.85 : district === "village" ? 0.25 : 0.55);
-      const farScale = 1.1 + rng()*0.65; tree.scale.multiplyScalar(farScale);
-      plant(tree,x,along,rng()*Math.PI*2);
-      if (i%4 === 3) yield;
-    }
-    for (const side of [-1,1]) {
-      if (district === 'village') {
-        for (let i=0;i<3;i++) {
-          const house = makeScenery('village',i*3,rng);
-          plant(house,side*(34+i*13),12+i*21,side>0 ? -Math.PI/2 : Math.PI/2);
-          plant(makeFence(10),side*(31+i*13),20+i*21,Math.PI/2);
-          yield;
-        }
-      } else {
-        plant(makePicnic(),side*25,18,side*Math.PI/2);
-        plant(makeFence(12),side*38,36,Math.PI/2);
-        for (let i=0;i<3;i++) { plant(makeScenery('ridge',i,rng),side*(40+i*22),12+i*19); yield; }
-      }
-    }
-
-    if (rng() > 0.4) {
-      const side = rng() > 0.5 ? 1 : -1;
-      const far = new THREE.Mesh(new THREE.ConeGeometry(1, 1, 7), mats.hill);
-      const radius = 22 + rng() * 14;
-      const height = 28 + rng() * 28;
-      far.scale.set(radius, height, radius);
-      const x = side*(200+rng()*20), along = rng()*RAMP.chunkLength;
-      far.position.set(x,landscapeHeight(x,index*RAMP.chunkLength+along)-baseHeight+height*0.5-3,-along);
-      far.rotation.x = angle;
-      far.rotation.y = rng() * Math.PI;
-      root.add(far);
-    }
+    yield* populateDistrict({ district, index, entering, rng, plant });
 
     for (const item of encounters) {
       const { x, along, width, length, height, kind } = item;
       const y = RAMP.thickness / 2;
-      if (kind === 'rail') {
+      if (kind === 'rail' || kind === 'ledge') {
         const s=index*RAMP.chunkLength+along;
         const startHeight=courseHeight(s-length/2)-baseHeight, endHeight=courseHeight(s+length/2)-baseHeight;
         const pitch=Math.atan2(endHeight-startHeight,length), physicalLength=Math.hypot(length,endHeight-startHeight);
+        const normal=new THREE.Vector3(0,Math.cos(pitch),Math.sin(pitch));
+        if (kind === 'ledge') {
+          // A solid concrete ledge with steel coping: the grind line runs along its top.
+          const depth=height+0.5, center=new THREE.Vector3(x,y+(startHeight+endHeight)/2+height,-along);
+          const block=new THREE.Mesh(new THREE.BoxGeometry(width,depth,physicalLength),mats.ledge);
+          block.position.copy(center).addScaledVector(normal,0.07-depth/2);block.rotation.x=pitch;shadeOnRoad(block);root.add(block);
+          for(const side of [-1,1]) {
+            const coping=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.06,physicalLength),mats.rail);
+            coping.position.copy(center).addScaledVector(normal,0.045);coping.position.x+=side*(width/2-0.02);
+            coping.rotation.x=pitch;coping.userData.collision=false;root.add(coping);
+          }
+        } else {
         const top=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.14,physicalLength),mats.rail);
-        top.position.set(x,y+(startHeight+endHeight)/2+height,-along);top.rotation.x=pitch;root.add(top);
+        top.position.set(x,y+(startHeight+endHeight)/2+height,-along);top.rotation.x=pitch;shadeOnRoad(top);root.add(top);
         for(const z of [-length/2+0.6,0,length/2-0.6]) {
           const ground=y+courseHeight(s-z)-baseHeight;
           const upper=y+startHeight+(endHeight-startHeight)*(length/2-z)/length+height;
@@ -257,7 +233,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
           const foot=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.05,0.5),mats.lip);
           foot.position.set(x,ground+0.025,-along+z);root.add(foot);
         }
-        const normal=new THREE.Vector3(0,Math.cos(pitch),Math.sin(pitch));
+        }
         chunk.rails.push({id:`${index}:${along}`,normal,
           start:new THREE.Vector3(x,y+startHeight+height,-along+length/2).addScaledVector(normal,0.07),
           end:new THREE.Vector3(x,y+endHeight+height,-along-length/2).addScaledVector(normal,0.07)});
@@ -268,7 +244,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
           const cone = makeCone();
           const s=index*RAMP.chunkLength+along-(i-1)*1.5;
           cone.position.set(x,y+courseHeight(s)-baseHeight,-along+(i-1)*1.5); cone.rotation.x=Math.atan(courseSlope(s));
-          root.add(cone);
+          shadeOnRoad(cone, true); root.add(cone);
         }
         continue;
       }
@@ -286,7 +262,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
         geometry.translate(0, height / 2, 0);
       }
       const mesh = new THREE.Mesh(geometry, mats.kicker);
-      mesh.position.set(x,y,-along); root.add(warpCourse(mesh));
+      mesh.position.set(x,y,-along); shadeOnRoad(warpCourse(mesh)); root.add(mesh);
       // Colored lip announces the optional jump without forming a raised collision seam.
       const lip = new THREE.Mesh(new THREE.BoxGeometry(width, 0.004, 0.25), mats.lip);
       lip.position.set(x, y + height - (kind === "kicker" ? height*0.13/length : 0) + 0.003, -along - length / 2 + 0.13); lip.userData.collision = false; root.add(warpCourse(lip));
@@ -306,7 +282,9 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
       chunk.parts.push(part); syncPart(part);
     }
     yield;
-    yield* batchChunk(root, new Set([asphaltMaterial, mats.terrain, mats.path, mats.hill]));
+    yield* batchChunk(root);
+    const shade = shadows.build();
+    if (shade) { root.add(shade); root.userData.shadowTriangles = shadows.triangles; }
     root.traverse(obj => { obj.matrixAutoUpdate = false; obj.updateMatrix(); });
     root.matrixAutoUpdate = false; root.updateMatrix(); root.visible = true;
   }
@@ -339,7 +317,8 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
 
   function flushDeferredDestroy(budgetMs = 2) {
     const start = performance.now();
-    while (deferredDestroy.length > 0 && performance.now() - start < budgetMs) {
+    // Always frees at least one chunk, then continues while the budget lasts.
+    for (let first = true; deferredDestroy.length > 0 && (first || performance.now() - start < budgetMs); first = false) {
       const idx = deferredDestroy.shift()!;
       if (!chunks.has(idx)) continue;
       // Still needed again (e.g. reset) — skip.
@@ -371,7 +350,8 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
     flushDeferredDestroy(Math.min(1.5, budgetMs * 0.25));
     const limit = cursor + RAMP.chunksAhead + RAMP.prepareLead;
     let next = cursor + RAMP.chunksAhead + 1;
-    while (next <= limit && chunks.has(next)) next++;
+    // A chunk that is still being prepared is registered already; it is unfinished work, not a finished chunk.
+    while (next <= limit && chunks.has(next) && preparation?.index !== next) next++;
     if (next > limit) return true;
 
     if (preparation && preparation.index !== next) {
@@ -413,14 +393,18 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
     for (const chunk of chunks.values()) placeChunk(chunk);
     // Rebase must stay cheap: only move/cull. New road should already be prebuilt ahead.
     ensureWindow(false);
+    // Retired chunks are normally freed during idle preparation. If nothing is doing that, free them here
+    // so the scene and physics world stay bounded.
+    while (deferredDestroy.length > 2) flushDeferredDestroy(0);
     // If preload slipped, finish at most one missing live chunk without stalling the whole window.
+    // The ground under and just ahead of the rider is never optional, however far the origin moved.
+    let spare = 1, rebuilt = false;
     for (let i = cursor - RAMP.chunksBehind; i <= cursor + RAMP.chunksAhead; i++) {
-      if (!chunks.has(i)) {
-        buildChunk(i);
-        refreshRails();
-        break;
-      }
+      if (chunks.has(i)) continue;
+      if (i !== cursor && i !== cursor + 1) { if (spare === 0) continue; spare--; }
+      buildChunk(i); rebuilt = true;
     }
+    if (rebuilt) refreshRails();
     world.propagateModifiedBodyPositionsToColliders();
     return forward
       .clone()
@@ -461,87 +445,105 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
 
 function makeSharedMaterials() {
   return {
-    rail: new THREE.MeshStandardMaterial({ color: 0xe8eef2, roughness: 0.35, metalness: 0.55 }),
+    rail: new THREE.MeshStandardMaterial({ color: 0xc9d2d8, roughness: 0.32, metalness: 0.85 }),
     path: new THREE.MeshStandardMaterial({ color: 0xaaa58d, roughness: 1 }),
-    terrain: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }),
+    terrain: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, map: makeGroundTexture() }),
     edge: new THREE.MeshBasicMaterial({ color: 0xffc857 }),
     dash: new THREE.MeshBasicMaterial({ color: 0xf2f5f8 }),
     kicker: new THREE.MeshStandardMaterial({ color: 0xd5dde4, roughness: 0.55, metalness: 0.15 }),
     lip: new THREE.MeshStandardMaterial({ color: 0xff4d2e, roughness: 0.45 }),
-    hill: new THREE.MeshStandardMaterial({ color: 0x4a7a58, roughness: 1, flatShading: true }),
-    trunk: new THREE.MeshStandardMaterial({ color: 0x5a4030, roughness: 0.9 }),
-    leaves: [0x2f6b3a, 0x3c7d46, 0x245832, 0x4d8b4a].map(
-      (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.85 })
-    ),
-    buildings: [0x8d96a0, 0x6e7884, 0xb7a898, 0x5d6a78, 0xc5ccd2].map(
-      (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.82 })
-    ),
-    lamp: new THREE.MeshStandardMaterial({ color: 0xd9dde2, metalness: 0.6, roughness: 0.35 }),
+    ledge: new THREE.MeshStandardMaterial({ color: 0xb9b6ab, roughness: 0.9 }),
+    barrier: new THREE.MeshStandardMaterial({ color: 0xc9c8c0, roughness: 0.85 }),
   };
 }
 
-const treeTrunk = new THREE.CylinderGeometry(0.18,0.24,1.6,6);
-const treePine = new THREE.ConeGeometry(1.2,3.5,7);
-const treeCrown = new THREE.IcosahedronGeometry(1.3,1);
-for (const geometry of [treeTrunk,treePine,treeCrown]) geometry.userData.shared = true;
-
-function makeTree(mats: ReturnType<typeof makeSharedMaterials>, rng: () => number, pineChance = 0.5) {
-  const tree = new THREE.Group();
-  const trunk = new THREE.Mesh(treeTrunk, mats.trunk);
-  trunk.position.y = 0.8;
-  trunk.castShadow = true;
-  tree.add(trunk);
-  const crown = new THREE.Mesh(
-    rng() < pineChance ? treePine : treeCrown,
-    mats.leaves[Math.floor(rng() * mats.leaves.length)]
-  );
-  crown.position.y = 2.1;
-  crown.castShadow = true;
-  crown.scale.set(0.75 + rng() * 0.5, 0.7 + rng() * 0.9, 0.75 + rng() * 0.5);
-  tree.add(crown);
-  const s = 0.65 + rng() * 1.0;
-  tree.scale.set(s, 0.75 + rng() * 1.05, s);
-  return tree;
-}
-
-function makeLamp(mats: ReturnType<typeof makeSharedMaterials>, side: number, rng: () => number) {
-  const root = new THREE.Group(), height = 3.2*(0.85+rng()*0.4);
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,height,6),mats.lamp);
-  pole.position.y = height/2; pole.castShadow = true; root.add(pole);
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.12,0.22),mats.lamp);
-  head.position.set(-side*0.25,height-0.05,0); root.add(head); return root;
+/** Tests and tools run without a browser canvas; they need the texture object but not its pixels. */
+function canPaint(g: CanvasRenderingContext2D) {
+  return typeof CanvasRenderingContext2D !== "undefined" && g instanceof CanvasRenderingContext2D;
 }
 
 function makeAsphaltTexture(): THREE.CanvasTexture {
   const canvas = document.createElement("canvas");
-  canvas.width = 512;
-  canvas.height = 512;
+  canvas.width = 1024;
+  canvas.height = 1024;
   const g = canvas.getContext("2d")!;
   const rng = seededRandom(12345);
-  g.fillStyle = "#6a727a";
-  g.fillRect(0, 0, 512, 512);
-  for (let i = 0; i < 6000; i++) {
-    const shade = 70 + rng() * 50;
-    g.fillStyle = `rgba(${shade},${shade},${shade + 4},${0.15 + rng() * 0.35})`;
-    g.fillRect(rng() * 512, rng() * 512, 1 + rng() * 2, 1 + rng() * 2);
-  }
-  g.strokeStyle = "rgba(40,40,44,0.45)";
-  g.lineWidth = 1;
-  for (let i = 0; i < 14; i++) {
-    g.beginPath();
-    let x = rng() * 512;
-    let y = rng() * 512;
-    g.moveTo(x, y);
-    for (let k = 0; k < 6; k++) {
-      x += (rng() - 0.5) * 80;
-      y += (rng() - 0.5) * 40;
-      g.lineTo(x, y);
+  if (canPaint(g)) {
+    g.fillStyle = "#636a71";
+    g.fillRect(0, 0, 1024, 1024);
+    // Lengthwise wear: two slightly polished wheel paths per lane and darker oil between them.
+    for (const [x, width, shade] of [[170, 150, 255], [420, 150, 255], [604, 150, 255], [854, 150, 255], [295, 70, 20], [729, 70, 20]] as const) {
+      const wear = g.createLinearGradient(x - width / 2, 0, x + width / 2, 0);
+      wear.addColorStop(0, `rgba(${shade},${shade},${shade},0)`); wear.addColorStop(0.5, `rgba(${shade},${shade},${shade},0.07)`);
+      wear.addColorStop(1, `rgba(${shade},${shade},${shade},0)`);
+      g.fillStyle = wear; g.fillRect(x - width / 2, 0, width, 1024);
     }
-    g.stroke();
+    // Aggregate: many fine light and dark stones.
+    for (let i = 0; i < 26000; i++) {
+      const shade = rng() < 0.5 ? 55 + rng() * 40 : 120 + rng() * 60;
+      g.fillStyle = `rgba(${shade},${shade},${shade + 5},${0.12 + rng() * 0.3})`;
+      const size = 1 + rng() * 2.2;
+      g.fillRect(rng() * 1024, rng() * 1024, size, size);
+    }
+    // Faint resurfaced strips and fine tar-sealed cracks that wander along the road.
+    for (let i = 0; i < 3; i++) {
+      g.fillStyle = `rgba(40,44,50,${0.05 + rng() * 0.05})`;
+      g.fillRect(rng() * 900, rng() * 900, 50 + rng() * 90, 120 + rng() * 260);
+    }
+    g.strokeStyle = "rgba(34,36,40,0.38)";
+    g.lineCap = "round";
+    g.lineJoin = "round";
+    for (let i = 0; i < 9; i++) {
+      g.lineWidth = 0.8 + rng() * 1.1;
+      g.beginPath();
+      let x = rng() * 1024;
+      let y = rng() * 1024;
+      g.moveTo(x, y);
+      for (let k = 0; k < 14; k++) {
+        x += (rng() - 0.5) * 16;
+        y += 8 + rng() * 22;
+        g.lineTo(x, y);
+      }
+      g.stroke();
+    }
   }
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 16;
+  return tex;
+}
+
+/** Near-white grass detail that multiplies the terrain's vertex colours, so districts keep their own tint. */
+function makeGroundTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 512;
+  const g = canvas.getContext("2d")!;
+  const rng = seededRandom(777);
+  if (canPaint(g)) {
+    g.fillStyle = "#dcdcdc";
+    g.fillRect(0, 0, 512, 512);
+    for (let i = 0; i < 260; i++) {
+      const shade = rng() < 0.5 ? 255 : 150, radius = 14 + rng() * 44, x = rng() * 512, y = rng() * 512;
+      // Draw each blotch wrapped, so the tile repeats without a seam.
+      for (const ox of [-512, 0, 512]) for (const oy of [-512, 0, 512]) {
+        const blotch = g.createRadialGradient(x + ox, y + oy, 0, x + ox, y + oy, radius);
+        blotch.addColorStop(0, `rgba(${shade},${shade},${shade},0.16)`); blotch.addColorStop(1, `rgba(${shade},${shade},${shade},0)`);
+        g.fillStyle = blotch; g.fillRect(x + ox - radius, y + oy - radius, radius * 2, radius * 2);
+      }
+    }
+    for (let i = 0; i < 9000; i++) {
+      const shade = 150 + rng() * 105;
+      g.fillStyle = `rgba(${shade},${shade},${shade * 0.94},${0.25 + rng() * 0.4})`;
+      g.fillRect(rng() * 512, rng() * 512, 1 + rng() * 1.5, 2 + rng() * 4);
+    }
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(3.4, 3.4);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 8;
   return tex;
@@ -552,11 +554,13 @@ function addBackdrop(scene: THREE.Scene) {
   // Full visibility to 120 m; fade out by 300 m, before the streamed road ends.
   scene.fog = new THREE.Fog(0x8ebfd4, 120, 300);
 
-  scene.add(new THREE.HemisphereLight(0xeaf6ff, 0x6b9a5a, 1.35));
-  scene.add(new THREE.AmbientLight(0xd0e4f0, 0.35));
+  scene.add(new THREE.HemisphereLight(0xdcefff, 0x6f8f58, 0.95));
+  scene.add(new THREE.AmbientLight(0xd0e4f0, 0.2));
 
-  const sun = new THREE.DirectionalLight(0xfff3dd, 1.55);
-  sun.position.set(30, 90, 40);
+  // Mid-morning sun from up the left flank: trees and buildings throw shadows across the road.
+  const sun = new THREE.DirectionalLight(0xfff0d6, 2.1);
+  sun.name = "sun";
+  sun.position.copy(SUN_DIRECTION).multiplyScalar(100);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.camera.near = 1;
@@ -568,14 +572,13 @@ function addBackdrop(scene: THREE.Scene) {
   sun.shadow.bias = -0.0002;
   scene.add(sun);
 
-  const fill = new THREE.DirectionalLight(0xb8d4e8, 0.45);
-  fill.position.set(-40, 30, -20);
+  const fill = new THREE.DirectionalLight(0xb8d4e8, 0.35);
+  fill.position.set(40, 30, -20);
   scene.add(fill);
-
 }
 
 /** Merge static props by material: scenery variety should not mean thousands of draw calls. */
-function* batchChunk(root: THREE.Group, noShadow: Set<THREE.Material>): Generator<void> {
+function* batchChunk(root: THREE.Group): Generator<void> {
   root.updateMatrixWorld(true);
   const inverse = root.matrixWorld.clone().invert();
   const batches = new Map<THREE.Material, THREE.BufferGeometry[]>();
@@ -601,7 +604,8 @@ function* batchChunk(root: THREE.Group, noShadow: Set<THREE.Material>): Generato
     if (!merged) continue;
     merged.computeBoundingSphere();
     const mesh = new THREE.Mesh(merged, material);
-    mesh.castShadow = !noShadow.has(material) && material instanceof THREE.MeshStandardMaterial && !material.map;
+    // Scenery shadows are baked onto the ground per chunk; the shadow map is reserved for the rider.
+    mesh.castShadow = false;
     mesh.receiveShadow = material instanceof THREE.MeshStandardMaterial;
     root.add(mesh);
     yield;

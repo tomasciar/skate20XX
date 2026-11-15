@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { BOARD, FOOT_Y, RIDER } from "./dimensions.ts";
+import { CARVE } from "./carve.ts";
 import type { RagdollRig, RagdollPart, RagdollJoint } from "./ragdoll.ts";
 import { TUCK, grabTransform } from "./grabPose.ts";
 import type { GrabDef } from "./grabs.ts";
@@ -10,6 +11,8 @@ import { createRiderMotion, solveArm, solveLimb } from "./pose.ts";
 export type SkaterVisual = {
   root: THREE.Group;
   board: THREE.Group;
+  /** Deck, grip and baseplates: rolls on the trucks while the wheels stay on the road. */
+  deck: THREE.Group;
   wheels: THREE.Object3D[];
   resetPose: () => void;
   captureRagdoll: () => RagdollRig;
@@ -27,6 +30,8 @@ export type SkaterVisual = {
     grinding: boolean;
     crouch: number;
     lean: number;
+    /** Signed carve load, -1..1: rolls the deck and puts the rider's weight over the inside edge. */
+    carve?: number;
     airborne: boolean;
     bail: boolean;
     wheelRoll: number;
@@ -35,8 +40,8 @@ export type SkaterVisual = {
 };
 
 export function createSkaterVisual(): SkaterVisual {
-  const root = new THREE.Group(), board = new THREE.Group(), rider = new THREE.Group();
-  root.add(board, rider);
+  const root = new THREE.Group(), board = new THREE.Group(), rider = new THREE.Group(), deck = new THREE.Group();
+  root.add(board, rider); board.add(deck);
   const mat = (color: number, roughness = 0.8, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness });
   const grip = mat(0x222a2b), maple = mat(0xd1aa72), orange = mat(0xf27543);
   const steel = mat(0xaab9bf, 0.3, 0.8), rubber = mat(0xe8dfc6);
@@ -57,18 +62,18 @@ export function createSkaterVisual(): SkaterVisual {
   deckGeo.rotateX(-Math.PI / 2); deckGeo.translate(0, -0.009, 0);
   const positions = deckGeo.getAttribute('position');
   for (let i = 0; i < positions.count; i++) positions.setY(i, positions.getY(i) + Math.max(0, Math.abs(positions.getZ(i)) - 0.27) * 0.3);
-  deckGeo.computeVertexNormals(); mesh(board, deckGeo, maple);
+  deckGeo.computeVertexNormals(); mesh(deck, deckGeo, maple);
   const gripGeo = new THREE.ShapeGeometry(outline, 10); gripGeo.rotateX(-Math.PI / 2);
   const gp = gripGeo.getAttribute('position');
   for (let i = 0; i < gp.count; i++) gp.setY(i, 0.011 + Math.max(0, Math.abs(gp.getZ(i)) - 0.27) * 0.3);
-  gripGeo.computeVertexNormals(); mesh(board, gripGeo, grip);
-  box(board, [0.13, 0.004, 0.38], orange, 0, -0.021, 0);
+  gripGeo.computeVertexNormals(); mesh(deck, gripGeo, grip);
+  box(deck, [0.13, 0.004, 0.38], orange, 0, -0.021, 0);
   const wheels: THREE.Object3D[] = [];
   for (const z of [-BOARD.truckZ, BOARD.truckZ]) {
-    box(board, [0.08, 0.014, 0.08], steel, 0, -0.025, z);
+    box(deck, [0.08, 0.014, 0.08], steel, 0, -0.025, z);
     box(board, [0.19, 0.025, 0.035], steel, 0, BOARD.hangerY, z);
     for (const x of [-BOARD.wheelX, BOARD.wheelX]) {
-      for (const dz of [-0.025, 0.025]) mesh(board, new THREE.SphereGeometry(0.006, 6, 4), steel, x * 0.6, 0.016, z + dz);
+      for (const dz of [-0.025, 0.025]) mesh(deck, new THREE.SphereGeometry(0.006, 6, 4), steel, x * 0.6, 0.016, z + dz);
       const spin = new THREE.Group(); spin.position.set(x, BOARD.wheelY, z); board.add(spin);
       mesh(spin, new THREE.CylinderGeometry(BOARD.wheelRadius, BOARD.wheelRadius, 0.032, 24), rubber).rotation.z = Math.PI / 2;
       mesh(spin, new THREE.CylinderGeometry(0.012, 0.012, 0.034, 10), steel).rotation.z = Math.PI / 2;
@@ -76,7 +81,7 @@ export function createSkaterVisual(): SkaterVisual {
       wheels.push(spin);
     }
   }
-  batchStaticMeshes(board);
+  batchStaticMeshes(deck); batchStaticMeshes(board);
   rider.rotation.y = RIDER.stanceY;
   const hips = new THREE.Group(); rider.add(hips);
   const pelvis = mesh(hips, new THREE.CapsuleGeometry(0.11, 0.1, 4, 10), pants); pelvis.rotation.z = Math.PI / 2;
@@ -137,7 +142,8 @@ export function createSkaterVisual(): SkaterVisual {
     m.quaternion.setFromUnitVectors(axis, direction.normalize());
   }
   const motion = createRiderMotion();
-  let grabBlend = 0;
+  let grabBlend = 0, carve = 0;
+  const carveTilt = new THREE.Quaternion(), riderX = new THREE.Vector3(1,0,0), gripPivot = new THREE.Vector3(0,BOARD.gripY,0);
   let heldGrab: GrabDef | null = null;
   const faceForward = new THREE.Vector3(0,0,-1), headAim = new THREE.Vector3();
   const headWorld = new THREE.Quaternion(), headParent = new THREE.Quaternion();
@@ -151,6 +157,13 @@ export function createSkaterVisual(): SkaterVisual {
     if (!opts.airborne || opts.grinding || opts.bail) grabBlend = 0;
     if (!selectedGrab && grabBlend < 0.002) { heldGrab = null; grabBlend = 0; }
     if (opts.boardSpin.x || opts.boardSpin.y || opts.boardSpin.z) { grabBlend = 0; heldGrab = null; }
+    carve = THREE.MathUtils.damp(carve, opts.airborne || opts.grinding || opts.bail ? 0 : THREE.MathUtils.clamp(opts.carve ?? 0,-1,1), 10, opts.dt);
+    if (Math.abs(carve) < 1e-5) carve = 0;
+    // Roll about the grip centerline: the soles stay planted and the wheels stay on the road.
+    const tilt = carve ? -carve * CARVE.deckTilt : 0;
+    deck.rotation.z = tilt;
+    deck.position.copy(gripPivot).sub(gripPivot.clone().applyEuler(deck.rotation));
+    carveTilt.setFromAxisAngle(riderX, tilt);
     const tweak = heldGrab?.tweak ?? TUCK;
     const c = THREE.MathUtils.lerp(THREE.MathUtils.clamp(m.crouch+m.air*0.25+m.kneeLoad,0,1),tweak.crouch,grabBlend);
     const grabPose = grabTransform(tweak,grabBlend);
@@ -165,13 +178,16 @@ export function createSkaterVisual(): SkaterVisual {
     board.rotation.set(opts.boardSpin.x, opts.boardSpin.y, opts.boardSpin.z);
     if (grabBlend > 0) board.quaternion.premultiply(stance.clone().multiply(grabPose.rotation).multiply(stance.clone().invert()));
     const hipY = RIDER.hipHeight - c * 0.22 - grabBlend * tweak.hipDrop - m.landing - m.push * (0.035 + Math.abs(m.lean) * 0.025) + breathing + roadMotion;
-    hips.position.set(pushSwing * 0.012 + m.sway * 0.5 + tweak.hipX*grabBlend, hipY, 0.025 + c * 0.1 - m.lean * 0.065*(1-grabBlend) + m.sway);
-    torso.rotation.set(THREE.MathUtils.lerp(-0.08-c*0.25-m.brake*0.1,tweak.chestPitch,grabBlend),
+    hips.position.set(pushSwing * 0.012 + m.sway * 0.5 + tweak.hipX*grabBlend, hipY - Math.abs(carve)*0.03, 0.025 + c * 0.1 - m.lean * 0.065*(1-grabBlend) - carve*0.09 + m.sway);
+    // Toeside carves fold the chest over the toes; heelside carves sit back over the heels.
+    torso.rotation.set(THREE.MathUtils.lerp(-0.08-c*0.25-m.brake*0.1,tweak.chestPitch,grabBlend) - carve*(carve>0 ? 0.26 : 0.14),
       -0.15+pushSwing*0.07+m.sway*2, m.lean*0.13-m.sway*1.2+tweak.chestRoll*grabBlend);
     for (const l of legs) {
       // Only the pushing foot leaves the grip; all other weight shifts preserve the stance.
-      l.foot.position.set(l.side*0.255,FOOT_Y,0).applyQuaternion(grabPose.rotation).add(grabPose.offset);
-      l.foot.quaternion.copy(grabPose.rotation);
+      l.foot.position.set(0,FOOT_Y-BOARD.gripY,0).applyQuaternion(carveTilt);
+      l.foot.position.x+=l.side*0.255; l.foot.position.y+=BOARD.gripY;
+      l.foot.position.applyQuaternion(grabPose.rotation).add(grabPose.offset);
+      l.foot.quaternion.copy(grabPose.rotation).multiply(carveTilt);
       if (l.side === 1) {
         const phase = m.pushPhase;
         const lift = Math.max(0, Math.sin(phase));
@@ -257,7 +273,7 @@ export function createSkaterVisual(): SkaterVisual {
     }
     return { parts,joints };
   }
-  return { root, board, wheels, setPose, captureRagdoll, setRagdoll(active: boolean) { rider.visible = !active; }, resetPose() { motion.reset(); grabBlend = 0; heldGrab = null; board.position.set(0,0,0); board.quaternion.identity(); } };
+  return { root, board, deck, wheels, setPose, captureRagdoll, setRagdoll(active: boolean) { rider.visible = !active; if (active) { carve = 0; deck.rotation.z = 0; deck.position.set(0,0,0); } }, resetPose() { motion.reset(); grabBlend = 0; carve = 0; deck.rotation.z = 0; deck.position.set(0,0,0); heldGrab = null; board.position.set(0,0,0); board.quaternion.identity(); } };
 }
 
 /** Keep animated joints separate; combine only rigid details within the deck, head, and shoes. */

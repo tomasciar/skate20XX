@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
-import { planChunk, CHUNK_LENGTH } from '../src/world/generation.ts';
+import { planChunk, districtAt, CHUNK_LENGTH, DISTRICTS, ENCOUNTER_KINDS } from '../src/world/generation.ts';
 import { createRamp, RAMP } from '../src/world/ramp.ts';
 import { createBoardPlayer } from '../src/player/board.ts';
 import { createTrickSystem } from '../src/player/tricks.ts';
@@ -25,7 +25,28 @@ test('10,000 seeded chunks remain reproducible, spaced, and passable', () => {
       assert.ok(previousEnd < CHUNK_LENGTH - 8);
     }
   }
-  assert.equal(kinds.size, 4); assert.equal(districts.size, 3);
+  assert.equal(kinds.size, ENCOUNTER_KINDS.length); assert.equal(districts.size, DISTRICTS.length);
+});
+
+test('districts arrive in varied runs that always start with a sign and never repeat back to back', () => {
+  assert.equal(districtAt(0).district, 'grove');
+  const runs: number[] = [], seen = new Map<string, number>();
+  let length = 0;
+  for (let i = 0; i < 4000; i++) {
+    const here = districtAt(i), plan = planChunk(i);
+    assert.equal(plan.district, here.district); assert.equal(plan.entering, here.offset === 0);
+    assert.equal(here.start + here.offset, i);
+    if (here.offset === 0 && i > 0) {
+      assert.notEqual(here.district, districtAt(i - 1).district, `district repeated at ${i}`);
+      runs.push(length); length = 0;
+    }
+    length++; seen.set(here.district, (seen.get(here.district) ?? 0) + 1);
+  }
+  assert.ok(Math.min(...runs) >= 3 && Math.max(...runs) <= 7);
+  assert.ok(new Set(runs).size >= 4, 'run lengths should vary');
+  for (const district of DISTRICTS) assert.ok(seen.get(district)! > 4000 / DISTRICTS.length * 0.75, `${district} is rare`);
+  // The first two kilometres already visit every district.
+  assert.equal(new Set(Array.from({ length: 30 }, (_, i) => districtAt(i).district)).size, DISTRICTS.length);
 });
 
 test('input edges survive render-only frames and are consumed once', () => {
@@ -89,8 +110,9 @@ test('two minutes of downhill physics stream continuously with bounded scene and
     maxColliders = Math.max(maxColliders, world.colliders.len());
   }
   assert.ok(previous > 1000, `only traveled ${previous}`); assert.ok(jumps > 20);
-  assert.ok(maxColliders < 60, `unbounded colliders: ${maxColliders}`);
-  assert.ok(ramp.mesh.children.length <= 8);
+  const live = RAMP.chunksBehind + 1 + RAMP.chunksAhead, full = live + RAMP.prepareLead;
+  assert.ok(maxColliders <= full + 4, `unbounded colliders: ${maxColliders}`);
+  assert.ok(ramp.mesh.children.length <= full + 3);
   player.reset(ramp.spawn);
   assert.equal(ramp.distance, 0); assert.ok(player.forward.dot(ramp.forward) > 0.999);
   // Ride the first wedge at speed: it should launch rather than catch the front trucks.
@@ -189,15 +211,20 @@ test('two minutes of downhill physics stream continuously with bounded scene and
   player.reset(ramp.spawn);
   const cachedRails = ramp.grindRails;
   assert.equal(ramp.grindRails, cachedRails, 'rail reads should reuse the cached data');
-  const chunksBefore = ramp.mesh.children.length;
+  assert.equal(ramp.mesh.children.length, live);
   ramp.prepareNextChunk();
-  assert.equal(ramp.mesh.children.length, chunksBefore + 1);
+  assert.equal(ramp.mesh.children.length, live + 1);
+  // Preparation resumes across many small time slices, as it does between rendered frames.
+  let slices = 0;
+  while (!ramp.prepareNextChunk(0)) { slices++; assert.ok(slices < 5000, 'incremental preparation stalled'); }
+  assert.ok(slices > 20, 'chunk preparation should be spread over several slices');
+  assert.equal(ramp.mesh.children.length, full);
   const preparedRails = ramp.grindRails;
   ramp.prepareNextChunk();
-  assert.equal(ramp.mesh.children.length, chunksBefore + 1, 'preparing twice must reuse the extra chunk');
+  assert.equal(ramp.mesh.children.length, full, 'a full lead must not build further chunks');
   assert.equal(ramp.grindRails, preparedRails);
   ramp.scroll(70);
-  assert.ok(ramp.mesh.children.length <= 8);
+  assert.ok(ramp.mesh.children.length <= full + 1);
   assert.equal(ramp.grindRails, ramp.grindRails);
   for (const chunk of ramp.mesh.children) {
     assert.equal(chunk.matrixAutoUpdate, false);

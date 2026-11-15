@@ -9,6 +9,7 @@ import { createPumpCycle } from "./pump.ts";
 import { createGrindSystem } from "./grind.ts";
 import { createAirRotation, describeAirRotation } from "./airRotation.ts";
 import { approachTopSpeed, MAX_SPEED } from "./speed.ts";
+import { CARVE, carveDrag, carveLean, carveTurnRate } from "./carve.ts";
 import { LANDSCAPE_HALF_WIDTH } from "../world/landscape.ts";
 import { courseSlope } from "../world/course.ts";
 import { RAMP, type RampWorld } from "../world/ramp.ts";
@@ -260,6 +261,9 @@ export function createBoardPlayer(
   }
 
   function paint(crouch: number, boardSpin: { x: number; y: number; z: number }, at = position) {
+    // Riding switch, the board points back up the hill: its right edge is on the rider's left as they travel.
+    // Lean toward the inside of the turn as travelled, not toward a fixed side of the deck.
+    const travelSide = grounded && velocity.dot(forward) < -0.1 ? -1 : 1;
     visual.root.quaternion.copy(renderQuat);
     const up = new THREE.Vector3(0, 1, 0).applyQuaternion(renderQuat);
     // The suspension body stays stable; its visible wheel bottoms sit on the measured surface.
@@ -276,7 +280,8 @@ export function createBoardPlayer(
       verticalSpeed: velocity.dot(ramp.surfaceNormal),
       grinding: grind.state.active,
       crouch: grind.state.active ? Math.max(crouch, 0.25) : crouch,
-      lean: grind.state.active ? grind.state.balance : lean,
+      lean: grind.state.active ? grind.state.balance : lean * travelSide,
+      carve: grounded && !grind.state.active ? carveLean(speed, lean) * travelSide : 0,
       airborne: !grounded,
       bail: false,
       wheelRoll,
@@ -363,15 +368,15 @@ export function createBoardPlayer(
     previousPosition.copy(position); previousQuat.copy(quat);
     previousAirOffset.copy(airOffset); previousBaseQuat.copy(baseQuat);
     if (tricks.bail || obstacleAhead(dt)) { startCrash(tricks, velocity); return; }
-    air.update(dt,intent.toggleAirFlip ?? false,intent.push,intent.steer,!grounded && !grind.state.active);
+    air.update(dt,intent.toggleAirFlip ?? false,intent.push,intent.steer,!grounded && !grind.state.active,yaw);
     pump.update(dt, intent.push > 0, speed, grounded && !grind.state.active && !intent.crouch && !intent.wantOllie && !tricks.bail);
     ollieCooldown = Math.max(0, ollieCooldown - dt);
     leaveGround = Math.max(0, leaveGround - dt);
     const steering=air.state.active ? 0 : intent.steer;
-    lean = THREE.MathUtils.damp(lean, steering, 8, dt);
+    lean = THREE.MathUtils.damp(lean, steering, grounded ? CARVE.response : 8, dt);
 
-    const turn = grounded ? THREE.MathUtils.lerp(1.3, 2.1, THREE.MathUtils.clamp(speed / 14, 0, 1)) : 5;
-    yaw -= steering * turn * dt;
+    // On the road the trucks turn as weight shifts onto an edge; in the air the rider spins freely.
+    yaw -= grounded ? lean * carveTurnRate(speed) * dt : steering * 5 * dt;
     yaw = Math.atan2(Math.sin(yaw), Math.cos(yaw));
 
     if (grind.update(dt, position, velocity, forward, ramp.surfaceNormal, ramp.grindRails,
@@ -489,12 +494,20 @@ export function createBoardPlayer(
           const gain = (approachTopSpeed(vel.length(), dt, pump.state.active) - vel.length()) * downhill;
           const gravityAlong = -18 * rollingDirection.y;
           vel.addScaledVector(rollingDirection, gain - Math.max(0, gravityAlong) * dt);
+          // Hard carves scrub speed, so wide S-turns check a fast descent.
+          const rolling = vel.length();
+          vel.multiplyScalar(Math.max(0, 1 - carveDrag(rolling, lean) * dt / Math.max(rolling, 0.001)));
         }
 
         // Carve along the board, but keep the speed you carried onto a ramp.
-        const spd = vel.length();
+        let spd = vel.length();
+        if (spd > 0.5 && intent.push >= 0) {
+          // Wheels only roll along the board: whatever travels across them slides and bleeds speed.
+          const alignment = vel.dot(rollingDirection) / spd;
+          spd = Math.max(0, spd - CARVE.slide * (1 - alignment * alignment) * dt);
+        }
         const carved = rollingDirection.multiplyScalar(spd);
-        vel.lerp(carved, 1 - Math.pow(0.15, dt));
+        vel.lerp(carved, 1 - Math.exp(-dt / CARVE.grip));
 
         vel.addScaledVector(n, normalSpeed);
         body.setLinvel({ x: vel.x, y: vel.y, z: vel.z }, true);

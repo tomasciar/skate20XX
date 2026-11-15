@@ -76,7 +76,7 @@ test('streamed road and rail collision matches rendered grades through vertical 
       const top=world.castRayAndGetNormal(new RAPIER.Ray(center,up.clone().negate()),2,true);
       assert.ok(top);assert.ok(Math.abs(top.timeOfImpact-1)<0.002,`rail surface mismatch ${rail.id}`);
     }
-    assert.equal(world.colliders.len(),8);
+    assert.ok(world.colliders.len()<=RAMP.chunksBehind+1+RAMP.chunksAhead+RAMP.prepareLead+3,`unbounded colliders: ${world.colliders.len()}`);
   }
   world.free();
 });

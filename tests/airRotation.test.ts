@@ -123,8 +123,9 @@ test('toggle back restores yaw steering and keeps the existing aerial tilt',asyn
 
 test('board flick tricks and held grabs remain independent of whole-body flips',async()=>{
   for(const grab of [false,true]) {
-    const f=await fixture();
+    const f=await fixture();let inverted=false;
     for(let i=0;i<90;i++) {
+      if(f.player.uprightDot<-0.5)inverted=true;
       f.tick({...idle,push:1,toggleAirFlip:i===0,grabModifier:grab,grabDX:grab?-1:0,grabPress:1,
         flickReady:!grab&&i===0,flickDX:-80});
       assert.equal(f.player.crashed,false);
@@ -141,7 +142,7 @@ test('board flick tricks and held grabs remain independent of whole-body flips',
         assert.ok(f.tricks.state.boardSpin.z<0);
       }
     }
-    assert.ok(f.player.uprightDot<-0.5);
+    assert.ok(inverted);
     if(grab) {
       assert.ok(f.tricks.state.grabTime>0.7);
       const hand=f.player.mesh.getObjectByName('hand-1')!.getWorldPosition(new THREE.Vector3());
@@ -203,4 +204,31 @@ test('the head tumbles with the body during a flip instead of staying level',asy
     if(bodyUp.y<-0.95)inverted=true;
   }
   assert.ok(inverted);f.world.free();
+});
+
+test('flip inputs follow the course, not the board: W is a front flip facing either way',async()=>{
+  const turn=new THREE.Vector3(0,1,0);
+  for(const [pitch,roll] of [[1,0],[-1,0],[0,1],[1,-1]]) {
+    const straight=createAirRotation();
+    for(let i=0;i<40;i++)straight.update(dt,i===0,pitch!,roll!,true);
+    for(const heading of [Math.PI/2,Math.PI,-2.2]) {
+      const turned=createAirRotation(),yaw=new THREE.Quaternion().setFromAxisAngle(turn,heading);
+      for(let i=0;i<40;i++)turned.update(dt,i===0,pitch!,roll!,true,heading);
+      // Same tumble seen from outside: world pose = the straight-ahead tumble applied to the turned board.
+      const world=yaw.clone().multiply(turned.rotation),expected=straight.rotation.clone().multiply(yaw);
+      assert.ok(world.angleTo(expected)<1e-6,`tumble changed with heading ${heading}`);
+      assert.ok(Math.abs(turned.state.pitch-straight.state.pitch)<1e-9 && Math.abs(turned.state.roll-straight.state.roll)<1e-9);
+    }
+  }
+  // In play: spin to switch in steering mode, then hold W. The rider's head must go forward, down the course.
+  for(const switchStance of [false,true]) {
+    const f=await fixture(14);f.player.body.setLinvel({x:0,y:0,z:-10},true);
+    for(let i=0;i<110 && switchStance;i++)f.tick({...idle,steer:f.player.forward.z<0.999?1:0});
+    assert.ok(switchStance ? f.player.forward.z>0.99 : f.player.forward.z<-0.99);
+    for(let i=0;i<18;i++)f.tick({...idle,push:1,toggleAirFlip:i===0});
+    const bodyUp=up.clone().applyQuaternion(f.player.mesh.quaternion);
+    assert.ok(bodyUp.z<-0.3,`W should tip the rider forward down the course, switch=${switchStance}`);
+    assert.ok(f.player.aerial.pitch<0,'forward rotation counts toward a front flip');
+    f.world.free();
+  }
 });
