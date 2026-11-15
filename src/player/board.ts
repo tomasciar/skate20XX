@@ -245,6 +245,7 @@ export function createBoardPlayer(
     const offset = grind.state.active ? 0 : visualHeightOffset;
     visual.root.position.copy(at).addScaledVector(up, offset);
     visual.setPose({
+      headForward: ramp.forward,
       grab: liveTricks?.grab ?? null,
       pump: pump.state,
       dt: poseDt,

@@ -16,6 +16,7 @@ export type SkaterVisual = {
   setRagdoll: (active: boolean) => void;
   setPose: (opts: {
     grab?: GrabDef | null;
+    headForward?: THREE.Vector3;
     pump?: PumpState;
     dt: number;
     speed: number;
@@ -74,7 +75,7 @@ export function createSkaterVisual(): SkaterVisual {
     }
   }
   batchStaticMeshes(board);
-  rider.rotation.y = Math.PI / 2;
+  rider.rotation.y = RIDER.stanceY;
   const hips = new THREE.Group(); rider.add(hips);
   const pelvis = mesh(hips, new THREE.CapsuleGeometry(0.11, 0.1, 4, 10), pants); pelvis.rotation.z = Math.PI / 2;
   const torso = new THREE.Group(); hips.add(torso);
@@ -85,6 +86,7 @@ export function createSkaterVisual(): SkaterVisual {
   box(torso, [0.085, 0.06, 0.008], sole, -0.065, 0.29, -0.105);
   mesh(torso, new THREE.CylinderGeometry(0.044, 0.05, 0.07, 10), skin, 0, 0.44, 0);
   const head = new THREE.Group(); head.position.y = 0.53; torso.add(head);
+  head.name = 'head';
   const face = mesh(head, new THREE.SphereGeometry(0.095, 16, 12), skin); face.scale.set(0.87, 1.13, 0.95);
   mesh(head, new THREE.SphereGeometry(0.106, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.58), helmet, 0, 0.035, 0);
   box(head, [0.15, 0.014, 0.08], helmet, 0, 0.045, -0.085);
@@ -135,6 +137,8 @@ export function createSkaterVisual(): SkaterVisual {
   const motion = createRiderMotion();
   let grabBlend = 0;
   let heldGrab: GrabDef | null = null;
+  const faceForward = new THREE.Vector3(0,0,-1), headAim = new THREE.Vector3();
+  const headWorld = new THREE.Quaternion(), headParent = new THREE.Quaternion();
   function setPose(opts: Parameters<SkaterVisual['setPose']>[0]) {
     const m = motion.update(opts.dt, opts.crouch, opts.lean, opts.airborne && !opts.grinding, opts.push, opts.verticalSpeed, opts.speed, opts.pump, opts.grinding);
     const selectedGrab = opts.airborne && !opts.grinding && !opts.bail ? opts.grab : null;
@@ -148,7 +152,7 @@ export function createSkaterVisual(): SkaterVisual {
     const tweak = heldGrab?.tweak ?? TUCK;
     const c = THREE.MathUtils.lerp(THREE.MathUtils.clamp(m.crouch+m.air*0.25+m.kneeLoad,0,1),tweak.crouch,grabBlend);
     const grabPose = grabTransform(tweak,grabBlend);
-    const stance = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI/2);
+    const stance = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),RIDER.stanceY);
     board.position.copy(grabPose.offset).applyQuaternion(stance);
     const rhythm = Math.sin(m.time * 5.2);
     const breathing = Math.sin(m.time * 2.4) * 0.003;
@@ -162,7 +166,6 @@ export function createSkaterVisual(): SkaterVisual {
     hips.position.set(pushSwing * 0.012 + m.sway * 0.5 + tweak.hipX*grabBlend, hipY, 0.025 + c * 0.1 - m.lean * 0.065*(1-grabBlend) + m.sway);
     torso.rotation.set(THREE.MathUtils.lerp(-0.08-c*0.25-m.brake*0.1,tweak.chestPitch,grabBlend),
       -0.15+pushSwing*0.07+m.sway*2, m.lean*0.13-m.sway*1.2+tweak.chestRoll*grabBlend);
-    head.rotation.set(c * 0.1, -Math.PI / 2 + 0.25 - m.lean * 0.12, -m.lean * 0.08);
     for (const l of legs) {
       // Only the pushing foot leaves the grip; all other weight shifts preserve the stance.
       l.foot.position.set(l.side*0.255,FOOT_Y,0).applyQuaternion(grabPose.rotation).add(grabPose.offset);
@@ -195,7 +198,10 @@ export function createSkaterVisual(): SkaterVisual {
         grip.sub(hips.position).applyQuaternion(torso.quaternion.clone().invert());
         hand.lerp(grip, grabBlend);
       }
-      const solved = solveArm(shoulder, hand, a.side);
+      // Reach around the outside of the tucked leg for the rear grab.
+      const solved = heldGrab?.direction==='back' && a.side===heldGrab.hand
+        ? solveLimb(shoulder,hand,new THREE.Vector3(a.side*THREE.MathUtils.lerp(0.25,1.5,grabBlend),-0.1,THREE.MathUtils.lerp(1,0.1,grabBlend)),0.25,0.24)
+        : solveArm(shoulder, hand, a.side);
       segment(a.upper, shoulder, solved.joint);
       segment(a.sleeve, shoulder, shoulder.clone().lerp(solved.joint, 0.55));
       segment(a.fore, solved.joint, solved.end);
@@ -203,7 +209,11 @@ export function createSkaterVisual(): SkaterVisual {
       a.hand.quaternion.copy(a.fore.quaternion);
     }
     // Keep the feet in board space; leaning the whole skeleton used to lift one sole.
-    rider.rotation.set(opts.bail ? 1.1 : 0, Math.PI / 2, opts.bail ? 0.8 : 0);
+    rider.rotation.set(opts.bail ? 1.1 : 0, RIDER.stanceY, opts.bail ? 0.8 : 0);
+    // Keep the face aimed down the course while the torso carves, grabs or spins.
+    headAim.copy(opts.headForward ?? faceForward).normalize();
+    headWorld.setFromUnitVectors(faceForward,headAim);
+    head.quaternion.copy(torso.getWorldQuaternion(headParent)).invert().multiply(headWorld);
   }
   function captureRagdoll(): RagdollRig {
     root.updateMatrixWorld(true);

@@ -15,8 +15,10 @@ export const RAMP = {
   thickness: 1.0,
   angleDeg: 14,
   chunkLength: CHUNK_LENGTH,
-  /** New chunks spawn this far ahead — past fog, out of sight. */
-  chunksAhead: 5,
+  /** Live chunks ahead of the rider. Fog ends ~300m; keep build past that. */
+  chunksAhead: 8,
+  /** Extra chunks to finish off-thread before they enter the live window. */
+  prepareLead: 3,
   /** Keep a little behind so despawn never flashes in the mirror. */
   chunksBehind: 2,
   centerY: 22,
@@ -35,6 +37,7 @@ export type RampWorld = {
   scroll: (meters: number) => THREE.Vector3;
   reset: () => void;
   prepareNextChunk: (budgetMs?: number) => boolean;
+  flushDeferredDestroy: (budgetMs?: number) => void;
 };
 
 type PhysPart = {
@@ -68,6 +71,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
   const mats = makeSharedMaterials();
 
   const chunks = new Map<number, Chunk>();
+  const deferredDestroy: number[] = [];
   let cursor = 0;
   let distance = 0;
   let grindRails: GrindRail[] = [];
@@ -307,20 +311,40 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
     root.matrixAutoUpdate = false; root.updateMatrix(); root.visible = true;
   }
 
-  function ensureWindow() {
-    const want = new Set<number>();
-    for (let i = cursor - RAMP.chunksBehind; i <= cursor + RAMP.chunksAhead; i++) {
-      want.add(i);
-    }
-    if (preparation && want.has(preparation.index)) {
-      for (const _ of preparation.steps) { void _; }
+  function inKeepRange(index: number) {
+    return index >= cursor - RAMP.chunksBehind && index <= cursor + RAMP.chunksAhead + RAMP.prepareLead;
+  }
+
+  function ensureWindow(syncBuild = true) {
+    const live = new Set<number>();
+    for (let i = cursor - RAMP.chunksBehind; i <= cursor + RAMP.chunksAhead; i++) live.add(i);
+    // Never drain a chunk generator on the ride frame — that hitch reads as a camera jump.
+    // Sync build is only for boot/reset, or as a last resort if preload fell behind.
+    if (preparation && live.has(preparation.index) && syncBuild) {
+      for (const _ of preparation.steps) {
+        void _;
+      }
       preparation = null;
+      refreshRails();
     }
     for (const idx of [...chunks.keys()]) {
-      if (!want.has(idx)) destroyChunk(idx);
+      if (inKeepRange(idx) || (preparation && preparation.index === idx)) continue;
+      if (syncBuild) destroyChunk(idx);
+      else if (!deferredDestroy.includes(idx)) deferredDestroy.push(idx);
     }
-    for (const idx of want) {
-      if (!chunks.has(idx)) buildChunk(idx);
+    for (const idx of live) {
+      if (!chunks.has(idx) && syncBuild) buildChunk(idx);
+    }
+  }
+
+  function flushDeferredDestroy(budgetMs = 2) {
+    const start = performance.now();
+    while (deferredDestroy.length > 0 && performance.now() - start < budgetMs) {
+      const idx = deferredDestroy.shift()!;
+      if (!chunks.has(idx)) continue;
+      // Still needed again (e.g. reset) — skip.
+      if (inKeepRange(idx)) continue;
+      destroyChunk(idx);
     }
   }
 
@@ -344,23 +368,37 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
         end: worldFromLocal(rail.end.clone().add(chunk.root.position)),
       }))); }
   function prepareNextChunk(budgetMs = Infinity) {
-    const next = cursor + RAMP.chunksAhead + 1;
+    flushDeferredDestroy(Math.min(1.5, budgetMs * 0.25));
+    const limit = cursor + RAMP.chunksAhead + RAMP.prepareLead;
+    let next = cursor + RAMP.chunksAhead + 1;
+    while (next <= limit && chunks.has(next)) next++;
+    if (next > limit) return true;
+
     if (preparation && preparation.index !== next) {
-      preparation.steps.return(undefined); destroyChunk(preparation.index); preparation = null;
+      preparation.steps.return(undefined);
+      destroyChunk(preparation.index);
+      preparation = null;
     }
     if (!preparation) {
-      if (chunks.has(next)) return true;
       preparation = { index: next, steps: generateChunk(next) };
     }
     const start = performance.now();
     do {
-      if (preparation.steps.next().done) { preparation = null; refreshRails(); return true; }
-    } while (performance.now()-start < budgetMs);
+      if (preparation.steps.next().done) {
+        preparation = null;
+        refreshRails();
+        return next >= limit;
+      }
+    } while (performance.now() - start < budgetMs);
     return false;
   }
 
-  ensureWindow();
+  ensureWindow(true);
   refreshRails();
+  // Warm the offscreen lead so the first few scrolls never sync-build.
+  while (!prepareNextChunk(Infinity)) {
+    /* fill prepareLead */
+  }
 
   const anchor = worldFromLocal(new THREE.Vector3(0, RAMP.thickness / 2, 0));
   const surfaceOrigin = anchor.clone();
@@ -369,14 +407,25 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
   const scroll = (meters: number) => {
     const steps = Math.round(meters / RAMP.chunkLength);
     if (steps === 0) return new THREE.Vector3();
-    const previousHeight=courseHeight(cursor*RAMP.chunkLength);
+    const previousHeight = courseHeight(cursor * RAMP.chunkLength);
     cursor += steps;
     distance += steps * RAMP.chunkLength;
     for (const chunk of chunks.values()) placeChunk(chunk);
-    ensureWindow();
-    refreshRails();
+    // Rebase must stay cheap: only move/cull. New road should already be prebuilt ahead.
+    ensureWindow(false);
+    // If preload slipped, finish at most one missing live chunk without stalling the whole window.
+    for (let i = cursor - RAMP.chunksBehind; i <= cursor + RAMP.chunksAhead; i++) {
+      if (!chunks.has(i)) {
+        buildChunk(i);
+        refreshRails();
+        break;
+      }
+    }
     world.propagateModifiedBodyPositionsToColliders();
-    return forward.clone().multiplyScalar(-steps*RAMP.chunkLength).addScaledVector(surfaceNormal,previousHeight-courseHeight(cursor*RAMP.chunkLength));
+    return forward
+      .clone()
+      .multiplyScalar(-steps * RAMP.chunkLength)
+      .addScaledVector(surfaceNormal, previousHeight - courseHeight(cursor * RAMP.chunkLength));
   };
 
   const reset = () => {
@@ -401,6 +450,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
     forward,
     get grindRails() { return grindRails; },
     prepareNextChunk,
+    flushDeferredDestroy,
     get distance() {
       return distance;
     },

@@ -4,9 +4,38 @@ import * as THREE from 'three';
 import { solveLimb, solveArm, createRiderMotion } from '../src/player/pose.ts';
 import { createSkaterVisual } from '../src/player/skaterVisual.ts';
 import { BOARD, FOOT_Y, RIDER } from '../src/player/dimensions.ts';
+import { GRABS } from '../src/player/grabs.ts';
 
 const base = { dt: 1 / 120, speed: 25, push: 0, verticalSpeed: 0, grinding: false,
   crouch: 0, lean: 0, airborne: false, bail: false, wheelRoll: 0, boardSpin: { x: 0, y: 0, z: 0 } };
+
+test('regular stance plants the left foot toward the nose and keeps nose/tail tweaks correctly directed',()=>{
+  const visual=createSkaterVisual();
+  for(let frame=0;frame<120;frame++)visual.setPose(base);
+  visual.root.updateMatrixWorld(true);
+  const left=visual.board.worldToLocal(visual.root.getObjectByName('foot--1')!.getWorldPosition(new THREE.Vector3()));
+  const right=visual.board.worldToLocal(visual.root.getObjectByName('foot-1')!.getWorldPosition(new THREE.Vector3()));
+  assert.ok(left.z<-0.2 && right.z>0.2,'left foot must lead down the board');
+  for(const grab of [GRABS.nosebone,GRABS.tailbone]) {
+    for(let frame=0;frame<180;frame++)visual.setPose({...base,airborne:true,grab});
+    assert.ok(grab.id==='nosebone' ? visual.board.position.z<0 : visual.board.position.z>0);
+  }
+});
+
+test('head stays aimed down the course through spins, crouches and grabs',()=>{
+  const visual=createSkaterVisual();
+  const course=new THREE.Vector3(0,-Math.sin(0.24),-Math.cos(0.24));
+  for(const yaw of [0,Math.PI/2,Math.PI,Math.PI*1.5,Math.PI*2]) {
+    visual.root.rotation.set(-0.24,yaw,0);
+    for(const pose of [base,{...base,crouch:1,lean:1},{...base,airborne:true,grab:GRABS.tomahawk},
+      {...base,airborne:true,grab:GRABS.nosebone}]) {
+      for(let frame=0;frame<80;frame++)visual.setPose({...pose,headForward:course});
+      const head=visual.root.getObjectByName('head')!;
+      const facing=new THREE.Vector3(0,0,-1).applyQuaternion(head.getWorldQuaternion(new THREE.Quaternion()));
+      assert.ok(facing.dot(course)>0.999999,'face turned back toward the camera');
+    }
+  }
+});
 
 test('knees bend forward and elbows back with constant bone lengths and no overextension', () => {
   for (const side of [-1, 1]) for (const drop of [0, 0.1, 0.22]) {

@@ -16,8 +16,6 @@ export function createChaseCamera(camera: THREE.PerspectiveCamera, courseForward
     desired.copy(target).addScaledVector(heading, -followDistance);
     desired.y = target.y + 5.6;
 
-    // A hill recycle teleports the rider a long way. Jump with them instead of chasing.
-    if (pos.distanceTo(desired) > 25) pos.copy(desired);
     pos.x = THREE.MathUtils.damp(pos.x, desired.x, 6, dt);
     pos.y = THREE.MathUtils.damp(pos.y, desired.y, 5, dt);
     pos.z = THREE.MathUtils.damp(pos.z, desired.z, 6, dt);
@@ -33,11 +31,19 @@ export function createChaseCamera(camera: THREE.PerspectiveCamera, courseForward
   function snap(target: THREE.Vector3) {
     pos.copy(target).addScaledVector(heading, -followDistance);
     pos.y = target.y + 5.6;
-    camera.position.copy(pos);
     look.copy(target).addScaledVector(heading, 7);
     look.y = target.y + 0.25;
+    camera.position.copy(pos);
     camera.lookAt(look);
   }
 
-  return { update, snap, shift(delta: THREE.Vector3) { pos.add(delta); } };
+  /** Move with the endless-hill origin rebase so follow damping never sees a teleport. */
+  function shift(delta: THREE.Vector3) {
+    if (delta.lengthSq() === 0) return;
+    pos.add(delta);
+    look.add(delta);
+    camera.position.copy(pos);
+  }
+
+  return { update, snap, shift };
 }

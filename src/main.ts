@@ -86,20 +86,12 @@ async function main() {
   let acc = 0;
   let lastPush = 0, lastSteer = 0;
   let audioResetCount = player.resetCount;
-  let preparingChunk = false;
-  let preparedDistance = -1;
   let pausedSceneDirty = true;
   let hudElapsed = 0;
   const alongCourse = new THREE.Vector3();
   function prepareCourse() {
-    if (preparingChunk || preparedDistance === ramp.distance || alongCourse.copy(player.position).sub(ramp.anchor).dot(ramp.forward) < 30) return;
-    preparingChunk = true;
-    const prepare = () => { preparingChunk = false; if (running) { if (ramp.prepareNextChunk(2)) preparedDistance = ramp.distance; } };
-    if (typeof window.requestIdleCallback === "function") {
-      window.requestIdleCallback(deadline => { if (deadline.timeRemaining() > 5) prepare(); else preparingChunk = false; });
-    } else {
-      setTimeout(prepare, 0);
-    }
+    // Nibble upcoming chunks every frame so scroll never has to build on the camera frame.
+    ramp.prepareNextChunk(4);
   }
   function audioState(): RideAudioState {
     return {
