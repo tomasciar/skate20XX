@@ -7,6 +7,8 @@ import { createBoardPlayer } from "./player/board";
 import { createController } from "./player/controller";
 import { createTrickSystem } from "./player/tricks";
 import { createChaseCamera } from "./camera/chase";
+import { createGameAudio } from "./audio/sound";
+import type { RideAudioState } from "./audio/events";
 import { createHud } from "./ui/hud";
 
 async function main() {
@@ -17,6 +19,20 @@ async function main() {
   const input = createInput();
   const controller = createController();
   const tricks = createTrickSystem();
+  const audio = createGameAudio();
+  const muteButton = document.getElementById("audio-mute") as HTMLButtonElement;
+  const volumeControl = document.getElementById("audio-volume") as HTMLInputElement;
+  function syncAudioControls() {
+    muteButton.textContent = !audio.available ? "Audio unavailable" : audio.preferences.muted ? "Sound off · M" : "Sound on · M";
+    muteButton.setAttribute("aria-pressed", String(audio.preferences.muted));
+    muteButton.setAttribute("aria-label", audio.preferences.muted ? "Unmute sound (M)" : "Mute sound (M)");
+    muteButton.disabled = volumeControl.disabled = !audio.available;
+    volumeControl.value = String(Math.round(audio.preferences.volume * 100));
+  }
+  function toggleMute() { audio.setMuted(!audio.preferences.muted); syncAudioControls(); }
+  muteButton.addEventListener("click", toggleMute);
+  volumeControl.addEventListener("input", () => { audio.setVolume(Number(volumeControl.value) / 100); });
+  syncAudioControls();
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -61,6 +77,16 @@ async function main() {
   let running = false;
   let last = performance.now();
   let acc = 0;
+  let lastPush = 0, lastSteer = 0;
+  let audioResetCount = player.resetCount;
+  function audioState(): RideAudioState {
+    return {
+      speed: player.speed, grounded: player.grounded, grinding: player.grind.active,
+      verticalSpeed: player.velocity.dot(ramp.surfaceNormal), braking: lastPush < 0, steer: lastSteer,
+      pumpPhase: player.pump.phase, pumpStarts: player.pump.starts,
+      trick: tricks.state.active?.id ?? null, bail: tricks.state.bail, resetCount: player.resetCount,
+    };
+  }
 
   function startSession() {
     input.clear();
@@ -68,6 +94,8 @@ async function main() {
     acc = 0;
     last = performance.now();
     running = true;
+    audio.setRunning(true);
+    syncAudioControls();
     hud.hideOverlay();
   }
 
@@ -78,14 +106,18 @@ async function main() {
 
   function pause() {
     running = false; acc = 0;
+    lastPush = lastSteer = 0;
+    audio.setRunning(false);
     input.clear(); controller.reset(); hud.showOverlay();
   }
   window.addEventListener("keydown", (e) => {
     if (e.repeat) return;
+    if (e.code === "KeyM") { e.preventDefault(); toggleMute(); }
     if (e.code === "Escape") { if (running) pause(); else startSession(); }
-    if (e.code === "Enter" && !running) startSession();
+    if (e.code === "Enter" && !running && !(e.target instanceof HTMLElement && e.target.closest("button, input"))) startSession();
   });
   window.addEventListener("blur", pause);
+  window.addEventListener("pagehide", pause);
   document.addEventListener("visibilitychange", () => { if (document.hidden) pause(); });
 
   window.addEventListener("resize", () => {
@@ -109,6 +141,7 @@ async function main() {
     acc += raw;
     while (acc >= fixedDt) {
       const intent = controller.update(input.state, fixedDt);
+      lastPush = intent.push; lastSteer = intent.steer;
 
       if (intent.flickReady && !player.grounded && !player.grind.active) {
         tricks.tryFlick(intent.flickDX, intent.flickDY, true);
@@ -123,6 +156,8 @@ async function main() {
 
       world.step();
       player.sync();
+      if (audioResetCount !== player.resetCount) { audio.reset(); audioResetCount = player.resetCount; }
+      audio.step(fixedDt, audioState());
       chase.shift(player.originShift);
       if (intent.reset) chase.snap(player.position);
       acc -= fixedDt;
@@ -130,9 +165,11 @@ async function main() {
 
     if (player.position.y < -6) {
       player.reset(ramp.spawn);
+      audio.reset(); audioResetCount = player.resetCount;
       chase.snap(player.position);
     }
 
+    audio.mix(audioState());
     chase.update(raw, player.position);
     hud.update(player.speed, tricks.state, ramp.distance + Math.max(0, player.position.clone().sub(ramp.anchor).dot(ramp.forward)), player.grind);
     renderer.render(scene, camera);

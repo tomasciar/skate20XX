@@ -23,6 +23,7 @@ Open the local URL printed by Vite. Click or press Enter to start.
 | **Arrow keys** (air) | Up shove-it, down 180, left kickflip, right heelflip; diagonals varial / hardflip |
 | **R** | Restart the run |
 | **Esc** | Pause / resume |
+| **M** | Mute / unmute sound |
 
 The camera automatically follows the rider from a fixed downhill direction and distance. WASD controls the skater; steering never orbits the camera, and speed never zooms it. There are no manual camera controls.
 
@@ -44,6 +45,12 @@ Ollie onto a rail with the board aligned along it to automatically catch a 50–
 
 A/D rotations are unrestricted. An airborne 180 can land switch while retaining downhill momentum. The camera stays pointed downhill throughout.
 
+## Sound
+
+Audio starts after clicking or pressing Enter to ride. Separate, band-limited wheel rumble and soft wind textures respond to actual speed; a gentle airborne wind baseline keeps jumps from going silent; rolling stops in the air, rail grinding has a metallic scrape, and braking/carving add a wheel scrub. Push strokes, ollies, tricks, landings, rail catches/exits, and bails have distinct effects triggered by physics transitions.
+
+Press M or use the Sound button to mute. The volume slider and mute setting persist locally. Pausing, changing tabs, or losing focus fades and suspends audio; resuming reuses the audio graph. Wooden pops/thuds and metallic rail clinks use resonant transients with a small amount of filtered texture. Wind stays quiet, and output filtering removes hiss and excess bass. Effects are synthesized locally with Web Audio, with no external audio assets or downloads. If audio is unavailable, the game remains playable.
+
 ## Check
 
 ```bash
@@ -51,4 +58,4 @@ npm test
 npm run build
 ```
 
-Tests cover 10,000 generated layouts, input consumption, and two minutes of actual Rapier simulation with repeated jumps, a wedge launch, braking, high-speed acceleration, 180s, switch landings, rail catches/exits, and bounded streamed geometry/colliders. Additional tests cover grind balance, rail endpoints, the speed curve, joint geometry, planted soles, smooth pose transitions, the push cutoff and complete stroke behavior, coasting sway and load response, visibility/streaming coverage, and wheel contact gaps on asphalt and ramps (within 2 mm). They run without a browser; visual rendering still needs a browser check.
+Tests cover 10,000 generated layouts, input consumption, and two minutes of actual Rapier simulation with repeated jumps, a wedge launch, braking, high-speed acceleration, 180s, switch landings, rail catches/exits, and bounded streamed geometry/colliders. Additional tests cover grind balance, rail endpoints, the speed curve, joint geometry, planted soles, smooth pose transitions, the push cutoff and complete stroke behavior, coasting sway and load response, visibility/streaming coverage, and wheel contact gaps on asphalt and ramps (within 2 mm). Audio tests cover event timing, repeated-state suppression, speed mixing, synthesized buffers, smooth loop boundaries and frequency balance, mute/volume persistence, and pause/resume cleanup using a simulated audio context. Tests run without a browser; rendering and the final sound mix still need browser playtesting.

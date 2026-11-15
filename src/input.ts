@@ -38,6 +38,7 @@ export function createInput(): {
   let pendingFlick: { x: number; y: number } | null = null;
 
   const onKeyDown = (e: KeyboardEvent) => {
+    if (typeof HTMLElement !== "undefined" && e.target instanceof HTMLElement && e.target.closest("button, input, select, textarea")) return;
     if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) {
       e.preventDefault();
     }

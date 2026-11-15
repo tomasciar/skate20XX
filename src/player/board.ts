@@ -32,6 +32,8 @@ export type BoardPlayer = {
   mesh: THREE.Group;
   body: RAPIER.RigidBody;
   grounded: boolean;
+  readonly resetCount: number;
+  readonly pump: ReturnType<typeof createPumpCycle>["state"];
   grind: ReturnType<typeof createGrindSystem>["state"];
   speed: number;
   forward: THREE.Vector3;
@@ -81,6 +83,7 @@ export function createBoardPlayer(
   const mount = new THREE.Vector3();
   const rayDir = new THREE.Vector3();
   const tmp = new THREE.Vector3();
+  let resetCount = 0;
   let grounded = false;
   let speed = 0;
   let uprightDot = 1;
@@ -173,6 +176,7 @@ export function createBoardPlayer(
   }
 
   function reset(to: THREE.Vector3) {
+    resetCount++;
     pump.reset();
     grind.reset();
     visual.resetPose();
@@ -437,6 +441,8 @@ export function createBoardPlayer(
   reset(spawn);
 
   return {
+    get resetCount() { return resetCount; },
+    pump: pump.state,
     grind: grind.state,
     originShift,
     mesh: visual.root,
