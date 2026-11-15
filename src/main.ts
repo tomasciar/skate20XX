@@ -1,6 +1,7 @@
 import "./style.css";
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
+import { basePixelRatio, createRenderQuality } from "./renderQuality";
 import { createInput } from "./input";
 import { createRamp } from "./world/ramp";
 import { createBoardPlayer } from "./player/board";
@@ -35,8 +36,12 @@ async function main() {
   syncAudioControls();
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  const quality = createRenderQuality();
+  function applyRenderSize() {
+    renderer.setPixelRatio(basePixelRatio(window.innerWidth, window.innerHeight, window.devicePixelRatio) * quality.scale);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+  applyRenderSize();
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -79,6 +84,21 @@ async function main() {
   let acc = 0;
   let lastPush = 0, lastSteer = 0;
   let audioResetCount = player.resetCount;
+  let preparingChunk = false;
+  let preparedDistance = -1;
+  let pausedSceneDirty = true;
+  let hudElapsed = 0;
+  const alongCourse = new THREE.Vector3();
+  function prepareCourse() {
+    if (preparingChunk || preparedDistance === ramp.distance || alongCourse.copy(player.position).sub(ramp.anchor).dot(ramp.forward) < 30) return;
+    preparingChunk = true;
+    const prepare = () => { preparingChunk = false; if (running) { ramp.prepareNextChunk(); preparedDistance = ramp.distance; } };
+    if (typeof window.requestIdleCallback === "function") {
+      window.requestIdleCallback(deadline => { if (deadline.timeRemaining() > 5) prepare(); else preparingChunk = false; });
+    } else {
+      setTimeout(prepare, 0);
+    }
+  }
   function audioState(): RideAudioState {
     return {
       speed: player.speed, grounded: player.grounded, grinding: player.grind.active,
@@ -92,6 +112,7 @@ async function main() {
     input.clear();
     controller.reset();
     acc = 0;
+    quality.reset();
     last = performance.now();
     running = true;
     audio.setRunning(true);
@@ -105,7 +126,7 @@ async function main() {
   });
 
   function pause() {
-    running = false; acc = 0;
+    running = false; acc = 0; pausedSceneDirty = true;
     lastPush = lastSteer = 0;
     audio.setRunning(false);
     input.clear(); controller.reset(); hud.showOverlay();
@@ -123,18 +144,20 @@ async function main() {
   window.addEventListener("resize", () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    applyRenderSize();
+    pausedSceneDirty = true;
   });
 
   function frame(now: number) {
     requestAnimationFrame(frame);
-    const raw = Math.min(0.05, (now - last) / 1000);
+    const frameDt = (now - last) / 1000;
+    const raw = Math.min(0.05, frameDt);
     last = now;
 
     input.beginFrame();
 
     if (!running) {
-      renderer.render(scene, camera);
+      if (pausedSceneDirty) { renderer.render(scene, camera); pausedSceneDirty = false; }
       return;
     }
 
@@ -155,7 +178,7 @@ async function main() {
       tricks.update(fixedDt, player.grounded || player.grind.active, player.uprightDot, player.speed);
 
       world.step();
-      player.sync();
+      player.sync(false);
       if (audioResetCount !== player.resetCount) { audio.reset(); audioResetCount = player.resetCount; }
       audio.step(fixedDt, audioState());
       chase.shift(player.originShift);
@@ -169,10 +192,17 @@ async function main() {
       chase.snap(player.position);
     }
 
+    player.render(acc / fixedDt, raw);
     audio.mix(audioState());
-    chase.update(raw, player.position);
-    hud.update(player.speed, tricks.state, ramp.distance + Math.max(0, player.position.clone().sub(ramp.anchor).dot(ramp.forward)), player.grind);
+    chase.update(raw, player.renderPosition);
+    hudElapsed += raw;
+    if (hudElapsed >= 0.1) {
+      hud.update(player.speed, tricks.state, ramp.distance + Math.max(0, alongCourse.copy(player.position).sub(ramp.anchor).dot(ramp.forward)), player.grind);
+      hudElapsed = 0;
+    }
+    if (quality.update(frameDt)) applyRenderSize();
     renderer.render(scene, camera);
+    prepareCourse();
   }
 
   requestAnimationFrame(frame);

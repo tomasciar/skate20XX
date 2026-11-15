@@ -30,6 +30,7 @@ export type RampWorld = {
   get grindRails(): readonly GrindRail[];
   scroll: (meters: number) => void;
   reset: () => void;
+  prepareNextChunk: () => void;
 };
 
 type PhysPart = {
@@ -96,6 +97,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
   const chunks = new Map<number, Chunk>();
   let cursor = 0;
   let distance = 0;
+  let grindRails: GrindRail[] = [];
 
   function worldFromLocal(local: THREE.Vector3) {
     return local.clone().applyQuaternion(q).add(hill.position);
@@ -277,7 +279,9 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
       const part = { body, collider, local: local.clone().add(new THREE.Vector3(0, 0, zBase)), rot: q.clone() };
       chunk.parts.push(part); syncPart(part);
     }
-    batchChunk(root);
+    batchChunk(root, new Set([asphaltMaterial, mats.grass, mats.hill]));
+    root.traverse(obj => { obj.matrixAutoUpdate = false; obj.updateMatrix(); });
+    root.matrixAutoUpdate = false; root.updateMatrix();
   }
 
   function ensureWindow() {
@@ -297,13 +301,25 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
     const zBase = -(chunk.index - cursor) * RAMP.chunkLength;
     const delta = zBase - chunk.root.position.z;
     chunk.root.position.z = zBase;
+    chunk.root.updateMatrix();
     for (const part of chunk.parts) {
       part.local.z += delta;
       syncPart(part);
     }
   }
 
+  function refreshRails() { grindRails = [...chunks.values()].flatMap(chunk => chunk.rails.map(rail => ({
+        id: rail.id,
+        start: worldFromLocal(rail.start.clone().add(new THREE.Vector3(0, 0, chunk.root.position.z))),
+        end: worldFromLocal(rail.end.clone().add(new THREE.Vector3(0, 0, chunk.root.position.z))),
+      }))); }
+  function prepareNextChunk() {
+    const next = cursor + RAMP.chunksAhead + 1;
+    if (!chunks.has(next)) { buildChunk(next); refreshRails(); }
+  }
+
   ensureWindow();
+  refreshRails();
 
   const anchor = worldFromLocal(new THREE.Vector3(0, RAMP.thickness / 2, 0));
   const surfaceOrigin = anchor.clone();
@@ -316,6 +332,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
     distance += steps * RAMP.chunkLength;
     for (const chunk of chunks.values()) placeChunk(chunk);
     ensureWindow();
+    refreshRails();
   };
 
   const reset = () => {
@@ -324,6 +341,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
     cursor = 0;
     for (const idx of [...chunks.keys()]) destroyChunk(idx);
     ensureWindow();
+    refreshRails();
   };
 
   addBackdrop(scene);
@@ -336,13 +354,8 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
     endZ: -99999,
     surfaceNormal,
     forward,
-    get grindRails() {
-      return [...chunks.values()].flatMap(chunk => chunk.rails.map(rail => ({
-        id: rail.id,
-        start: worldFromLocal(rail.start.clone().add(new THREE.Vector3(0, 0, chunk.root.position.z))),
-        end: worldFromLocal(rail.end.clone().add(new THREE.Vector3(0, 0, chunk.root.position.z))),
-      })));
-    },
+    get grindRails() { return grindRails; },
+    prepareNextChunk,
     get distance() {
       return distance;
     },
@@ -463,7 +476,7 @@ function addBackdrop(scene: THREE.Scene) {
 }
 
 /** Merge static props by material: scenery variety should not mean thousands of draw calls. */
-function batchChunk(root: THREE.Group) {
+function batchChunk(root: THREE.Group, noShadow: Set<THREE.Material>) {
   root.updateMatrixWorld(true);
   const inverse = root.matrixWorld.clone().invert();
   const batches = new Map<THREE.Material, THREE.BufferGeometry[]>();
@@ -481,8 +494,10 @@ function batchChunk(root: THREE.Group) {
     const merged = mergeGeometries(geometries);
     for (const geometry of geometries) geometry.dispose();
     if (!merged) continue;
+    merged.computeBoundingSphere();
     const mesh = new THREE.Mesh(merged, material);
-    mesh.castShadow = mesh.receiveShadow = true;
+    mesh.castShadow = !noShadow.has(material) && material instanceof THREE.MeshStandardMaterial && !material.map;
+    mesh.receiveShadow = material instanceof THREE.MeshStandardMaterial;
     root.add(mesh);
   }
 }

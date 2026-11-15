@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import { BOARD, FOOT_Y } from "./dimensions.ts";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { BOARD, FOOT_Y, RIDER } from "./dimensions.ts";
 import type { PumpState } from "./pump.ts";
 import { createRiderMotion, solveArm, solveLimb } from "./pose.ts";
 
@@ -66,6 +67,7 @@ export function createSkaterVisual(): SkaterVisual {
       wheels.push(spin);
     }
   }
+  batchStaticMeshes(board);
   rider.rotation.y = Math.PI / 2;
   const hips = new THREE.Group(); rider.add(hips);
   mesh(hips, new THREE.CapsuleGeometry(0.11, 0.1, 4, 10), pants).rotation.z = Math.PI / 2;
@@ -87,6 +89,7 @@ export function createSkaterVisual(): SkaterVisual {
   box(head, [0.03, 0.008, 0.014], black, 0, 0.01, -0.09);
   mesh(head, new THREE.SphereGeometry(0.017, 8, 6), skin, 0, -0.019, -0.091);
   box(head, [0.052, 0.012, 0.012], black, 0, -0.075, -0.05);
+  batchStaticMeshes(head);
   function arm(side: number) {
     const upper = mesh(torso, new THREE.CylinderGeometry(0.032, 0.041, 1, 10), skin);
     const sleeve = mesh(torso, new THREE.CylinderGeometry(0.048, 0.054, 1, 10), shirt);
@@ -101,7 +104,7 @@ export function createSkaterVisual(): SkaterVisual {
   }
   const arms = [arm(-1), arm(1)];
   function leg(side: number) {
-    const thigh = mesh(rider, new THREE.CylinderGeometry(0.067, 0.052, 1, 10), pants);
+    const thigh = mesh(rider, new THREE.CylinderGeometry(0.072, 0.055, 1, 10), pants);
     const shin = mesh(rider, new THREE.CylinderGeometry(0.052, 0.038, 1, 10), pants);
     const knee = mesh(rider, new THREE.SphereGeometry(0.063, 10, 8), black);
     knee.name = `knee-${side}`;
@@ -111,6 +114,7 @@ export function createSkaterVisual(): SkaterVisual {
     box(foot, [0.115, 0.027, 0.23], sole, 0, -0.005, -0.025);
     box(foot, [0.105, 0.055, 0.21], shoes, 0, 0.03, -0.02);
     for (let i = 0; i < 3; i++) box(foot, [0.07, 0.005, 0.008], sole, 0, 0.06, -0.015 - i * 0.025);
+    batchStaticMeshes(foot);
     return { side, thigh, shin, knee, foot };
   }
   const legs = [leg(-1), leg(1)];
@@ -131,7 +135,7 @@ export function createSkaterVisual(): SkaterVisual {
     for (const w of wheels) w.rotation.x = opts.wheelRoll;
     // Wheel contacts stay fixed. Weight shifts belong to the rider, not a rolling wheel group.
     board.rotation.set(opts.boardSpin.x, opts.boardSpin.y, opts.boardSpin.z);
-    const hipY = 0.73 - c * 0.22 - m.landing - m.push * (0.035 + Math.abs(m.lean) * 0.025) + breathing + roadMotion;
+    const hipY = RIDER.hipHeight - c * 0.22 - m.landing - m.push * (0.035 + Math.abs(m.lean) * 0.025) + breathing + roadMotion;
     hips.position.set(pushSwing * 0.012 + m.sway * 0.5, hipY, 0.025 + c * 0.1 - m.lean * 0.065 + m.sway);
     torso.rotation.set(-0.08 - c * 0.25 - m.brake * 0.1, -0.15 + pushSwing * 0.07 + m.sway * 2, m.lean * 0.13 - m.sway * 1.2);
     head.rotation.set(c * 0.1, -Math.PI / 2 + 0.25 - m.lean * 0.12, -m.lean * 0.08);
@@ -149,7 +153,7 @@ export function createSkaterVisual(): SkaterVisual {
       const hip = new THREE.Vector3(l.side * 0.095, 0, 0).add(hips.position);
       const ankle = l.foot.position.clone().add(new THREE.Vector3(0, 0.06, 0));
       // Both knees bend toward the chest's forward direction (-Z in rider space).
-      const solved = solveLimb(hip, ankle, new THREE.Vector3(0, 0, -1), 0.38, 0.38);
+      const solved = solveLimb(hip, ankle, new THREE.Vector3(0, 0, -1), RIDER.upperLeg, RIDER.lowerLeg);
       segment(l.thigh, hip, solved.joint); segment(l.shin, solved.joint, solved.end); l.knee.position.copy(solved.joint);
     }
     for (const a of arms) {
@@ -169,4 +173,25 @@ export function createSkaterVisual(): SkaterVisual {
     rider.rotation.set(opts.bail ? 1.1 : 0, Math.PI / 2, opts.bail ? 0.8 : 0);
   }
   return { root, board, wheels, setPose, resetPose: motion.reset };
+}
+
+/** Keep animated joints separate; combine only rigid details within the deck, head, and shoes. */
+function batchStaticMeshes(parent: THREE.Group) {
+  const groups = new Map<THREE.Material, { geometry: THREE.BufferGeometry; mesh: THREE.Mesh }[]>();
+  for (const child of parent.children) {
+    if (!(child instanceof THREE.Mesh) || Array.isArray(child.material)) continue;
+    child.updateMatrix();
+    const geometry = child.geometry.index ? child.geometry.toNonIndexed() : child.geometry.clone();
+    geometry.applyMatrix4(child.matrix);
+    const group = groups.get(child.material) ?? [];
+    group.push({ geometry, mesh: child }); groups.set(child.material, group);
+  }
+  for (const [material, items] of groups) {
+    const geometry = mergeGeometries(items.map(item => item.geometry));
+    for (const item of items) item.geometry.dispose();
+    if (!geometry) continue;
+    for (const item of items) { parent.remove(item.mesh); item.mesh.geometry.dispose(); }
+    const mesh = new THREE.Mesh(geometry, material); mesh.castShadow = true;
+    parent.add(mesh);
+  }
 }

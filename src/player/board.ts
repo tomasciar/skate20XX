@@ -41,7 +41,9 @@ export type BoardPlayer = {
   position: THREE.Vector3;
   velocity: THREE.Vector3;
   update: (dt: number, intent: PlayerIntent, tricks: TrickState) => void;
-  sync: () => void;
+  sync: (paint?: boolean) => void;
+  render: (alpha: number, dt: number) => void;
+  renderPosition: THREE.Vector3;
   originShift: THREE.Vector3;
   reset: (spawn: THREE.Vector3) => void;
 };
@@ -75,6 +77,9 @@ export function createBoardPlayer(
 
   const originShift = new THREE.Vector3();
   const position = new THREE.Vector3();
+  const previousPosition = new THREE.Vector3();
+  const previousQuat = new THREE.Quaternion();
+  const renderPosition = new THREE.Vector3();
   const velocity = new THREE.Vector3();
   const forward = ramp.forward.clone();
   const quat = new THREE.Quaternion();
@@ -102,8 +107,7 @@ export function createBoardPlayer(
   let poseDt = 0;
   let posePush = 0;
 
-  function sampleVisualSupport() {
-    renderQuat.copy(quat);
+  function sampleVisualSupport(at: THREE.Vector3) {
     if (grind.state.active) { visualHeightOffset = 0; return; }
     if (!grounded || leaveGround > 0) return;
     // Re-sample after fitting the board plane: pitching around a ramp seam shifts wheel positions.
@@ -111,7 +115,7 @@ export function createBoardPlayer(
       const contacts: THREE.Vector3[] = [];
       const currentUp = new THREE.Vector3(0, 1, 0).applyQuaternion(renderQuat);
       const down = currentUp.clone().negate();
-      const candidate = position.clone().addScaledVector(currentUp, visualHeightOffset);
+      const candidate = at.clone().addScaledVector(currentUp, visualHeightOffset);
       for (const m of MOUNTS) {
         const origin = new THREE.Vector3(m.x, 0.1, m.z).applyQuaternion(renderQuat).add(candidate);
         const hit = world.castRayAndGetNormal(new RAPIER.Ray(origin, down), 0.5, true, undefined, undefined, undefined, body);
@@ -126,12 +130,13 @@ export function createBoardPlayer(
         const planeUp = new THREE.Vector3().crossVectors(along, across).normalize();
         if (planeUp.dot(boardUp) > 0.8) up = planeUp;
       }
-      const f = forward.clone().addScaledVector(up, -forward.dot(up)).normalize();
+      const f = new THREE.Vector3(0, 0, -1).applyQuaternion(renderQuat);
+      f.addScaledVector(up, -f.dot(up)).normalize();
       const right = new THREE.Vector3().crossVectors(f, up).normalize();
       renderQuat.setFromRotationMatrix(new THREE.Matrix4().makeBasis(right, up, f.negate()));
       // Use the highest support plane so no supported wheel penetrates the surface.
       let correction = -Infinity;
-      for (const point of contacts) correction = Math.max(correction, -WHEEL_BOTTOM - position.clone().sub(point).dot(up));
+      for (const point of contacts) correction = Math.max(correction, -WHEEL_BOTTOM - at.clone().sub(point).dot(up));
       visualHeightOffset = THREE.MathUtils.clamp(correction, -0.25, 0.1);
     }
   }
@@ -200,16 +205,17 @@ export function createBoardPlayer(
     wheelRoll = 0;
     grounded = true;
     readPose();
+    previousPosition.copy(position); renderPosition.copy(position); previousQuat.copy(quat);
     renderQuat.copy(quat);
     paint(0, { x: 0, y: 0, z: 0 });
   }
 
-  function paint(crouch: number, boardSpin: { x: number; y: number; z: number }) {
+  function paint(crouch: number, boardSpin: { x: number; y: number; z: number }, at = position) {
     visual.root.quaternion.copy(renderQuat);
     const up = new THREE.Vector3(0, 1, 0).applyQuaternion(renderQuat);
     // The suspension body stays stable; its visible wheel bottoms sit on the measured surface.
     const offset = grind.state.active ? 0 : visualHeightOffset;
-    visual.root.position.copy(position).addScaledVector(up, offset);
+    visual.root.position.copy(at).addScaledVector(up, offset);
     visual.setPose({
       pump: pump.state,
       dt: poseDt,
@@ -233,6 +239,7 @@ export function createBoardPlayer(
     }
 
     readPose();
+    previousPosition.copy(position); previousQuat.copy(quat);
     pump.update(dt, intent.push > 0, speed, grounded && !grind.state.active && !intent.crouch && !intent.wantOllie && bailTimer <= 0 && !tricks.bail);
     ollieCooldown = Math.max(0, ollieCooldown - dt);
     leaveGround = Math.max(0, leaveGround - dt);
@@ -393,14 +400,13 @@ export function createBoardPlayer(
     }
   }
 
-  function sync() {
+  function sync(paintFrame = true) {
     originShift.set(0, 0, 0);
     holdDeck(followSurface ? surfaceUp : ramp.surfaceNormal);
     readPose();
     if (speed > MAX_SPEED) {
       velocity.multiplyScalar(MAX_SPEED / speed); body.setLinvel(velocity, true); speed = MAX_SPEED;
     }
-    sampleVisualSupport();
     // When you've ridden a full chunk downhill, snap origin and stream the next seeded stretch.
     const along = position.clone().sub(ramp.anchor).dot(ramp.forward);
     if (along > RAMP.chunkLength) {
@@ -413,16 +419,24 @@ export function createBoardPlayer(
       };
       originShift.copy(ramp.forward).multiplyScalar(-shift);
       position.add(originShift);
+      previousPosition.add(originShift);
       body.setTranslation({ x: position.x, y: position.y, z: position.z }, true);
       body.setLinvel(keep, true);
-      visual.root.position.copy(position);
       ramp.scroll(shift);
     }
+    if (paintFrame) render(1, poseDt);
+  }
+
+  function render(alpha: number, dt: number) {
+    poseDt = dt;
+    renderPosition.lerpVectors(previousPosition, position, THREE.MathUtils.clamp(alpha, 0, 1));
+    renderQuat.slerpQuaternions(previousQuat, quat, THREE.MathUtils.clamp(alpha, 0, 1));
+    sampleVisualSupport(renderPosition);
     const spin =
       liveTricks && (liveTricks.active || liveTricks.boardSpin.y !== 0 || liveTricks.boardSpin.z !== 0)
         ? liveTricks.boardSpin
         : { x: 0, y: 0, z: 0 };
-    paint(crouchHolder, spin);
+    paint(crouchHolder, spin, renderPosition);
   }
 
   // pose inputs captured each update for the post-step sync
@@ -458,9 +472,11 @@ export function createBoardPlayer(
       return uprightDot;
     },
     position,
+    renderPosition,
     velocity,
     update: updateWrapped,
     sync,
+    render,
     reset,
   };
 }

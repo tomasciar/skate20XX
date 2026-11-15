@@ -165,5 +165,43 @@ test('two minutes of downhill physics stream continuously with bounded scene and
   assert.equal(player.grind.active, false);
   assert.ok(player.velocity.dot(ramp.surfaceNormal) > 5);
   player.reset(ramp.spawn); assert.equal(player.grind.active, false);
+  // Presentation interpolation never changes the simulated pose, including an origin shift.
+  player.reset(ramp.spawn);
+  const initial = player.position.clone();
+  player.body.setLinvel(ramp.forward.clone().multiplyScalar(30), true);
+  player.update(dt, idle, tricks.state); world.step(); player.sync(false);
+  const current = player.position.clone();
+  for (const alpha of [0, 0.25, 0.5, 1]) {
+    player.render(alpha, 0);
+    assert.ok(player.renderPosition.distanceTo(initial.clone().lerp(current, alpha)) < 1e-6);
+    assert.ok(player.position.distanceTo(current) < 1e-8);
+  }
+  player.reset(ramp.spawn.clone().addScaledVector(ramp.forward, 69.9));
+  const beforeShift = player.position.clone();
+  player.body.setLinvel(ramp.forward.clone().multiplyScalar(60), true);
+  player.update(dt, idle, tricks.state); world.step(); player.sync(false);
+  assert.ok(player.originShift.length() > 69);
+  const rebasedPrevious = beforeShift.add(player.originShift);
+  player.render(0.5, 0);
+  assert.ok(player.renderPosition.distanceTo(rebasedPrevious.clone().lerp(player.position, 0.5)) < 1e-5);
+  assert.ok(player.renderPosition.distanceTo(player.position) < 1);
+
+  player.reset(ramp.spawn);
+  const cachedRails = ramp.grindRails;
+  assert.equal(ramp.grindRails, cachedRails, 'rail reads should reuse the cached data');
+  const chunksBefore = ramp.mesh.children.length;
+  ramp.prepareNextChunk();
+  assert.equal(ramp.mesh.children.length, chunksBefore + 1);
+  const preparedRails = ramp.grindRails;
+  ramp.prepareNextChunk();
+  assert.equal(ramp.mesh.children.length, chunksBefore + 1, 'preparing twice must reuse the extra chunk');
+  assert.equal(ramp.grindRails, preparedRails);
+  ramp.scroll(70);
+  assert.ok(ramp.mesh.children.length <= 8);
+  assert.equal(ramp.grindRails, ramp.grindRails);
+  for (const chunk of ramp.mesh.children) {
+    assert.equal(chunk.matrixAutoUpdate, false);
+    assert.equal(chunk.matrix.elements[14], chunk.position.z, 'static chunk matrix must follow origin shifts');
+  }
   world.free();
 });
