@@ -5,7 +5,9 @@ export type District = (typeof DISTRICTS)[number];
 export const DISTRICT_NAMES: Record<District, string> = {
   grove: 'CEDAR GROVE', village: 'OLD TOWN', ridge: 'SUMMIT RIDGE', farm: 'GOLDEN ACRES', mill: 'TIMBER MILL',
 };
-export const ENCOUNTER_KINDS = ['kicker', 'cones', 'rail', 'ledge'] as const;
+export const ENCOUNTER_KINDS = ['kicker', 'curved', 'bank', 'cones', 'rail', 'ledge'] as const;
+// Keep the original draw order so new ramp variants do not move existing rails or ledges.
+const BASE_KINDS = ['kicker', 'cones', 'rail', 'ledge'] as const;
 export type Encounter = { kind: (typeof ENCOUNTER_KINDS)[number]; x: number; along: number; width: number; length: number; height: number };
 export function seededRandom(seed: number) {
   let a = seed >>> 0;
@@ -57,13 +59,28 @@ export function planChunk(index: number, seed = 0x9e3779b9) {
   const encounters: Encounter[] = [];
   if (index > 0) {
     for (const along of [22, 52]) {
-      const kind = ENCOUNTER_KINDS[Math.floor(rng() * ENCOUNTER_KINDS.length)]!;
+      const kind = BASE_KINDS[Math.floor(rng() * BASE_KINDS.length)]!;
       const grindable = kind === 'rail' || kind === 'ledge';
-      encounters.push({ kind, x: (rng() < 0.5 ? -1 : 1) * 4.9,
+      const encounter:Encounter={ kind, x: (rng() < 0.5 ? -1 : 1) * 4.9,
         along: along + (rng() - 0.5) * 2, width: grindable ? 0.7 : 3 + rng() * 0.8,
         length: kind === 'kicker' ? 8 + rng() * 2 : kind === 'rail' ? 16 : kind === 'ledge' ? 12 : 4,
-        height: kind === 'kicker' ? 1.2 + rng() * 0.5 : kind === 'rail' ? 0.75 : kind === 'ledge' ? 0.45 : 0.32 });
+        height: kind === 'kicker' ? 1.2 + rng() * 0.5 : kind === 'rail' ? 0.75 : kind === 'ledge' ? 0.45 : 0.32 };
+      if(kind==='kicker' && index>1) {
+        const variant=seededRandom(Math.imul(index,0x45d9f3b)^Math.imul(along,0x27d4eb2d)^seed)();
+        // Curved launchers are occasional features; the shorter side banks give a sharper sideways kick.
+        if(variant<1/9) {
+          encounter.kind='curved';encounter.width=4.2;encounter.length+=6;encounter.height+=1.6;
+        }
+        else if(variant>=1/3 && variant<2/3) {encounter.kind='bank';encounter.width=4.2;encounter.length+=3;encounter.height+=1;}
+      }
+      encounters.push(encounter);
     }
+  }
+  // Guaranteed early examples for quick testing after the starting platform.
+  // Leave the opening ledge and rail in their existing slots.
+  if(index===1 || index===2) {
+    encounters[0]={kind:index===1?'curved':'bank',x:index===1?4.9:-4.9,
+      along:22,width:4.2,length:index===1?16:12,height:index===1?3.2:2.8};
   }
   // Longer dedicated rail sections give room to balance even as the run gets faster.
   if (index > 0 && index % 4 === 3) {

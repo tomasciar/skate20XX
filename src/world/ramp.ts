@@ -14,6 +14,7 @@ import type { GrindRail } from "../player/grind.ts";
 import RAPIER from "@dimforge/rapier3d-compat";
 import {createWorldAppearance,surface} from './appearance.ts';
 import type {RideMode} from '../mode.ts';
+import {makeRampShape} from './rampShapes.ts';
 
 /** Endless rolling downhill: road and scenery share the streamed height profile. */
 export const RAMP = {
@@ -226,6 +227,13 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
     for (const item of encounters) {
       const { x, along, width, length, height, kind } = item;
       const y = RAMP.thickness / 2;
+      if(kind==='curved' || kind==='bank') {
+        const shape={kind,width,length,height,side:(x<0?-1:1) as -1|1};
+        for(const mesh of makeRampShape(shape,kind==='bank'?mats.bank:mats.kicker,mats.lip,index*RAMP.chunkLength+along-length/2)) {
+          mesh.position.set(x,y,-along);root.add(warpCourse(mesh));
+        }
+        continue;
+      }
       if (kind === 'rail' || kind === 'ledge') {
         // Each grind remains a straight, rigid line, aligned between two points on the bend.
         const s=index*RAMP.chunkLength+along;
@@ -493,6 +501,7 @@ function makeSharedMaterials() {
     edge: new THREE.MeshBasicMaterial({ color: 0xffc857 }),
     dash: surface(new THREE.MeshBasicMaterial({ color: 0xf2f5f8 }),'line'),
     kicker: new THREE.MeshStandardMaterial({ color: 0x1db5d0, roughness: 0.65, emissive: 0x1db5d0, emissiveIntensity: 0.06 }),
+    bank: new THREE.MeshStandardMaterial({ color:0x9762df,roughness:0.7,emissive:0x9762df,emissiveIntensity:0.05 }),
     lip: new THREE.MeshStandardMaterial({ color: 0xffedb0, roughness: 0.6 }),
     ledge: new THREE.MeshStandardMaterial({ color: 0xf46b3f, roughness: 0.8, emissive: 0xf46b3f, emissiveIntensity: 0.04 }),
     barrier: surface(new THREE.MeshStandardMaterial({ color: 0xc9c8c0, roughness: 0.85 }),'barrier'),
