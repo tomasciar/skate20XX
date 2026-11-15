@@ -1,11 +1,13 @@
 import type { GrindState } from "../player/grind";
 import type { TrickState } from "../player/tricks";
+import type { AirRotationState } from "../player/airRotation";
 
 export function createHud() {
   const speedEl = document.getElementById("speed")!;
   const distanceEl = document.getElementById("distance")!;
   const trickEl = document.getElementById("trick")!;
   const overlay = document.getElementById("overlay")!;
+  const airMode = document.getElementById("air-mode")!;
 
   function hideOverlay() {
     overlay.classList.add("hidden");
@@ -17,10 +19,14 @@ export function createHud() {
     overlay.querySelector("p")!.textContent = "Click or press Enter to keep rolling";
   }
 
-  function update(speed: number, tricks: TrickState, distance = 0, grind?: GrindState) {
+  function update(speed: number, tricks: TrickState, distance = 0, grind?: GrindState, aerial?: AirRotationState) {
     // SI velocity to miles per hour.
     speedEl.textContent = String(Math.round(speed * 2.23694));
     distanceEl.textContent = String(Math.round(distance));
+    airMode.hidden=!aerial?.engaged;
+    if(aerial?.engaged) airMode.textContent=aerial.active
+      ? 'FLIP MODE · W/S flip · A/D roll · Space to steer'
+      : 'STEERING · A/D turn · Space to flip';
 
     if (grind?.active) {
       trickEl.textContent = `50–50 GRIND · ${Math.floor(grind.meters)} m`;

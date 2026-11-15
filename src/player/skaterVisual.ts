@@ -17,6 +17,8 @@ export type SkaterVisual = {
   setPose: (opts: {
     grab?: GrabDef | null;
     headForward?: THREE.Vector3;
+    /** World rotation of a whole-body flip; the head keeps its course aim relative to it. */
+    headFrame?: THREE.Quaternion;
     pump?: PumpState;
     dt: number;
     speed: number;
@@ -213,6 +215,7 @@ export function createSkaterVisual(): SkaterVisual {
     // Keep the face aimed down the course while the torso carves, grabs or spins.
     headAim.copy(opts.headForward ?? faceForward).normalize();
     headWorld.setFromUnitVectors(faceForward,headAim);
+    if(opts.headFrame)headWorld.premultiply(opts.headFrame);
     head.quaternion.copy(torso.getWorldQuaternion(headParent)).invert().multiply(headWorld);
   }
   function captureRagdoll(): RagdollRig {

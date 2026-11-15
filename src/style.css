@@ -107,6 +107,19 @@ body,
   color: var(--accent);
 }
 
+#air-mode {
+  position: absolute;
+  top: 21%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  padding: 7px 12px;
+  border-radius: 6px;
+  background: rgba(12, 18, 24, 0.7);
+}
+
 .hud-bottom {
   font-size: 0.78rem;
   letter-spacing: 0.03em;

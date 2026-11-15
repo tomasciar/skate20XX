@@ -157,8 +157,8 @@ async function main() {
 
     acc += raw;
     while (acc >= fixedDt) {
-      const intent = controller.update(input.state, fixedDt);
-      lastPush = intent.push; lastSteer = intent.steer;
+      const intent = controller.update(input.state, fixedDt, !player.grounded && !player.grind.active && !player.crashed);
+      lastPush = player.aerial.active ? 0 : intent.push; lastSteer = player.aerial.active ? 0 : intent.steer;
 
       tricks.setGrab(intent.grabDX, intent.grabDY, intent.grabModifier, !player.grounded && !player.grind.active && !player.crashed,
         screenGrabFacing(player.forward,ramp.forward,ramp.surfaceNormal),intent.grabPress);
@@ -193,7 +193,7 @@ async function main() {
     chase.update(raw, player.renderPosition);
     hudElapsed += raw;
     if (hudElapsed >= 0.1) {
-      hud.update(player.speed, tricks.state, ramp.distance + Math.max(0, alongCourse.copy(player.position).sub(ramp.anchor).dot(ramp.forward)), player.grind);
+      hud.update(player.speed, tricks.state, ramp.distance + Math.max(0, alongCourse.copy(player.position).sub(ramp.anchor).dot(ramp.forward)), player.grind, player.aerial);
       hudElapsed = 0;
     }
     if (quality.update(frameDt)) applyRenderSize();

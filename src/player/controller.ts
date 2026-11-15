@@ -6,6 +6,7 @@ export type PlayerIntent = {
   grabDX: number;
   grabDY: number;
   grabPress?: number;
+  toggleAirFlip?: boolean;
   push: number;
   steer: number;
   crouch: boolean;
@@ -21,16 +22,23 @@ export type PlayerIntent = {
 export function createController() {
   let crouchHold = 0;
   let ollieArmed = false;
+  let airSpaceHeld = false;
 
-  function update(input: InputState, dt: number): PlayerIntent {
-    if (input.crouch || input.crouchPressed) {
+  function update(input: InputState, dt: number, airborne = false): PlayerIntent {
+    const toggleAirFlip=airborne && input.crouchPressed;
+    if(airborne) {
+      airSpaceHeld ||= input.crouch || input.crouchPressed;
+      crouchHold=0;ollieArmed=false;
+    }
+    const allowOllie=!airborne && !airSpaceHeld;
+    if (allowOllie && (input.crouch || input.crouchPressed)) {
       crouchHold = Math.min(1, crouchHold + dt * 3.2);
       ollieArmed = true;
     }
 
     let wantOllie = false;
     let olliePower = 0;
-    if (input.crouchReleased && ollieArmed) {
+    if (allowOllie && input.crouchReleased && ollieArmed) {
       wantOllie = true;
       olliePower = Math.max(0.25, crouchHold);
       crouchHold = 0;
@@ -39,6 +47,7 @@ export function createController() {
     if (!input.crouch && !wantOllie) {
       crouchHold = Math.max(0, crouchHold - dt * 3);
     }
+    if(!input.crouch)airSpaceHeld=false;
 
     const steer = (input.right ? 1 : 0) - (input.left ? 1 : 0);
     const push = (input.push ? 1 : 0) - (input.brake ? 1 : 0);
@@ -48,9 +57,10 @@ export function createController() {
       grabDX: input.grabDX,
       grabDY: input.grabDY,
       grabPress: input.grabPress,
+      toggleAirFlip,
       push,
       steer,
-      crouch: input.crouch,
+      crouch: allowOllie && input.crouch,
       crouchHold,
       wantOllie,
       olliePower,
@@ -66,5 +76,5 @@ export function createController() {
     return intent;
   }
 
-  return { update, reset() { crouchHold = 0; ollieArmed = false; } };
+  return { update, reset() { crouchHold = 0; ollieArmed = airSpaceHeld = false; } };
 }
