@@ -2,6 +2,7 @@ import type * as THREE from 'three';
 import {CHUNK_LENGTH} from '../generation.ts';
 import {makeTree,treeStyleFor} from '../scenery.ts';
 import {prepareEnvironmentObject} from '../appearance.ts';
+import {varyScenery} from '../variety.ts';
 import type {District,TreeStyle} from './catalog.ts';
 
 /** Builders describe one physical layout, shared by skateboarding and snowboarding. */
@@ -17,7 +18,8 @@ export function createLayoutContext({district,index,rng,plant}:DistrictContext) 
   /** Reserve ground and build later, so main features claim their space before filler is scattered. */
   function place(make: () => THREE.Object3D, x: number, along: number, yaw = 0, radius = 0) {
     if (radius) taken.push({ x, along, radius });
-    queue.push(() => { const object=make();prepareEnvironmentObject(object);plant(object, x, along, yaw); });
+    const slot=queue.length;
+    queue.push(() => { const object=varyScenery(make(),district,index,slot);prepareEnvironmentObject(object);plant(object, x, along, yaw); });
   }
   function scatter(count: number, make: () => THREE.Object3D, near: number, far: number, radius: number, spin = true) {
     for (let i = 0; i < count; i++) {

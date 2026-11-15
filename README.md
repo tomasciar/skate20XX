@@ -109,6 +109,8 @@ The renderer caps its initial drawing buffer at about two million pixels, with a
 
 See [environment authoring](docs/environments.md) for adding districts and props that share layouts, collision, and seasonal appearance across skate and snowboard modes.
 
+`npm run bench:world` measures environment density, render/collision triangles, static batches, and CPU chunk preparation. Scenery variants use seeded shared pieces and compact vertex colours across all six districts, including winter mode; the benchmark excludes browser/GPU rendering.
+
 ## Check
 
 ```bash

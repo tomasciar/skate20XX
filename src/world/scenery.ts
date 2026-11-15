@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { DISTRICT_NAMES } from './generation.ts';
 import type { District } from './generation.ts';
-import {surface} from './appearance.ts';
+import {sceneryMaterial as material,markAsset} from './variety.ts';
+import {facadeMaterial} from './appearance.ts';
 import {ENVIRONMENT_BY_ID} from './environments/catalog.ts';
 import type {TreeStyle} from './environments/catalog.ts';
 export type {TreeStyle} from './environments/catalog.ts';
@@ -12,7 +13,6 @@ export type {TreeStyle} from './environments/catalog.ts';
  * should lie on the local slope ('slope'), or simply stands upright on the ground. `userData.shadow`
  * picks the baked ground shadow: 'round' for crowns and boulders, 'none' for flat paving, a soft box otherwise.
  */
-const material = (color: number, metalness = 0, roughness = 0.8) => surface(new THREE.MeshStandardMaterial({ color, roughness, metalness }),'scenery');
 const wood = material(0x886044), stone = material(0x879295), white = material(0xf1ead8);
 const dark = material(0x263b43), glass = material(0x6f9aa8, 0.35, 0.25), orange = material(0xf27635);
 const coneOrange = material(0xff651a, 0, 0.65);
@@ -74,9 +74,10 @@ function log(g: THREE.Object3D, diameter: number, length: number, at: number[], 
  * `span` is the wall-to-wall distance across the ridge; `alongZ` turns the ridge toward the front.
  */
 function gableRoof(g: THREE.Object3D, length: number, span: number, rise: number, y: number, roof: THREE.Material, wall: THREE.Material, alongZ = false, overhang = 0.45) {
-  const r = new THREE.Group(); r.position.y = y; if (alongZ) r.rotation.y = Math.PI/2; g.add(r);
+  const r = new THREE.Group(); r.userData.variantPart='roof'; r.position.y = y; if (alongZ) r.rotation.y = Math.PI/2; g.add(r);
   part(r, unitGable, [length,rise,span], [0,0,0], wall);
   const angle = Math.atan2(rise, span/2), slope = Math.hypot(rise, span/2) + overhang;
+  r.userData.roofSize=[length+overhang*2,rise+0.15,span+overhang*2*Math.cos(angle)+0.14*Math.sin(angle)];
   for (const side of [-1,1]) {
     const slab = box(r, [length+overhang*2,0.14,slope], [0, rise/2-Math.sin(angle)*overhang/2+0.07, side*(span/4+Math.cos(angle)*overhang/2)], roof);
     slab.rotation.x = side*angle;
@@ -111,7 +112,7 @@ export function makeCone() {
   const cone = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.65, 10), coneOrange);
   cone.position.y = 0.38; g.add(cone);
   const band = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.13, 0.12, 10), white);
-  band.position.y = 0.38; g.add(band); return g;
+  band.position.y = 0.38; g.add(band); return markAsset(g,'cone');
 }
 
 // ---------------------------------------------------------------- trees
@@ -125,7 +126,7 @@ export function makeTree(rng: () => number, style: TreeStyle = 'broadleaf') {
   };
   const crown = (geometry: THREE.BufferGeometry, mat: THREE.Material, size: number[], at: number[]) => {
     const m = new THREE.Mesh(geometry, mat); m.scale.set(size[0]!,size[1]!,size[2]!); m.position.set(at[0]!,at[1]!,at[2]!);
-    m.castShadow = true; tree.add(m); return m;
+    m.userData.variantPart='crown';m.castShadow = true; tree.add(m); return m;
   };
   if (style === 'pine' || style === 'cedar') {
     const cedar = style === 'cedar', mat = cedar ? cedarLeaf : pick(leaves, rng);
@@ -158,7 +159,7 @@ export function makeTree(rng: () => number, style: TreeStyle = 'broadleaf') {
   }
   const s = style === 'fruit' ? 0.9+rng()*0.3 : 0.65+rng()*1.0;
   tree.scale.set(s, style === 'fruit' ? s : 0.75+rng()*1.05, s);
-  return tree;
+  return markAsset(tree,'tree');
 }
 export function makeBush(rng: () => number, mat: THREE.Material = leaf) {
   const g = group(); g.userData.shadow = 'round';
@@ -166,7 +167,7 @@ export function makeBush(rng: () => number, mat: THREE.Material = leaf) {
     const size = 0.7+rng()*0.6;
     part(g, unitBlob, [size*1.2,size*0.85,size*1.2], [i ? (rng()-0.5)*1.3 : 0, size*0.3, i ? (rng()-0.5)*1.3 : 0], mat);
   }
-  return g;
+  return markAsset(g,'bush');
 }
 export function makeRocks(rng: () => number, scale = 1) {
   const g = group(); g.userData.shadow = 'round';
@@ -175,11 +176,11 @@ export function makeRocks(rng: () => number, scale = 1) {
     const rock = part(g, unitRock, [size*(1+rng()), size*(0.7+rng()), size], [i ? (rng()-0.5)*3*scale : 0, 0.4*scale, i ? (rng()-0.5)*3*scale : 0], stone);
     rock.rotation.set(rng(), rng(), rng());
   }
-  return g;
+  return markAsset(g,'rocks');
 }
 export function makeStump(rng: () => number) {
   const g = group(), d = 0.5+rng()*0.4; g.userData.shadow = 'round';
-  post(g, d, 0.45, [0,0.22,0], trunkMaterial); post(g, d*0.86, 0.04, [0,0.46,0], logEnd); return g;
+  post(g, d, 0.45, [0,0.22,0], trunkMaterial); post(g, d*0.86, 0.04, [0,0.46,0], logEnd); return markAsset(g,'stump');
 }
 
 // ---------------------------------------------------------------- village
@@ -212,7 +213,7 @@ export function makeHouse(rng: () => number) {
   const cx = frontGable ? w*0.22 : w*0.27, cz = frontGable ? -d*0.2 : -d*0.2;
   box(g, [0.7,h*0.2+2.4,0.7], [cx,base+h+1.0,cz], stone);
   box(g, [0.85,0.14,0.85], [cx,base+h+2.25+h*0.1,cz], dark);
-  return g;
+  return markAsset(g,'house');
 }
 export function makeShop(rng: () => number) {
   const g = group('pad');
@@ -235,7 +236,7 @@ export function makeShop(rng: () => number) {
   for (let i = 0; i < count; i++) windowOn(g, 0, (i-(count-1)/2)*(w/count), base+4.7, d/2, 1, 1.3);
   for (const facing of [1,3]) for (const z of [-d*0.24,d*0.24]) windowOn(g, facing, z, base+4.7, w/2, 0.9, 1.3);
   doorOn(g, 2, -w*0.2, base, d/2, 0.95, 2.05, metal);
-  return g;
+  return markAsset(g,'shop');
 }
 export function makeChapel(rng: () => number) {
   const g = group('pad');
@@ -256,10 +257,10 @@ export function makeChapel(rng: () => number) {
   for (const facing of [1,3]) for (const z of [-3.2,-0.6,2]) onWall(g, facing, z+0.6, base+2.5, w/2, wnd => {
     box(wnd, [0.85,2.5,0.08], [0,0,0.02], stone); box(wnd, [0.6,2.2,0.1], [0,0,0.04], glass);
   });
-  return g;
+  return markAsset(g,'chapel');
 }
 export function makeCar(rng: () => number) {
-  const g = group('pad'), paint = pick(paints, rng), van = rng() < 0.25;
+  const g = group('pad'), paint = pick(paints, rng), van = rng() < 0.25;g.userData.vehicleStyle=van?'van':'car';
   box(g, [1.85,0.62,4.1], [0,0.68,0], paint);
   box(g, [1.7,0.18,4.2], [0,0.42,0], dark);
   if (van) { box(g, [1.8,0.95,2.9], [0,1.45,-0.5], paint); box(g, [1.62,0.6,0.08], [0,1.5,0.96], glass); for (const x of [-1,1]) box(g, [0.06,0.5,1.3], [x*0.9,1.5,0.1], glass); }
@@ -274,20 +275,20 @@ export function makeCar(rng: () => number) {
   }
   for (const x of [-0.65, 0.65]) { box(g, [0.35,0.18,0.05], [x,0.78,2.06], white); box(g, [0.32,0.14,0.05], [x,0.78,-2.06], orange); }
   box(g, [1.3,0.12,0.06], [0,0.52,2.1], metal);
-  return g;
+  return markAsset(g,'car');
 }
 export function makeBench() {
   const g = group('pad');
   box(g, [2.5, 0.14, 0.7], [0, 0.6, 0], wood);
   box(g, [2.5, 0.65, 0.12], [0, 1, 0.32], wood);
   for (const x of [-0.9, 0.9]) box(g, [0.12, 0.6, 0.65], [x, 0.3, 0], metal);
-  return g;
+  return markAsset(g,'bench');
 }
 export function makePlanter(rng: () => number) {
   const g = group('pad');
   box(g, [1.6, 0.5, 1.6], [0, 0.25, 0], wood);
   for (let i = 0; i < 4; i++) part(g, unitBlob, [1.1,1.1,1.1], [i ? (rng()-0.5) : 0, 0.7, i ? (rng()-0.5) : 0], i === 2 ? blossom : leaf);
-  return g;
+  return markAsset(g,'planter');
 }
 export function makeBusStop() {
   const g = group('pad');
@@ -298,7 +299,7 @@ export function makeBusStop() {
   box(g, [3.5,0.1,1.7], [0,2.38,0.05], dark).rotation.x = 0.06;
   box(g, [2.2,0.1,0.42], [0,0.5,-0.3], wood);
   for (const x of [-0.9,0.9]) box(g, [0.08,0.45,0.36], [x,0.27,-0.3], metal);
-  return g;
+  return markAsset(g,'bus-stop');
 }
 export function makeWell() {
   const g = group('pad');
@@ -306,26 +307,26 @@ export function makeWell() {
   for (const x of [-0.85,0.85]) box(g, [0.14,2.1,0.14], [x,1.45,0], wood);
   gableRoof(g, 2.2, 1.5, 0.55, 2.45, roofs[0]!, wood, false, 0.2);
   log(g, 0.16, 1.7, [0,2.1,0], wood);
-  return g;
+  return markAsset(g,'well');
 }
 export function makeShed(rng: () => number) {
   const g = group('pad'), paint = pick(paints, rng);
   box(g, [2.6,2.1,2.2], [0,1.05,0], paint);
   box(g, [3,0.1,2.7], [0,2.32,0], roofs[1]!).rotation.x = 0.16;
   doorOn(g, 0, 0, 0, 1.1, 0.85, 1.85);
-  return g;
+  return markAsset(g,'shed');
 }
 export function makeHedge(length = 7) {
   const g = group('slope');
   box(g, [length,1.05,0.75], [0,0.5,0], leaf);
   box(g, [length-0.3,0.2,0.55], [0,1.1,0], leaves[1]!);
-  return g;
+  return markAsset(g,'hedge');
 }
 /** Paved strip laid on the slope: garden paths and driveways. Too thin to matter to a wheel. */
 export function makePaving(length: number, width: number, mat: THREE.Material = concrete) {
   const g = group('slope'); g.userData.collision = false; g.userData.shadow = 'none';
   box(g, [length,0.05,width], [0,0.03,0], mat).castShadow = false;
-  return g;
+  return markAsset(g,'paving');
 }
 
 // ---------------------------------------------------------------- grove
@@ -345,7 +346,7 @@ export function makeCabin(rng: () => number) {
   windowOn(g, 0, -w*0.22, base+1.45, d/2, 0.9, 0.9);
   for (const facing of [1,3]) windowOn(g, facing, 0, base+1.45, w/2, 0.9, 0.9);
   box(g, [0.9,h+3,0.9], [-w/2-0.3,base+(h+3)/2,-d*0.15], stone);
-  return g;
+  return markAsset(g,'cabin');
 }
 export function makeShelter() {
   const g = group('pad');
@@ -355,7 +356,7 @@ export function makeShelter() {
   box(g, [4,1,0.08], [0,0.9,-1.4], wood);
   box(g, [3,0.1,0.5], [0,0.55,-1], wood);
   for (const x of [-1.2,1.2]) box(g, [0.1,0.5,0.45], [x,0.3,-1], metal);
-  return g;
+  return markAsset(g,'shelter');
 }
 export function makeLogPile(rng: () => number, diameter = 0.42, length = 2.6) {
   const g = group('slope');
@@ -364,7 +365,7 @@ export function makeLogPile(rng: () => number, diameter = 0.42, length = 2.6) {
     const piece = post(g, diameter, length, [0,y,x], trunkMaterial); piece.rotation.z = Math.PI/2; piece.rotation.y = (rng()-0.5)*0.03;
     for (const end of [-1,1]) { const cap = post(g, diameter*0.86, 0.04, [end*length/2,y,x], logEnd); cap.rotation.z = Math.PI/2; }
   }
-  return g;
+  return markAsset(g,'log-pile');
 }
 
 // ---------------------------------------------------------------- ridge
@@ -387,7 +388,7 @@ export function makeLookout() {
   // Ladder up the downhill face.
   for (const x of [-0.25,0.25]) box(g, [0.07,h,0.07], [x,h/2+0.3,1.8], wood);
   for (let y = 0.8; y < h; y += 0.6) box(g, [0.5,0.05,0.05], [0,y,1.8], wood);
-  return g;
+  return markAsset(g,'lookout');
 }
 export function makeMast() {
   const g = group('pad');
@@ -399,7 +400,7 @@ export function makeMast() {
   }
   box(g, [2.4,2.3,2.2], [2.6,1.45,0], sheet); box(g, [2.6,0.12,2.4], [2.6,2.66,0], dark);
   doorOn(g, 0, 2.6, 0.3, 1.1, 0.85, 1.9, metal);
-  return g;
+  return markAsset(g,'mast');
 }
 export function makeHut(rng: () => number) {
   const g = group('pad'), w = 4.6+rng(), d = 4, h = 2.3;
@@ -409,7 +410,7 @@ export function makeHut(rng: () => number) {
   windowOn(g, 0, w*0.24, 1.3, d/2, 0.7, 0.7, barnRed);
   windowOn(g, 2, 0, 1.3, d/2, 0.7, 0.7, barnRed);
   box(g, [0.6,1.6,0.6], [w*0.3,h+1.1,-d*0.2], stone);
-  return g;
+  return markAsset(g,'hut');
 }
 export function makeCairn(rng: () => number) {
   const g = group('slope'); g.userData.shadow = 'round';
@@ -417,7 +418,7 @@ export function makeCairn(rng: () => number) {
     const size = 0.75-i*0.14;
     const rock = part(g, unitRock, [size*1.15,size*0.6,size], [0,y+size*0.3,0], stone); rock.rotation.y = rng()*3; y += size*0.5;
   }
-  return g;
+  return markAsset(g,'cairn');
 }
 /** Distant landmark: stands upright on the hillside without a terrace. */
 export function makeTurbine(rng: () => number) {
@@ -430,7 +431,7 @@ export function makeTurbine(rng: () => number) {
     const blade = new THREE.Group(); blade.rotation.z = i*Math.PI*2/3; hub.add(blade);
     box(blade, [0.9,15,0.18], [0,8,0], white).rotation.y = 0.2;
   }
-  return g;
+  return markAsset(g,'turbine');
 }
 
 // ---------------------------------------------------------------- farm
@@ -450,7 +451,7 @@ export function makeBarn(rng: () => number) {
   });
   onWall(g, 0, 0, base+h+w*0.12, d/2, loft => { box(loft, [1.3,1.2,0.08], [0,0,0.02], white); box(loft, [1.05,0.95,0.1], [0,0,0.04], dark); });
   for (const facing of [1,3]) for (const z of [-3,0,3]) windowOn(g, facing, z, base+2.6, w/2, 0.8, 0.8);
-  return g;
+  return markAsset(g,'barn');
 }
 export function makeSilo(rng: () => number) {
   const g = group('pad'), dmt = 3+rng()*0.8, h = 8+rng()*3;
@@ -459,11 +460,11 @@ export function makeSilo(rng: () => number) {
   for (let y = 1.5; y < h; y += 1.6) post(g, dmt+0.08, 0.1, [0,y,0], metal);
   part(g, unitDome, [dmt+0.1,dmt*0.7,dmt+0.1], [0,h+0.3,0], metal);
   box(g, [0.5,h,0.12], [0,h/2+0.3,dmt/2+0.05], metal);
-  return g;
+  return markAsset(g,'silo');
 }
 export function makeHayBale(rng: () => number) {
   const g = group('slope'); g.userData.shadow = 'round';
-  const bale = post(g, 1.45, 1.3, [0,0.72,0], straw); bale.rotation.z = Math.PI/2; g.rotation.y = rng()*Math.PI; return g;
+  const bale = post(g, 1.45, 1.3, [0,0.72,0], straw); bale.rotation.z = Math.PI/2; g.rotation.y = rng()*Math.PI; return markAsset(g,'hay-bale');
 }
 export function makeWindpump() {
   const g = group('pad'), h = 8;
@@ -483,7 +484,7 @@ export function makeWindpump() {
   }
   box(g, [0.05,0.9,1.5], [0,h+0.3,-0.9], sheet);
   box(g, [0.08,0.08,1.4], [0,h+0.3,-0.3], metal);
-  return g;
+  return markAsset(g,'windpump');
 }
 export function makeTractor(rng: () => number) {
   const g = group('pad'), paint = rng() < 0.5 ? barnRed : leaves[1]!;
@@ -494,7 +495,7 @@ export function makeTractor(rng: () => number) {
     post(g, 1.5, 0.42, [x,0.75,-0.7], dark).rotation.z = Math.PI/2; post(g, 0.6, 0.44, [x,0.75,-0.7], straw).rotation.z = Math.PI/2;
     post(g, 0.8, 0.28, [x*0.9,0.4,1.5], dark).rotation.z = Math.PI/2;
   }
-  return g;
+  return markAsset(g,'tractor');
 }
 
 // ---------------------------------------------------------------- timber mill
@@ -510,7 +511,7 @@ export function makeSawmill(rng: () => number) {
   log(g, 0.75, w*0.42, [-w*0.12,1.18,0.4], trunkMaterial);
   post(g, 1.5, 0.08, [w*0.2,1.3,0.4], metal).rotation.x = Math.PI/2;
   for (let i = 0; i < 4; i++) box(g, [3.2,0.22,1.2], [w*0.28,0.45+i*0.3,-1.9], logEnd);
-  return g;
+  return markAsset(g,'sawmill');
 }
 export function makeWarehouse(rng: () => number) {
   const g = group('pad'), w = 11+rng()*3, d = 8.5, h = 5, base = 1, wall = rng() < 0.5 ? sheet : paints[1]!;
@@ -524,7 +525,7 @@ export function makeWarehouse(rng: () => number) {
   doorOn(g, 0, w*0.34, base, d/2, 0.95, 2.05, dark);
   for (let i = 0; i < 3; i++) box(g, [1.3,base-i*0.32,0.45], [w*0.34,(base-i*0.32)/2,d/2+0.25+i*0.45], concrete);
   for (const facing of [1,3]) for (const z of [-2.2,2.2]) windowOn(g, facing, z, base+3.6, w/2, 1.4, 0.8, dark);
-  return g;
+  return markAsset(g,'warehouse');
 }
 export function makeLumberStack(rng: () => number) {
   const g = group('pad'), layers = 3+Math.floor(rng()*3);
@@ -532,7 +533,7 @@ export function makeLumberStack(rng: () => number) {
     for (const z of [-1,1]) box(g, [0.12,0.1,1.4], [z*1.1,i*0.36+0.05,0], dark);
     box(g, [3.4,0.26,1.35], [0,i*0.36+0.23,0], logEnd);
   }
-  return g;
+  return markAsset(g,'lumber-stack');
 }
 export function makeTank(rng: () => number) {
   const g = group('pad'), dmt = 2.8+rng(), h = 3.6+rng()*1.5, mat = rng() < 0.5 ? rust : sheet;
@@ -541,14 +542,14 @@ export function makeTank(rng: () => number) {
   part(g, unitDome, [dmt,dmt*0.35,dmt], [0,h+0.3,0], mat);
   for (const y of [1,h-0.5]) post(g, dmt+0.08, 0.1, [0,y,0], metal);
   box(g, [0.45,h,0.1], [0,h/2+0.3,dmt/2+0.04], metal);
-  return g;
+  return markAsset(g,'tank');
 }
 export function makeStack() {
   const g = group('pad'), h = 15;
   box(g, [2.6,1.4,2.6], [0,0.7,0], paints[6]!);
   part(g, unitTaper, [2.6,h,2.6], [0,h/2+1.4,0], paints[6]!);
   post(g, 1.75, 0.4, [0,h+1.5,0], dark);
-  return g;
+  return markAsset(g,'stack');
 }
 export function makePowerPole() {
   const g = group();
@@ -556,7 +557,7 @@ export function makePowerPole() {
   box(g, [2.4,0.14,0.14], [0,8.3,0], trunkMaterial); box(g, [1.6,0.12,0.12], [0,7.5,0], trunkMaterial);
   for (const x of [-1.05,0,1.05]) post(g, 0.12, 0.26, [x,8.5,0], glass);
   post(g, 0.5, 0.7, [0.3,6.6,0], metal);
-  return g;
+  return markAsset(g,'power-pole');
 }
 export function makeLogTruck(rng: () => number) {
   const g = group('pad'), paint = pick([barnRed, paints[3]!, leaves[1]!], rng);
@@ -568,7 +569,7 @@ export function makeLogTruck(rng: () => number) {
     for (const end of [-1,1]) post(g, 0.54, 0.04, [(i-(2-row)/2)*0.64,1.32+row*0.56,-1.1+end*2.7], logEnd).rotation.x = Math.PI/2;
   }
   for (const x of [-1,1]) for (const z of [-2.8,-1.7,2.7]) post(g, 0.95, 0.36, [x*0.95,0.48,z], dark).rotation.z = Math.PI/2;
-  return g;
+  return markAsset(g,'log-truck');
 }
 
 // ---------------------------------------------------------------- shared
@@ -591,10 +592,10 @@ export function makeSign(district: District, index: number) {
   ctx.fillText(DISTRICT_NAMES[district], 256, 80);
   ctx.font = '26px sans-serif'; ctx.fillText(`${index * 70} m  /  KEEP ROLLING`, 256, 135);
   const map = new THREE.CanvasTexture(canvas); map.colorSpace = THREE.SRGBColorSpace;
-  const face = new THREE.MeshStandardMaterial({ map }); face.userData.perChunk = true;
+  const face = facadeMaterial(new THREE.MeshStandardMaterial({ map })); face.userData.perChunk = true;
   box(g, [3.1, 1.16, 0.12], [0, 2.3, 0], face);
   box(g, [3.3, 0.12, 0.2], [0, 2.95, 0], wood);
-  return g;
+  return markAsset(g,'sign');
 }
 
 /** Rustic field fences, picnic tables and trail-side shelters share existing materials. */
@@ -602,14 +603,14 @@ export function makeFence(length = 9) {
   const g = group('slope');
   for (let x = -length/2; x <= length/2 + 0.01; x += length/3) box(g,[0.13,1.15,0.13],[x,0.575,0],wood);
   for (const y of [0.45,0.9]) box(g,[length,0.10,0.10],[0,y,0],wood);
-  return g;
+  return markAsset(g,'fence');
 }
 /** Yard fencing: steel posts with mesh panels. */
 export function makeYardFence(length = 9) {
   const g = group('slope');
   for (let x = -length/2; x <= length/2 + 0.01; x += length/3) post(g,0.09,1.9,[x,0.95,0],metal);
   box(g,[length,1.5,0.04],[0,1.05,0],sheet); box(g,[length,0.06,0.07],[0,1.85,0],metal);
-  return g;
+  return markAsset(g,'yard-fence');
 }
 export function makePicnic() {
   const g = group('pad');
@@ -618,7 +619,7 @@ export function makePicnic() {
   for (const x of [-0.8,0.8]) {
     box(g,[0.13,0.85,1.7],[x,0.425,0],metal);
   }
-  return g;
+  return markAsset(g,'picnic');
 }
 export function makeLamp(side: number, rng: () => number) {
   const root = group(), height = 3.2*(0.85+rng()*0.4);
@@ -627,7 +628,7 @@ export function makeLamp(side: number, rng: () => number) {
   box(root, [0.9,0.07,0.07], [-side*0.4,height-0.05,0], metal);
   box(root, [0.5,0.1,0.22], [-side*0.7,height-0.1,0], dark);
   box(root, [0.4,0.03,0.16], [-side*0.7,height-0.16,0], white);
-  return root;
+  return markAsset(root,'lamp');
 }
 
 export const foundationMaterial = stone;

@@ -5,6 +5,11 @@ import {seededRandom} from './generation.ts';
 export type Surface='scenery'|'road'|'terrain'|'path'|'barrier'|'line'|'obstacle';
 export function surface<T extends THREE.Material>(material:T,kind:Surface):T {material.userData.surface=kind;return material;}
 
+/** Keep thin glazing ahead of its backing wall even when distant depth values quantize together. */
+export function facadeMaterial<T extends THREE.Material>(material:T):T {
+  material.polygonOffset=true;material.polygonOffsetFactor=0;material.polygonOffsetUnits=-2;return material;
+}
+
 /** Newly added props get winter support automatically; explicit surface roles take precedence. */
 export function prepareEnvironmentObject(root:THREE.Object3D) {
   root.traverse(object=>{

@@ -32,6 +32,28 @@ Reuse materials across props to retain material batching and cached winter varia
 
 The existing UI maps skate mode to summer and snowboard mode to winter through `seasonForRideMode`. Appearance itself accepts seasons, independently of the environment and player physics. No separate snow layout, winter prop builder, or per-environment mode switch is needed.
 
+## Seeded asset variety
+
+Every queued prop receives a separate visual seed based on its district, chunk, and placement slot. Shape and palette choices never consume the placement RNG. Existing object counts, positions, gameplay encounter IDs, and density therefore stay stable when visual variations are expanded.
+
+Use `sceneryMaterial` from `variety.ts` for shared, tintable materials. Its optional fourth argument selects a palette role such as `paint`, `roof`, `wood`, `stone`, `foliage`, `glass`, or `accent`. For example:
+
+```ts
+const wall = sceneryMaterial(0xc5a589, 0, 0.8, 'paint');
+```
+
+An environment may specify its own optional `paint` palette in the catalog. Other environments use the common palette automatically. Use `markAsset(root, family)` to identify a prefab for shared silhouette variations. Roof groups and city window panels carry `variantPart` tags so their pitch and proportions can vary within their reserved footprints.
+
+The current families include tree crowns, angular and rounded rocks, low and steep roofs, vehicle body proportions, city window patterns and stepped towers, round/rectangular/wrapped bales, faceted tanks, timber/metal stacks, and painted fences. Containers and street terminals each provide twelve designs with identical solid collision within their family; thin painted details add no collision.
+
+A second independent seed combines the original variants with gable, hip, saltbox, and single-slope roof profiles; flat, slanted, curved, and short awnings; slatted and backless benches; vehicle stripes, roof racks, and signs; and conical silo/tank caps. These details reuse shared geometry and materials. Roofs stay inside their original horizontal envelope, and each roof profile is a closed solid that shares its visible surface with collision.
+
+Tints become half-float vertex colours during static batching, sharing the original materials. Constant colour attributes use a bounded cache of 512 entries. Batching restores half-float decoding after merging. Winter materials retain the vertex colours beneath the shared snow coating; no material or texture is created for each colour combination. Shopfront lettering uses one shared sixteen-label atlas, still 512 by 512 pixels.
+
+Thin glazing and sign overlays use `facadeMaterial` for a small depth bias that survives winter material cloning. City window panels also stand 45 mm ahead of their backing walls; avoid coplanar decoration or very small gaps that can flicker at the course's long view distance.
+
+Run `tests/variety.test.ts` for repeatability, shared collision, colour encoding, and merged summer/winter checks. `npm run bench:world` reports per-environment object and triangle counts, render batches, and CPU chunk-preparation time. It excludes browser/GPU rendering.
+
 ## Performance and collision
 
 Keep geometry, material, and collision complexity controlled per section. The current pipeline bakes solid visible meshes into chunk collision; set `object.userData.collision = false` for decorative parts that should not collide. Snow changes materials only. Existing placement metadata (`pad`, `slope`, upright) remains shared by both modes.

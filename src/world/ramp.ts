@@ -16,6 +16,7 @@ import {createWorldAppearance,surface} from './appearance.ts';
 import type {RideMode} from '../mode.ts';
 import {makeRampShape} from './rampShapes.ts';
 import {seasonForRideMode,type WorldSeason} from './season.ts';
+import {applySceneryTint} from './variety.ts';
 
 /** Endless rolling downhill: road and scenery share the streamed height profile. */
 export const RAMP = {
@@ -650,6 +651,7 @@ function* batchChunk(root: THREE.Group,appearance:ReturnType<typeof createWorldA
     // Keep shared vertices through batching to reduce upload size and vertex/shadow work.
     if (!geometry.index) geometry.setIndex(Array.from({length:geometry.getAttribute('position').count},(_,i)=>i));
     if (!geometry.getAttribute("uv")) geometry.setAttribute("uv", new THREE.BufferAttribute(new Float32Array(geometry.getAttribute("position").count * 2), 2));
+    applySceneryTint(geometry,obj);
     geometry.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inverse, obj.matrixWorld));
     const material = obj.material as THREE.Material;
     const list = batches.get(material) ?? [];
@@ -662,6 +664,9 @@ function* batchChunk(root: THREE.Group,appearance:ReturnType<typeof createWorldA
     const merged = mergeGeometries(geometries);
     for (const geometry of geometries) geometry.dispose();
     if (!merged) continue;
+    // mergeGeometries copies the data into a plain attribute; restore half-float decoding for tint RGB.
+    const colors=merged.getAttribute('color');
+    if(colors?.array instanceof Uint16Array)merged.setAttribute('color',new THREE.Float16BufferAttribute(colors.array,3));
     merged.computeBoundingSphere();
     const mesh = new THREE.Mesh(merged, material);
     appearance.bind(mesh,material);

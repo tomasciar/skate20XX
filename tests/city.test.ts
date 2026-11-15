@@ -11,6 +11,7 @@ import {createBoardPlayer} from '../src/player/board.ts';
 import {createTrickSystem} from '../src/player/tricks.ts';
 import {steerAlongCourse} from '../scripts/driveCourse.ts';
 import type {PlayerIntent} from '../src/player/controller.ts';
+import {createWorldAppearance} from '../src/world/appearance.ts';
 
 const context=new Proxy({},{get:()=>()=>{}});
 Object.assign(globalThis,{document:{createElement:()=>({getContext:()=>context})}});
@@ -79,6 +80,24 @@ test('city buildings and street furniture have solid collision at their visible 
     }
     assert.ok(baked.meshCount<props.reduce((count,prop)=>{prop.traverse(child=>{if(child instanceof THREE.Mesh)count++;});return count;},0),'window and sign decoration should share the solid shell collision');
   } finally {world.free();}
+});
+
+test('city glazing has wall clearance and keeps its depth bias in both seasons',()=>{
+  const appearance=createWorldAppearance('winter');let windows=0;
+  for(const style of ['apartment','office','tower'] as const) {
+    const root=makeCityBuilding(seededRandom(42),style);root.updateMatrixWorld(true);
+    root.traverse(object=>{
+      if(!(object instanceof THREE.Mesh) || object.userData.variantPart!=='window')return;
+      windows++;
+      const origin=object.getWorldPosition(new THREE.Vector3()),direction=new THREE.Vector3(0,0,-1).applyQuaternion(object.getWorldQuaternion(new THREE.Quaternion()));
+      const backing=new THREE.Raycaster(origin,direction,0.001,0.1).intersectObject(root,true).find(hit=>hit.object.userData.collision!==false);
+      assert.ok(backing);assert.ok(backing.distance>0.039 && backing.distance<0.051,'windows must sit consistently ahead of their backing wall');
+      const source=object.material as THREE.MeshStandardMaterial,winter=appearance.materialFor(source);
+      assert.equal(source.polygonOffset,true);assert.ok(source.polygonOffsetUnits<=-2);
+      assert.equal(winter.polygonOffset,true);assert.equal(winter.polygonOffsetUnits,source.polygonOffsetUnits);
+    });
+  }
+  assert.ok(windows>100,'check glazing on both street frontages and skyline towers');
 });
 
 test('the city downhill line remains rideable in both skate and snowboard modes',async()=>{
