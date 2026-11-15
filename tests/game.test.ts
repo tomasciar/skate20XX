@@ -74,7 +74,7 @@ Object.assign(globalThis, { document: { createElement: () => ({ width: 0, height
 test('two minutes of downhill physics stream continuously with bounded scene and colliders', async () => {
   await RAPIER.init();
   const scene = new THREE.Scene(), world = new RAPIER.World({ x: 0, y: -18, z: 0 });
-  const ramp = createRamp(scene, world), player = createBoardPlayer(scene, world, ramp);
+  const ramp = createRamp(scene, world, {startPlatform:false}), player = createBoardPlayer(scene, world, ramp);
   const fog = scene.fog as THREE.Fog;
   assert.equal(fog.near, 120); assert.equal(fog.far, 300);
   // At the end of a chunk, generated terrain still extends beyond the visible horizon.

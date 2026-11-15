@@ -67,7 +67,7 @@ test('ragdoll uses the rider model, retains momentum, stays joined, and cleans u
 test('obstacle crashes release rider and board, ignore controls, and allow manual and automatic recovery', async () => {
   await RAPIER.init();
   const scene = new THREE.Scene(), world = new RAPIER.World({x:0,y:-18,z:0}); world.timestep = dt;
-  const ramp = createRamp(scene,world), player = createBoardPlayer(scene,world,ramp), tricks = createTrickSystem();
+  const ramp = createRamp(scene,world,{startPlatform:false}), player = createBoardPlayer(scene,world,ramp), tricks = createTrickSystem();
   for (let i=0;i<120;i++) { player.update(dt,idle,tricks.state);world.step();player.sync(); }
   const bodies = world.bodies.len(), colliders = world.colliders.len();
   const wall = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());

@@ -73,7 +73,7 @@ async function main() {
   const particles = createParticles();
   scene.add(particles.points);
 
-  // Let the suspension settle on the asphalt before the first frame
+  // Let the suspension settle on the launch platform before the first frame.
   const idle = {
     grabModifier: false, grabDX: 0, grabDY: 0,
     push: 0,

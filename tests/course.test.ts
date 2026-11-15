@@ -154,7 +154,7 @@ test('a fast rider can coast through moderate and very steep drops without crash
     wantOllie:false,olliePower:0,reset:false,flickDX:0,flickDY:0,flickReady:false};
   for(const cycle of [0,3]) {
     const world=new RAPIER.World({x:0,y:-18,z:0});world.timestep=1/120;
-    const scene=new THREE.Scene(),ramp=createRamp(scene,world),player=createBoardPlayer(scene,world,ramp),tricks=createTrickSystem();
+    const scene=new THREE.Scene(),ramp=createRamp(scene,world,{startPlatform:false}),player=createBoardPlayer(scene,world,ramp),tricks=createTrickSystem();
     try {
       const start=1540+cycle*2240;
       ramp.scroll(start);world.step();

@@ -9,6 +9,7 @@ import { bakeSceneryCollisionSteps } from "./collision.ts";
 import { courseHeight, courseSlope, courseX, courseCurveSlope, COURSE_STEP } from "./course.ts";
 import { placeScenery } from "./placement.ts";
 import { makeLandscape } from "./landscape.ts";
+import { makeStartPlatform, makeStartBoostPad, START_PLATFORM, START_BOOST } from "./startPlatform.ts";
 import type { GrindRail } from "../player/grind.ts";
 import RAPIER from "@dimforge/rapier3d-compat";
 
@@ -30,6 +31,9 @@ export const RAMP = {
 export type RampWorld = {
   mesh: THREE.Group;
   spawn: THREE.Vector3;
+  startPlatform?: {landingSpeed:number};
+  /** Target speed of a road boost pad under this position, or zero outside the pads. */
+  boostAt?: (position:THREE.Vector3)=>number;
   anchor: THREE.Vector3;
   surfaceOrigin: THREE.Vector3;
   endZ: number;
@@ -60,7 +64,7 @@ type Chunk = {
   rails: { id: string; start: THREE.Vector3; end: THREE.Vector3; normal?: THREE.Vector3 }[];
 };
 
-export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
+export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{startPlatform?:boolean}={}): RampWorld {
   const angle = (RAMP.angleDeg * Math.PI) / 180;
   const hill = new THREE.Group();
   hill.position.set(0, RAMP.centerY, 0);
@@ -180,6 +184,16 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
     }
 
     root.add(makeLandscape(index,mats.terrain,baseHeight,baseX));
+    if(index===0 && options.startPlatform!==false) {
+      const platform=makeStartPlatform();
+      // A normal offset of h*cos(angle) gives exactly h metres of vertical clearance above the road.
+      platform.position.y=RAMP.thickness/2+START_PLATFORM.height*Math.cos(angle);
+      root.add(platform);
+      for(const side of [-1,1]) {
+        const boost=makeStartBoostPad();boost.position.set(side*START_BOOST.x,RAMP.thickness/2,-START_BOOST.along);
+        root.add(boost);
+      }
+    }
     for (const side of [-1,1]) {
       const path = new THREE.Mesh(new THREE.BoxGeometry(1.8,0.08,RAMP.chunkLength,1,1,RAMP.chunkLength/COURSE_STEP),mats.path);
       path.position.set(side*10.5,0.20,-RAMP.chunkLength/2); path.receiveShadow = true; root.add(warpCourse(path));
@@ -380,7 +394,8 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
 
   const anchor = worldFromLocal(new THREE.Vector3(0, RAMP.thickness / 2, 0));
   const surfaceOrigin = anchor.clone();
-  const spawn = anchor.clone().addScaledVector(surfaceNormal, 0.02);
+  const spawnHeight=options.startPlatform===false ? 0 : START_PLATFORM.height*Math.cos(angle);
+  const spawn = anchor.clone().addScaledVector(surfaceNormal, spawnHeight+0.02);
 
   const scroll = (meters: number) => {
     const steps = Math.round(meters / RAMP.chunkLength);
@@ -427,6 +442,17 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
   return {
     mesh: hill,
     spawn,
+    startPlatform: options.startPlatform===false ? undefined : START_PLATFORM,
+    boostAt(position) {
+      if(options.startPlatform===false)return 0;
+      const dx=position.x-anchor.x,dy=position.y-anchor.y,dz=position.z-anchor.z;
+      const along=distance+dx*forward.x+dy*forward.y+dz*forward.z;
+      if(Math.abs(along-START_BOOST.along)>START_BOOST.length/2)return 0;
+      const offset=position.x-(courseX(along)-courseX(distance));
+      if(Math.abs(Math.abs(offset)-START_BOOST.x)>START_BOOST.width/2)return 0;
+      const clearance=dx*surfaceNormal.x+dy*surfaceNormal.y+dz*surfaceNormal.z-courseHeight(along)+courseHeight(distance);
+      return clearance>=0 && clearance<0.8 ? START_BOOST.speed : 0;
+    },
     anchor,
     surfaceOrigin,
     endZ: -99999,

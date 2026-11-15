@@ -117,6 +117,8 @@ export function createBoardPlayer(
   let resetCount = 0;
   let ollieCount = 0;
   let grounded = false;
+  let introLanding = false;
+  let boostEntered = false;
   let speed = 0;
   let uprightDot = 1;
   let lean = 0;
@@ -261,6 +263,8 @@ export function createBoardPlayer(
     poseDt = posePush = 0;
     aeroTuck=0;
     ramp.reset();
+    introLanding = !!ramp.startPlatform && to.distanceToSquared(ramp.spawn)<1e-8;
+    boostEntered = false;
     yaw = 0;
     const q = facingQuat();
     const p = to.clone().addScaledVector(ramp.surfaceNormal, 0.22);
@@ -409,6 +413,8 @@ export function createBoardPlayer(
     ramp.directionAt?.(position,courseForward);
     const courseYaw=Math.atan2(-courseForward.x,courseForward.dot(ramp.forward));
     const wantSlide=intent.wantSlide ?? intent.push<0;
+    const boostSpeed=ramp.boostAt?.(position) ?? 0;
+    if(!boostSpeed)boostEntered=false;
     air.update(dt,intent.toggleAirFlip ?? false,intent.push,intent.steer,!grounded && !grind.state.active,yaw-courseYaw);
     aeroTuck=THREE.MathUtils.damp(aeroTuck,THREE.MathUtils.clamp(intent.crouchHold,0,1),12,dt);
     pump.update(dt, intent.push > 0, speed, grounded && !wantSlide && !grind.state.active && !slide.state.active && !tricks.ground && !intent.crouch && !intent.wantOllie && !tricks.bail);
@@ -508,10 +514,13 @@ export function createBoardPlayer(
 
     if (contactN.lengthSq() > 0) contactN.normalize();
     else contactN.copy(ramp.surfaceNormal);
-    if (!grounded && leaveGround <= 0 && wheelsDown >= 2 && velocity.dot(contactN) < -20) {
+    const landingFromStart=introLanding && tmp.copy(position).sub(ramp.spawn).dot(ramp.surfaceNormal)<-2;
+    const landingLimit=landingFromStart ? ramp.startPlatform!.landingSpeed : 20;
+    if (!grounded && leaveGround <= 0 && wheelsDown >= 2 && velocity.dot(contactN) < -landingLimit) {
       startCrash(tricks, velocity); return;
     }
     grounded = leaveGround <= 0 && wheelsDown >= 2;
+    if (grounded && landingFromStart) introLanding=false;
     nearbyNormal.normalize();
     nearGround = leaveGround <= 0 && nearbyWheels >= 2 && boardUp.dot(nearbyNormal) > 0.8 &&
       Math.abs(velocity.dot(nearbyNormal)) < 2.5;
@@ -579,6 +588,14 @@ export function createBoardPlayer(
         const carved = rollingDirection.multiplyScalar(spd);
         if (!slide.state.active) vel.lerp(carved, 1 - Math.exp(-dt / CARVE.grip));
 
+        if(boostSpeed && !boostEntered) {
+          boostEntered=true;
+          if(!wantSlide && !slide.state.active && vel.length()<boostSpeed) {
+            if(vel.length()>0.1)vel.setLength(boostSpeed);
+            else vel.copy(courseForward).addScaledVector(n,-courseForward.dot(n)).normalize().multiplyScalar(boostSpeed);
+            tricks.message='Boost!';tricks.messageAge=0;
+          }
+        }
         vel.addScaledVector(n, normalSpeed);
         body.setLinvel({ x: vel.x, y: vel.y, z: vel.z }, true);
         velocity.copy(vel);
