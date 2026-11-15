@@ -13,9 +13,34 @@ export function readAudioPreferences(storage?: Pick<Storage, 'getItem'>): AudioP
   } catch { return { muted: false, volume: 0.55 }; }
 }
 
+/** Short, unpitched wood/truck contacts: a tight "chk", with a second truck on landing. */
+function synthesizeDeckContact(kind: 'ollie' | 'land', sampleRate: number) {
+  const duration = kind === 'ollie' ? 0.055 : 0.085;
+  const samples = new Float32Array(Math.ceil(duration * sampleRate));
+  const brightRate = 1 - Math.exp(-2 * Math.PI * 4800 / sampleRate);
+  const bodyRate = 1 - Math.exp(-2 * Math.PI * 550 / sampleRate);
+  let seed = kind === 'ollie' ? 719 : 2341, bright = 0, body = 0;
+  const contact = (t: number, at: number, decay: number) => {
+    const age = t-at;
+    return age < 0 ? 0 : (1-Math.exp(-age/0.00035))*Math.exp(-age/decay);
+  };
+  for (let i=0; i<samples.length; i++) {
+    seed = (Math.imul(seed,1664525)+1013904223)|0;
+    const noise = (seed>>>0)/2147483648-1, t = i/sampleRate;
+    bright += (noise-bright)*brightRate; body += (noise-body)*bodyRate;
+    const snap = kind === 'ollie'
+      ? contact(t,0,0.0038)*0.65 + contact(t,0.0065,0.0016)*0.13
+      : contact(t,0,0.0055)*0.72 + contact(t,0.013,0.0042)*0.40 + contact(t,0.025,0.002)*0.09;
+    const wood = contact(t,0,kind === 'ollie' ? 0.003 : 0.006)*(kind === 'ollie' ? 0.10 : 0.20);
+    samples[i] = ((bright-body)*snap + body*wood)*Math.min(1,(duration-t)/0.008);
+  }
+  return samples;
+}
+
 /** Deterministic synthesis keeps effects local and avoids audio downloads on startup. */
 export function synthesizeEffect(kind: RideSound, sampleRate: number) {
-  const duration = { push: 0.22, ollie: 0.065, land: 0.28, grindOn: 0.16, grindOff: 0.12, trick: 0.24, bail: 0.48 }[kind];
+  if (kind === 'ollie' || kind === 'land') return synthesizeDeckContact(kind,sampleRate);
+  const duration = { push: 0.22, grindOn: 0.16, grindOff: 0.12, trick: 0.24, bail: 0.48 }[kind];
   const samples = new Float32Array(Math.ceil(duration * sampleRate));
   let seed = 1977, smooth = 0;
   const smoothing = 1 - Math.exp(-2 * Math.PI * 650 / sampleRate);
@@ -24,17 +49,11 @@ export function synthesizeEffect(kind: RideSound, sampleRate: number) {
     const noise = ((seed >>> 0) / 4294967296) * 2 - 1;
     smooth += (noise - smooth) * smoothing;
     const t = i / sampleRate, u = t / duration;
-    const attack = Math.min(1, t / (kind === 'ollie' ? 0.001 : 0.003));
+    const attack = Math.min(1, t / 0.003);
     const end = Math.min(1, (duration - t) / 0.015);
     let value = 0;
     // Short resonant wood/metal transients carry the identity; texture stays underneath.
     if (kind === 'push') value = (smooth * 0.20 + Math.sin(2 * Math.PI * 94 * t) * 0.12) * Math.sin(Math.PI * u);
-    // A dry, quiet deck tap: no low pitched ringing or bounce-like tail.
-    if (kind === 'ollie') value = Math.sin(2 * Math.PI * 620 * t) * 0.16 * Math.exp(-t * 120)
-      + Math.sin(2 * Math.PI * 1170 * t) * 0.055 * Math.exp(-t * 190)
-      + smooth * 0.04 * Math.exp(-t * 140);
-    if (kind === 'land') value = (Math.sin(2 * Math.PI * 78 * t) * 0.45
-      + Math.sin(2 * Math.PI * 164 * t) * 0.18 + smooth * 0.10) * Math.exp(-u * 6);
     if (kind === 'grindOn' || kind === 'grindOff') value = (smooth * 0.07 + Math.sin(2 * Math.PI * 1250 * t) * 0.24
       + Math.sin(2 * Math.PI * 1873 * t) * 0.12) * Math.exp(-u * 7);
     if (kind === 'trick') value = smooth * Math.sin(Math.PI * u) * 0.30;

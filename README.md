@@ -52,7 +52,7 @@ A/D rotations are unrestricted. An airborne 180 can land switch while retaining 
 
 Audio starts after clicking or pressing Enter to ride. Separate, band-limited wheel rumble and soft wind textures respond to actual speed; a gentle airborne wind baseline keeps jumps from going silent; rolling stops in the air, rail grinding has a metallic scrape, and braking/carving add a wheel scrub. Push strokes, ollies, tricks, landings, rail catches/exits, and bails have distinct effects triggered by physics transitions.
 
-Press M or use the Sound button to mute. The volume slider and mute setting persist locally. Pausing, changing tabs, or losing focus fades and suspends audio; resuming reuses the audio graph. Wooden pops/thuds and metallic rail clinks use resonant transients with a small amount of filtered texture. Wind stays quiet, and output filtering removes hiss and excess bass. Effects are synthesized locally with Web Audio, with no external audio assets or downloads. If audio is unavailable, the game remains playable.
+Press M or use the Sound button to mute. The volume slider and mute setting persist locally. Pausing, changing tabs, or losing focus fades and suspends audio; resuming reuses the audio graph. Ollies and landings use short, unpitched wood/truck "chk" contacts, with a second truck contact on landing. Metallic rail clinks use brief resonant transients. Wind stays quiet, and output filtering removes hiss and excess bass. Effects are synthesized locally with Web Audio, with no external audio assets or downloads. If audio is unavailable, the game remains playable.
 
 ## Environment collision
 

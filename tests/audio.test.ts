@@ -56,6 +56,11 @@ test('all synthesized effects contain finite, bounded audio with faded endpoints
     const data = synthesizeEffect(kind, 48000);
     let peak = 0;
     for (const value of data) { assert.ok(Number.isFinite(value)); peak = Math.max(peak, Math.abs(value)); }
+    if (kind === 'ollie' || kind === 'land') {
+      let total = 0, tail = 0;
+      for (let i=0; i<data.length; i++) { total += data[i]!**2; if (i>48000*0.05) tail += data[i]!**2; }
+      assert.ok(tail/total < 0.005, `${kind} should end with a dry contact, not a sustained tail`);
+    }
     assert.ok(peak > 0.03 && peak < 1); assert.ok(data[0] === 0); assert.ok(Math.abs(data[data.length - 1]!) < 0.001);
   }
 });
