@@ -77,7 +77,7 @@ test('generated trees stop physical objects and rich scenery keeps a bounded phy
   assert.ok(trunks);
   const count = new THREE.CylinderGeometry(0.18,0.24,1.6,6).index!.count;
   const positions=trunks.geometry.getAttribute('position'), box=new THREE.Box3();
-  for(let i=0;i<count;i++) box.expandByPoint(new THREE.Vector3().fromBufferAttribute(positions,i).applyMatrix4(trunks.matrixWorld));
+  for(let i=0;i<count;i++) box.expandByPoint(new THREE.Vector3().fromBufferAttribute(positions,trunks.geometry.index!.getX(i)).applyMatrix4(trunks.matrixWorld));
   const target=box.getCenter(new THREE.Vector3()), origin=target.clone().add(new THREE.Vector3(-3,0,0));
   const hit=world.castRayAndGetNormal(new RAPIER.Ray(origin,{x:1,y:0,z:0}),3,true);assert.ok(hit,'tree trunk has no collision');
   const ball = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(origin.x,origin.y,origin.z).setCcdEnabled(true));

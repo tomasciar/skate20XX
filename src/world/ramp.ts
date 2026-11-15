@@ -533,7 +533,9 @@ function* batchChunk(root: THREE.Group, noShadow: Set<THREE.Material>): Generato
   root.traverse(obj => { if (obj instanceof THREE.Mesh && !Array.isArray(obj.material)) meshes.push(obj); });
   let processed = 0;
   for (const obj of meshes) {
-    const geometry = obj.geometry.index ? obj.geometry.toNonIndexed() : obj.geometry.clone();
+    const geometry = obj.geometry.clone();
+    // Keep shared vertices through batching to reduce upload size and vertex/shadow work.
+    if (!geometry.index) geometry.setIndex(Array.from({length:geometry.getAttribute('position').count},(_,i)=>i));
     if (!geometry.getAttribute("uv")) geometry.setAttribute("uv", new THREE.BufferAttribute(new Float32Array(geometry.getAttribute("position").count * 2), 2));
     geometry.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inverse, obj.matrixWorld));
     const material = obj.material as THREE.Material;
