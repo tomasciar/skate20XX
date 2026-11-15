@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SKATE5</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;600&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game"></canvas>
+      <div id="hud">
+        <div class="hud-top">
+          <h1>SKATE5</h1>
+          <div class="hud-stats">
+            <div class="speed"><span id="speed">0</span> mph</div>
+            <div class="distance"><span id="distance">0</span> m</div>
+          </div>
+        </div>
+        <div id="trick" class="trick"></div>
+        <div id="grind-balance" role="meter" aria-label="Grind balance" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0" hidden><span></span></div>
+        <div class="hud-bottom">
+          <p>Click to start · WASD ride · Space crouch/ollie · arrows trick · Land on rails to grind · A/D balance · Space exit · R reset · Esc pause</p>
+        </div>
+      </div>
+      <div id="overlay">
+        <div class="overlay-card">
+          <h2>SKATE5</h2>
+          <p>Find your line. Click or press Enter to ride.</p>
+          <p class="overlay-keys">W / S push & brake · A / D carve · Hold & release Space to ollie<br />Arrow keys for tricks in the air · Esc pause · R restart</p>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

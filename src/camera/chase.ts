@@ -1,0 +1,43 @@
+import * as THREE from "three";
+
+/** Automatic follow camera with a fixed downhill heading and follow distance. */
+export function createChaseCamera(camera: THREE.PerspectiveCamera, courseForward: THREE.Vector3) {
+  const pos = new THREE.Vector3(0, 8, 12);
+  const look = new THREE.Vector3();
+  const desired = new THREE.Vector3();
+  // Capture the course direction once. Steering and speed never rotate or zoom the camera.
+  const heading = courseForward.clone().setY(0);
+  if (heading.lengthSq() < 1e-4) heading.set(0, 0, -1);
+  heading.normalize();
+  const followDistance = 7.8;
+
+  function update(dt: number, target: THREE.Vector3) {
+    // High and behind, looking down the hill past the skater (Skate's default follow).
+    desired.copy(target).addScaledVector(heading, -followDistance);
+    desired.y = target.y + 5.6;
+
+    // A hill recycle teleports the rider a long way. Jump with them instead of chasing.
+    if (pos.distanceTo(desired) > 25) pos.copy(desired);
+    pos.x = THREE.MathUtils.damp(pos.x, desired.x, 6, dt);
+    pos.y = THREE.MathUtils.damp(pos.y, desired.y, 5, dt);
+    pos.z = THREE.MathUtils.damp(pos.z, desired.z, 6, dt);
+    if (pos.y < target.y + 4.2) pos.y = target.y + 4.2;
+
+    look.copy(target).addScaledVector(heading, 7);
+    look.y = target.y + 0.25;
+
+    camera.position.copy(pos);
+    camera.lookAt(look);
+  }
+
+  function snap(target: THREE.Vector3) {
+    pos.copy(target).addScaledVector(heading, -followDistance);
+    pos.y = target.y + 5.6;
+    camera.position.copy(pos);
+    look.copy(target).addScaledVector(heading, 7);
+    look.y = target.y + 0.25;
+    camera.lookAt(look);
+  }
+
+  return { update, snap, shift(delta: THREE.Vector3) { pos.add(delta); } };
+}

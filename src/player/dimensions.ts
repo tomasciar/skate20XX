@@ -1,0 +1,14 @@
+/** Shared by the mesh and its contact solver; all distances are meters. */
+export const BOARD = {
+  wheelRadius: 0.036,
+  wheelY: -0.055,
+  wheelX: 0.09,
+  truckZ: 0.26,
+  hangerY: -0.045,
+  hangerHalfHeight: 0.0125,
+  gripY: 0.011,
+  soleBottom: -0.0185,
+} as const;
+export const WHEEL_BOTTOM = BOARD.wheelY - BOARD.wheelRadius;
+export const FOOT_Y = BOARD.gripY - BOARD.soleBottom;
+export const GRIND_HEIGHT = -BOARD.hangerY + BOARD.hangerHalfHeight;
