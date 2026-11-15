@@ -13,7 +13,7 @@ export function seededRandom(seed: number) {
 }
 export function planChunk(index: number, seed = 0x9e3779b9) {
   const rng = seededRandom(Math.imul(index, 2654435761) ^ seed);
-  const district: District = (['grove', 'village', 'ridge'] as const)[Math.floor(index / 4) % 3]!;
+  const district: District = (['grove', 'village', 'ridge'] as const)[((Math.floor(index / 4) % 3) + 3) % 3]!;
   const encounters: Encounter[] = [];
   if (index > 0) {
     for (const along of [22, 52]) {

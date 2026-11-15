@@ -93,7 +93,7 @@ async function main() {
   function prepareCourse() {
     if (preparingChunk || preparedDistance === ramp.distance || alongCourse.copy(player.position).sub(ramp.anchor).dot(ramp.forward) < 30) return;
     preparingChunk = true;
-    const prepare = () => { preparingChunk = false; if (running) { ramp.prepareNextChunk(); preparedDistance = ramp.distance; } };
+    const prepare = () => { preparingChunk = false; if (running) { if (ramp.prepareNextChunk(2)) preparedDistance = ramp.distance; } };
     if (typeof window.requestIdleCallback === "function") {
       window.requestIdleCallback(deadline => { if (deadline.timeRemaining() > 5) prepare(); else preparingChunk = false; });
     } else {
@@ -188,7 +188,7 @@ async function main() {
       acc -= fixedDt;
     }
 
-    if (player.position.y < -6 && !player.crashed) {
+    if (alongCourse.copy(player.position).sub(ramp.anchor).dot(ramp.surfaceNormal) < -55 && !player.crashed) {
       player.reset(ramp.spawn);
       audio.reset(); audioResetCount = player.resetCount;
       chase.snap(player.position);

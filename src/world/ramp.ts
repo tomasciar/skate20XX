@@ -1,7 +1,9 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { CHUNK_LENGTH, planChunk, seededRandom } from "./generation.ts";
-import { makeCone, makeScenery, makeSign } from "./scenery.ts";
+import { makeCone, makeScenery, makeSign, makeFence, makePicnic } from "./scenery.ts";
+import { bakeSceneryCollisionSteps } from "./collision.ts";
+import { makeLandscape, landscapeHeight } from "./landscape.ts";
 import type { GrindRail } from "../player/grind.ts";
 import RAPIER from "@dimforge/rapier3d-compat";
 
@@ -30,7 +32,7 @@ export type RampWorld = {
   get grindRails(): readonly GrindRail[];
   scroll: (meters: number) => void;
   reset: () => void;
-  prepareNextChunk: () => void;
+  prepareNextChunk: (budgetMs?: number) => boolean;
 };
 
 type PhysPart = {
@@ -80,7 +82,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
       deckBody
     );
     for (const side of [-1, 1] as const) {
-      const railLocal = new THREE.Vector3(side * (RAMP.width / 2 + 0.15), 0.7, deckLocal.z);
+      const railLocal = new THREE.Vector3(side * (RAMP.width / 2 + 0.08), RAMP.thickness / 2 + 0.18, deckLocal.z);
       const railWorld = railLocal.clone().applyQuaternion(q).add(hill.position);
       const railBody = world.createRigidBody(
         RAPIER.RigidBodyDesc.fixed()
@@ -88,7 +90,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
           .setRotation({ x: q.x, y: q.y, z: q.z, w: q.w })
       );
       world.createCollider(
-        RAPIER.ColliderDesc.cuboid(0.2, 0.55, span / 2).setFriction(0.2),
+        RAPIER.ColliderDesc.cuboid(0.14, 0.25, span / 2).setFriction(0.2),
         railBody
       );
     }
@@ -98,6 +100,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
   let cursor = 0;
   let distance = 0;
   let grindRails: GrindRail[] = [];
+  let preparation: { index: number; steps: Generator<void> } | null = null;
 
   function worldFromLocal(local: THREE.Vector3) {
     return local.clone().applyQuaternion(q).add(hill.position);
@@ -121,7 +124,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
     hill.remove(chunk.root);
     chunk.root.traverse((obj) => {
       if (!(obj instanceof THREE.Mesh)) return;
-      obj.geometry.dispose();
+      if (!obj.geometry.userData.shared) obj.geometry.dispose();
       const mat = obj.material;
       if (mat instanceof THREE.MeshStandardMaterial && mat.map && mat.map !== asphaltSource) {
         mat.map.dispose();
@@ -132,10 +135,13 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
   }
 
   function buildChunk(index: number) {
+    for (const _ of generateChunk(index)) { void _; }
+  }
+  function* generateChunk(index: number): Generator<void> {
     destroyChunk(index);
     const rng = seededRandom(Math.imul(index, 2654435761) ^ 0x9e3779b9);
     const { district, encounters } = planChunk(index);
-    const root = new THREE.Group();
+    const root = new THREE.Group(); root.visible = false;
     const zBase = -(index - cursor) * RAMP.chunkLength;
     root.position.z = zBase;
     hill.add(root);
@@ -147,6 +153,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
       new THREE.BoxGeometry(RAMP.width, RAMP.thickness, RAMP.chunkLength),
       asphaltMaterial
     );
+    deck.userData.collision = false;
     deck.receiveShadow = true;
     deck.castShadow = true;
     deck.position.set(0, 0, -RAMP.chunkLength / 2);
@@ -155,6 +162,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
     for (const side of [-1, 1] as const) {
       const rail = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.5, RAMP.chunkLength), mats.rail);
       rail.position.set(side * (RAMP.width / 2 + 0.08), RAMP.thickness / 2 + 0.18, -RAMP.chunkLength / 2);
+      rail.userData.collision = false;
       rail.castShadow = true;
       root.add(rail);
 
@@ -163,19 +171,27 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
         mats.edge
       );
       edge.position.set(side * (RAMP.width / 2 - 0.4), RAMP.thickness / 2 + 0.001, -RAMP.chunkLength / 2);
+      edge.userData.collision = false;
       root.add(edge);
-
-      const bank = new THREE.Mesh(new THREE.BoxGeometry(12, 0.7, RAMP.chunkLength), mats.grass);
-      bank.position.set(side * (RAMP.width / 2 + 6.2), -0.15, -RAMP.chunkLength / 2);
-      bank.receiveShadow = true;
-      root.add(bank);
     }
 
     const dashes = Math.floor(RAMP.chunkLength / 7);
     for (let i = 0; i < dashes; i++) {
       const dash = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.002, 2.6), mats.dash);
       dash.position.set(0, RAMP.thickness / 2 + 0.001, -4 - i * 7);
+      dash.userData.collision = false;
       root.add(dash);
+    }
+
+    root.add(makeLandscape(index, mats.terrain));
+    for (const side of [-1,1]) {
+      const path = new THREE.Mesh(new THREE.BoxGeometry(1.8,0.08,RAMP.chunkLength),mats.path);
+      path.position.set(side*10.5,0.20,-RAMP.chunkLength/2); path.receiveShadow = true; root.add(path);
+    }
+    yield;
+    function plant(object: THREE.Object3D, x: number, along: number, yaw = 0) {
+      object.position.set(x, landscapeHeight(x,index*RAMP.chunkLength+along), -along);
+      object.rotation.set(angle,yaw,0); root.add(object);
     }
 
     const treeRows = 5 + Math.floor(rng() * 3);
@@ -183,40 +199,58 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
       const along = 6 + rng() * (RAMP.chunkLength - 12);
       for (const side of [-1, 1] as const) {
         if (rng() < 0.18) continue;
-        const tree = makeTree(mats, rng);
-        tree.position.set(side * (RAMP.width / 2 + 2.4 + rng() * 5.5), 0.2, -along);
-        root.add(tree);
+        const tree = makeTree(mats, rng, district === "ridge" ? 0.85 : district === "village" ? 0.25 : 0.55);
+        plant(tree, side * (RAMP.width / 2 + 4.4 + rng() * 4.5), along);
         if (rng() > 0.45) {
           const pole = makeLamp(mats, side, rng);
-          pole.position.set(
-            side * (RAMP.width / 2 + 1.1 + rng() * 0.6),
-            1.6,
-            -along + 2 + rng() * 3
-          );
-          root.add(pole);
+          plant(pole,side*(RAMP.width/2+1.1+rng()*0.6),along-2-rng()*3);
         }
       }
+      yield;
     }
 
     for (let i = 0; i < 5; i++) {
       for (const side of [-1, 1]) {
         const prop = makeScenery(district, i + index, rng);
-        prop.position.set(side * (13 + rng() * 5), 0.3, -8 - i * 13);
-        prop.rotation.y = side > 0 ? -Math.PI / 2 : Math.PI / 2;
-        root.add(prop);
+        plant(prop, side * (14 + rng() * 5), 8+i*13, side > 0 ? -Math.PI/2 : Math.PI/2);
+        yield;
       }
     }
     const sign = makeSign(district, index);
-    sign.position.set(9.8, 0.3, -5);
-    root.add(sign);
+    plant(sign,9.8,5);
+
+    // Forest belts and settled fields fill the middle distance on both sides.
+    for (let i=0; i<30; i++) {
+      const side = i%2 ? -1 : 1, along = 3+rng()*64;
+      const x = side*(26+rng()*110);
+      const tree = makeTree(mats,rng,district === "ridge" ? 0.85 : district === "village" ? 0.25 : 0.55);
+      const farScale = 1.1 + rng()*0.65; tree.scale.multiplyScalar(farScale);
+      plant(tree,x,along,rng()*Math.PI*2);
+      if (i%4 === 3) yield;
+    }
+    for (const side of [-1,1]) {
+      if (district === 'village') {
+        for (let i=0;i<3;i++) {
+          const house = makeScenery('village',i*3,rng);
+          plant(house,side*(34+i*13),12+i*21,side>0 ? -Math.PI/2 : Math.PI/2);
+          plant(makeFence(10),side*(31+i*13),20+i*21,Math.PI/2);
+          yield;
+        }
+      } else {
+        plant(makePicnic(),side*25,18,side*Math.PI/2);
+        plant(makeFence(12),side*38,36,Math.PI/2);
+        for (let i=0;i<3;i++) { plant(makeScenery('ridge',i,rng),side*(40+i*22),12+i*19); yield; }
+      }
+    }
 
     if (rng() > 0.4) {
       const side = rng() > 0.5 ? 1 : -1;
-      const far = new THREE.Mesh(new THREE.ConeGeometry(1, 1, 5), mats.hill);
-      const radius = 16 + rng() * 32;
-      const height = 10 + rng() * 26;
+      const far = new THREE.Mesh(new THREE.ConeGeometry(1, 1, 7), mats.hill);
+      const radius = 22 + rng() * 14;
+      const height = 28 + rng() * 28;
       far.scale.set(radius, height, radius);
-      far.position.set(side * (36 + rng() * 50), height * 0.35, -(rng() * RAMP.chunkLength));
+      const x = side*(200+rng()*20), along = rng()*RAMP.chunkLength;
+      far.position.set(x,landscapeHeight(x,index*RAMP.chunkLength+along)+height*0.5-3,-along);
       far.rotation.x = angle;
       far.rotation.y = rng() * Math.PI;
       root.add(far);
@@ -228,11 +262,11 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
       if (kind === 'rail') {
         const top = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.14, length), mats.rail);
         top.position.set(x, y + height, -along); root.add(top);
-        addCollider(RAPIER.ColliderDesc.cuboid(0.08, 0.07, length / 2), top.position);
+
         for (const z of [-length / 2 + 0.6, 0, length / 2 - 0.6]) {
           const support = new THREE.Mesh(new THREE.BoxGeometry(0.12, height, 0.12), mats.rail);
           support.position.set(x, y + height / 2, -along + z); root.add(support);
-          addCollider(RAPIER.ColliderDesc.cuboid(0.06, height / 2, 0.06), support.position);
+
           const foot = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.05, 0.5), mats.lip);
           foot.position.set(x, y + 0.025, -along + z); root.add(foot);
         }
@@ -244,12 +278,10 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
           const cone = makeCone();
           cone.position.set(x, y, -along + (i - 1) * 1.5);
           root.add(cone);
-          addCollider(RAPIER.ColliderDesc.cylinder(0.32, 0.2), new THREE.Vector3(x, y + 0.32, -along + (i - 1) * 1.5));
         }
         continue;
       }
       let geometry: THREE.BufferGeometry;
-      let collider: RAPIER.ColliderDesc;
       if (kind === 'kicker') {
         // A solid wedge begins flush with the asphalt; physics and render share vertices.
         const w = width / 2, l = length / 2;
@@ -258,36 +290,44 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
         geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
         geometry.setIndex([0,1,5, 0,5,4, 2,4,5, 2,5,3, 0,4,2, 1,3,5, 0,2,3, 0,3,1]);
         geometry.computeVertexNormals();
-        collider = RAPIER.ColliderDesc.convexHull(vertices)!;
       } else {
         geometry = new THREE.BoxGeometry(width, height, length);
         geometry.translate(0, height / 2, 0);
-        collider = RAPIER.ColliderDesc.cuboid(width / 2, height / 2, length / 2);
-        collider.setTranslation(0, height / 2, 0);
       }
       const mesh = new THREE.Mesh(geometry, mats.kicker);
       mesh.position.set(x, y, -along); root.add(mesh);
-      addCollider(collider, mesh.position);
       // Colored lip announces the optional jump without forming a raised collision seam.
-      const lip = new THREE.Mesh(new THREE.BoxGeometry(width, 0.025, 0.25), mats.lip);
-      lip.position.set(x, y + height + 0.02, -along - length / 2 + 0.13); root.add(lip);
+      const lip = new THREE.Mesh(new THREE.BoxGeometry(width, 0.004, 0.25), mats.lip);
+      lip.position.set(x, y + height - (kind === "kicker" ? height*0.13/length : 0) + 0.003, -along - length / 2 + 0.13); lip.userData.collision = false; root.add(lip);
+    }
+
+    yield;
+    const solid = yield* bakeSceneryCollisionSteps(root);
+    if (solid) {
+      addCollider(RAPIER.ColliderDesc.trimesh(solid.vertices,solid.indices),new THREE.Vector3());
+      root.userData.solidMeshes = solid.meshCount; root.userData.collisionTriangles = solid.indices.length/3;
     }
 
     function addCollider(desc: RAPIER.ColliderDesc, local: THREE.Vector3) {
       const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
       const collider = world.createCollider(desc.setFriction(0.65).setRestitution(0), body);
-      const part = { body, collider, local: local.clone().add(new THREE.Vector3(0, 0, zBase)), rot: q.clone() };
+      const part = { body, collider, local: local.clone().add(new THREE.Vector3(0, 0, root.position.z)), rot: q.clone() };
       chunk.parts.push(part); syncPart(part);
     }
-    batchChunk(root, new Set([asphaltMaterial, mats.grass, mats.hill]));
+    yield;
+    yield* batchChunk(root, new Set([asphaltMaterial, mats.terrain, mats.path, mats.hill]));
     root.traverse(obj => { obj.matrixAutoUpdate = false; obj.updateMatrix(); });
-    root.matrixAutoUpdate = false; root.updateMatrix();
+    root.matrixAutoUpdate = false; root.updateMatrix(); root.visible = true;
   }
 
   function ensureWindow() {
     const want = new Set<number>();
-    for (let i = Math.max(0, cursor - RAMP.chunksBehind); i <= cursor + RAMP.chunksAhead; i++) {
+    for (let i = cursor - RAMP.chunksBehind; i <= cursor + RAMP.chunksAhead; i++) {
       want.add(i);
+    }
+    if (preparation && want.has(preparation.index)) {
+      for (const _ of preparation.steps) { void _; }
+      preparation = null;
     }
     for (const idx of [...chunks.keys()]) {
       if (!want.has(idx)) destroyChunk(idx);
@@ -313,9 +353,20 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
         start: worldFromLocal(rail.start.clone().add(new THREE.Vector3(0, 0, chunk.root.position.z))),
         end: worldFromLocal(rail.end.clone().add(new THREE.Vector3(0, 0, chunk.root.position.z))),
       }))); }
-  function prepareNextChunk() {
+  function prepareNextChunk(budgetMs = Infinity) {
     const next = cursor + RAMP.chunksAhead + 1;
-    if (!chunks.has(next)) { buildChunk(next); refreshRails(); }
+    if (preparation && preparation.index !== next) {
+      preparation.steps.return(undefined); destroyChunk(preparation.index); preparation = null;
+    }
+    if (!preparation) {
+      if (chunks.has(next)) return true;
+      preparation = { index: next, steps: generateChunk(next) };
+    }
+    const start = performance.now();
+    do {
+      if (preparation.steps.next().done) { preparation = null; refreshRails(); return true; }
+    } while (performance.now()-start < budgetMs);
+    return false;
   }
 
   ensureWindow();
@@ -336,6 +387,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
   };
 
   const reset = () => {
+    if (preparation) { preparation.steps.return(undefined); destroyChunk(preparation.index); preparation = null; }
     if (cursor === 0 && distance === 0) return;
     distance = 0;
     cursor = 0;
@@ -367,7 +419,8 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
 function makeSharedMaterials() {
   return {
     rail: new THREE.MeshStandardMaterial({ color: 0xe8eef2, roughness: 0.35, metalness: 0.55 }),
-    grass: new THREE.MeshStandardMaterial({ color: 0x4f8a5c, roughness: 1 }),
+    path: new THREE.MeshStandardMaterial({ color: 0xaaa58d, roughness: 1 }),
+    terrain: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }),
     edge: new THREE.MeshBasicMaterial({ color: 0xffc857 }),
     dash: new THREE.MeshBasicMaterial({ color: 0xf2f5f8 }),
     kicker: new THREE.MeshStandardMaterial({ color: 0xd5dde4, roughness: 0.55, metalness: 0.15 }),
@@ -384,14 +437,19 @@ function makeSharedMaterials() {
   };
 }
 
-function makeTree(mats: ReturnType<typeof makeSharedMaterials>, rng: () => number) {
+const treeTrunk = new THREE.CylinderGeometry(0.18,0.24,1.6,6);
+const treePine = new THREE.ConeGeometry(1.2,3.5,7);
+const treeCrown = new THREE.IcosahedronGeometry(1.3,1);
+for (const geometry of [treeTrunk,treePine,treeCrown]) geometry.userData.shared = true;
+
+function makeTree(mats: ReturnType<typeof makeSharedMaterials>, rng: () => number, pineChance = 0.5) {
   const tree = new THREE.Group();
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.24, 1.6, 6), mats.trunk);
+  const trunk = new THREE.Mesh(treeTrunk, mats.trunk);
   trunk.position.y = 0.8;
   trunk.castShadow = true;
   tree.add(trunk);
   const crown = new THREE.Mesh(
-    rng() < 0.5 ? new THREE.ConeGeometry(1.2, 3.5, 7) : new THREE.IcosahedronGeometry(1.3, 1),
+    rng() < pineChance ? treePine : treeCrown,
     mats.leaves[Math.floor(rng() * mats.leaves.length)]
   );
   crown.position.y = 2.1;
@@ -404,13 +462,11 @@ function makeTree(mats: ReturnType<typeof makeSharedMaterials>, rng: () => numbe
 }
 
 function makeLamp(mats: ReturnType<typeof makeSharedMaterials>, side: number, rng: () => number) {
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 3.2, 6), mats.lamp);
-  pole.castShadow = true;
-  pole.scale.y = 0.85 + rng() * 0.4;
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.12, 0.22), mats.lamp);
-  head.position.set(side * -0.25, 1.55, 0);
-  pole.add(head);
-  return pole;
+  const root = new THREE.Group(), height = 3.2*(0.85+rng()*0.4);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,height,6),mats.lamp);
+  pole.position.y = height/2; pole.castShadow = true; root.add(pole);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.12,0.22),mats.lamp);
+  head.position.set(-side*0.25,height-0.05,0); root.add(head); return root;
 }
 
 function makeAsphaltTexture(): THREE.CanvasTexture {
@@ -476,19 +532,23 @@ function addBackdrop(scene: THREE.Scene) {
 }
 
 /** Merge static props by material: scenery variety should not mean thousands of draw calls. */
-function batchChunk(root: THREE.Group, noShadow: Set<THREE.Material>) {
+function* batchChunk(root: THREE.Group, noShadow: Set<THREE.Material>): Generator<void> {
   root.updateMatrixWorld(true);
   const inverse = root.matrixWorld.clone().invert();
   const batches = new Map<THREE.Material, THREE.BufferGeometry[]>();
-  root.traverse(obj => {
-    if (!(obj instanceof THREE.Mesh) || Array.isArray(obj.material)) return;
+  const meshes: THREE.Mesh[] = [];
+  root.traverse(obj => { if (obj instanceof THREE.Mesh && !Array.isArray(obj.material)) meshes.push(obj); });
+  let processed = 0;
+  for (const obj of meshes) {
     const geometry = obj.geometry.index ? obj.geometry.toNonIndexed() : obj.geometry.clone();
     if (!geometry.getAttribute("uv")) geometry.setAttribute("uv", new THREE.BufferAttribute(new Float32Array(geometry.getAttribute("position").count * 2), 2));
     geometry.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inverse, obj.matrixWorld));
-    const list = batches.get(obj.material) ?? [];
-    list.push(geometry); batches.set(obj.material, list);
-    obj.geometry.dispose();
-  });
+    const material = obj.material as THREE.Material;
+    const list = batches.get(material) ?? [];
+    list.push(geometry); batches.set(material, list);
+    if (!obj.geometry.userData.shared) obj.geometry.dispose();
+    if (++processed % 8 === 0) yield;
+  }
   root.clear();
   for (const [material, geometries] of batches) {
     const merged = mergeGeometries(geometries);
@@ -499,5 +559,6 @@ function batchChunk(root: THREE.Group, noShadow: Set<THREE.Material>) {
     mesh.castShadow = !noShadow.has(material) && material instanceof THREE.MeshStandardMaterial && !material.map;
     mesh.receiveShadow = material instanceof THREE.MeshStandardMaterial;
     root.add(mesh);
+    yield;
   }
 }

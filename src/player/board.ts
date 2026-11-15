@@ -8,6 +8,7 @@ import { createRagdoll } from "./ragdoll.ts";
 import { createPumpCycle } from "./pump.ts";
 import { createGrindSystem } from "./grind.ts";
 import { approachTopSpeed, MAX_SPEED } from "./speed.ts";
+import { LANDSCAPE_HALF_WIDTH } from "../world/landscape.ts";
 import { RAMP, type RampWorld } from "../world/ramp.ts";
 
 /** Person-sized inertia so flips take a real moment, not a frisbee twitch. */
@@ -458,7 +459,7 @@ export function createBoardPlayer(
     const along = Math.max(0, velocity.dot(forward));
     wheelRoll += (along / WHEEL_R) * dt;
 
-    if (Math.abs(position.x) > RAMP.width / 2 + 3 || position.y < -4) {
+    if (Math.abs(position.x) > LANDSCAPE_HALF_WIDTH - 10 || tmp.copy(position).sub(ramp.anchor).dot(ramp.surfaceNormal) < -50) {
       startCrash(tricks, velocity);
     }
   }
