@@ -279,6 +279,8 @@ export function createBoardPlayer(
       headForward: ramp.directionAt?.(at,courseForward) ?? ramp.forward,
       headFrame: air.state.engaged && !grounded ? headFrame.copy(renderQuat).multiply(renderBaseQuat.invert()) : undefined,
       grab: liveTricks?.grab ?? null,
+      trick: liveTricks?.active ?? null,
+      trickTime: liveTricks?.t ?? 0,
       pump: pump.state,
       dt: poseDt,
       speed,

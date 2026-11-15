@@ -7,6 +7,9 @@ import { TUCK, grabTransform } from "./grabPose.ts";
 import type { GrabDef } from "./grabs.ts";
 import type { PumpState } from "./pump.ts";
 import { createRiderMotion, solveArm, solveLimb } from "./pose.ts";
+import { sampleTrickFoot } from "./trickFeet.ts";
+import type { TrickFootPose } from "./trickFeet.ts";
+import type { TrickDef } from "./tricks.ts";
 
 export type SkaterVisual = {
   root: THREE.Group;
@@ -23,6 +26,8 @@ export type SkaterVisual = {
     /** World rotation of a whole-body flip; the head keeps its course aim relative to it. */
     headFrame?: THREE.Quaternion;
     pump?: PumpState;
+    trick?: TrickDef | null;
+    trickTime?: number;
     dt: number;
     speed: number;
     push: number;
@@ -132,7 +137,8 @@ export function createSkaterVisual(): SkaterVisual {
     box(foot, [0.105, 0.055, 0.21], shoes, 0, 0.03, -0.02);
     for (let i = 0; i < 3; i++) box(foot, [0.07, 0.005, 0.008], sole, 0, 0.06, -0.015 - i * 0.025);
     batchStaticMeshes(foot);
-    return { side, thigh, shin, knee, foot };
+    const trickPose:TrickFootPose={x:0,y:0,z:0,pitch:0,yaw:0,roll:0};
+    return { side, thigh, shin, knee, foot, trickPose };
   }
   const legs = [leg(-1), leg(1)];
   const axis = new THREE.Vector3(0, 1, 0);
@@ -147,9 +153,12 @@ export function createSkaterVisual(): SkaterVisual {
   let heldGrab: GrabDef | null = null;
   const faceForward = new THREE.Vector3(0,0,-1), headAim = new THREE.Vector3();
   const headWorld = new THREE.Quaternion(), headParent = new THREE.Quaternion();
+  const kickRotation=new THREE.Quaternion(),kickEuler=new THREE.Euler();
   function setPose(opts: Parameters<SkaterVisual['setPose']>[0]) {
     const m = motion.update(opts.dt, opts.crouch, opts.lean, opts.airborne && !opts.grinding, opts.push, opts.verticalSpeed, opts.speed, opts.pump, opts.grinding);
     const selectedGrab = opts.airborne && !opts.grinding && !opts.bail ? opts.grab : null;
+    const footTrick=opts.airborne && !opts.grinding && !opts.bail && !selectedGrab ? opts.trick : null;
+    const trickProgress=footTrick ? (opts.trickTime ?? 0)/footTrick.duration : 0;
     // Blend out before changing hands or grip targets, avoiding a hand snapping across the board.
     if (selectedGrab && (!heldGrab || heldGrab.id === selectedGrab.id || grabBlend < 0.02)) heldGrab = selectedGrab;
     const grabbing = !!selectedGrab && heldGrab?.id === selectedGrab.id;
@@ -195,6 +204,13 @@ export function createSkaterVisual(): SkaterVisual {
         l.foot.position.x += Math.cos(phase) * m.push * 0.09;
         l.foot.position.z += m.push * (0.16 + stroke * 0.07);
         l.foot.position.y += m.push * (lift * 0.06 - stroke * 0.10);
+      }
+      if(footTrick) {
+        sampleTrickFoot(footTrick.id,trickProgress,l.side,l.trickPose);
+        const kick=l.trickPose;
+        l.foot.position.x+=kick.x;l.foot.position.y+=kick.y;l.foot.position.z+=kick.z;
+        kickRotation.setFromEuler(kickEuler.set(kick.pitch,kick.yaw,kick.roll));
+        l.foot.quaternion.multiply(kickRotation);
       }
       const hip = new THREE.Vector3(l.side * 0.095, 0, 0).add(hips.position);
       const ankle = l.foot.position.clone().add(new THREE.Vector3(0,0.06,0).applyQuaternion(l.foot.quaternion));
