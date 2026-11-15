@@ -8,6 +8,7 @@ export type PlayerIntent = {
   groundDX?: number;
   groundDY?: number;
   toggleAirFlip?: boolean;
+  wantSlide?: boolean;
   /** 1 push, -1 slide; controls pitch while aerial flip mode is active. */
   push: number;
   steer: number;
@@ -62,6 +63,7 @@ export function createController() {
       groundDX: input.trickModifier ? 0 : input.arrowDX ?? 0,
       groundDY: input.trickModifier ? 0 : input.arrowDY ?? 0,
       toggleAirFlip,
+      wantSlide: input.brake,
       push,
       steer,
       crouch: allowOllie && input.crouch,

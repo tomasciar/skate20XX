@@ -213,7 +213,7 @@ async function main() {
       lastSteer = player.aerial.active ? 0 : intent.steer;
 
       const grabFacing=screenGrabFacing(player.forward,ramp.directionAt?.(player.position,courseDirection) ?? ramp.forward,ramp.surfaceNormal);
-      tricks.setGround(intent.groundDX ?? 0,intent.groundDY ?? 0,player.grounded && !player.grind.active && !player.crashed && !player.slide.active && intent.push>=0,
+      tricks.setGround(intent.groundDX ?? 0,intent.groundDY ?? 0,player.grounded && !player.grind.active && !player.crashed && !player.slide.active && !intent.wantSlide,
         grabFacing,intent.grabPress);
       tricks.setGrab(intent.grabDX, intent.grabDY, intent.grabModifier, !player.grounded && !player.grind.active && !player.crashed,
         grabFacing,intent.grabPress);

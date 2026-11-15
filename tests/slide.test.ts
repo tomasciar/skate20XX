@@ -6,6 +6,8 @@ import { createSlide, SLIDE } from '../src/player/slide.ts';
 import { createBoardPlayer } from '../src/player/board.ts';
 import { createTrickSystem } from '../src/player/tricks.ts';
 import { createSkaterVisual } from '../src/player/skaterVisual.ts';
+import { createInput } from '../src/input.ts';
+import { createController } from '../src/player/controller.ts';
 import { BOARD, RIDER } from '../src/player/dimensions.ts';
 import type { PlayerIntent } from '../src/player/controller.ts';
 import type { RampWorld } from '../src/world/ramp.ts';
@@ -124,6 +126,24 @@ test('a stopped slide cannot launch backwards, and an ollie cleanly cancels a sl
     assert.equal(f.player.slide.active,false,'S in aerial flip mode must still control flips');
     f.player.reset(new THREE.Vector3(0,0.02,0));assert.equal(f.player.slide.active,false);
   } finally {f.world.free();}
+});
+
+test('S starts a slide even with W held, without changing opposing aerial flip inputs',async()=>{
+  const f=await fixture();
+  const events=new EventTarget();Object.assign(globalThis,{window:events});
+  const input=createInput(),controller=createController();
+  const key=(code:string)=>events.dispatchEvent(Object.assign(new Event('keydown'),{code,repeat:false}));
+  try {
+    f.player.body.setLinvel({x:0,y:0,z:-6},true);
+    for(let i=0;i<20;i++)f.tick({...idle,push:1});
+    assert.equal(f.player.pump.active,true);
+    key('KeyW');key('KeyS');input.beginFrame();
+    const intent=controller.update(input.state,dt);
+    assert.equal(intent.push,0,'W/S must still cancel one another when used for flips');
+    assert.equal(intent.wantSlide,true);f.tick(intent);
+    assert.equal(f.player.slide.active,true);
+    assert.equal(f.player.pump.active,false,'cancel an ongoing push as soon as S is pressed');
+  } finally {input.dispose();delete (globalThis as Record<string,unknown>).window;f.world.free();}
 });
 
 test('the lower slide stance keeps both feet and knees connected to a level deck',()=>{

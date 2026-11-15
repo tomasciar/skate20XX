@@ -407,9 +407,10 @@ export function createBoardPlayer(
     if (tricks.bail || obstacleAhead(dt)) { startCrash(tricks, velocity); return; }
     ramp.directionAt?.(position,courseForward);
     const courseYaw=Math.atan2(-courseForward.x,courseForward.dot(ramp.forward));
+    const wantSlide=intent.wantSlide ?? intent.push<0;
     air.update(dt,intent.toggleAirFlip ?? false,intent.push,intent.steer,!grounded && !grind.state.active,yaw-courseYaw);
     aeroTuck=THREE.MathUtils.damp(aeroTuck,THREE.MathUtils.clamp(intent.crouchHold,0,1),12,dt);
-    pump.update(dt, intent.push > 0, speed, grounded && intent.push>=0 && !grind.state.active && !slide.state.active && !tricks.ground && !intent.crouch && !intent.wantOllie && !tricks.bail);
+    pump.update(dt, intent.push > 0, speed, grounded && !wantSlide && !grind.state.active && !slide.state.active && !tricks.ground && !intent.crouch && !intent.wantOllie && !tricks.bail);
     ollieCooldown = Math.max(0, ollieCooldown - dt);
     leaveGround = Math.max(0, leaveGround - dt);
     ollieGrace = Math.max(0, ollieGrace - dt);
@@ -419,7 +420,7 @@ export function createBoardPlayer(
       pendingOlliePower = intent.olliePower;
     }
     const steering=air.state.active ? 0 : intent.steer;
-    const slideYaw=slide.update(dt,intent.push<0,steering,yaw,
+    const slideYaw=slide.update(dt,wantSlide,steering,yaw,
       Math.atan2(-velocity.x,velocity.dot(ramp.forward)),speed,
       (grounded || canOllie()) && !grind.state.active && !air.state.engaged);
     lean = THREE.MathUtils.damp(lean, slide.state.active ? 0 : steering, grounded ? CARVE.response : 8, dt);
@@ -430,7 +431,7 @@ export function createBoardPlayer(
     yaw = Math.atan2(Math.sin(yaw), Math.cos(yaw));
 
     if (grind.update(dt, position, velocity, forward, ramp.surfaceNormal, ramp.grindRails,
-      steering, intent.wantOllie, intent.push < 0, !tricks.active && leaveGround <= 0 && boardUp.dot(ramp.surfaceNormal)>0.8,aeroTuck)) {
+      steering, intent.wantOllie, wantSlide, !tricks.active && leaveGround <= 0 && boardUp.dot(ramp.surfaceNormal)>0.8,aeroTuck)) {
       if(intent.wantOllie)ollieCount++;
       slide.reset();
       air.reset();airOffset.set(0,0,0);
@@ -553,7 +554,7 @@ export function createBoardPlayer(
         // A 180 changes stance, not momentum: land switch and keep rolling downhill.
         const rollingDirection = travel.clone().multiplyScalar(vel.dot(travel) < -0.1 ? -1 : 1);
 
-        if (slide.state.active || intent.push < 0) {
+        if (slide.state.active || wantSlide) {
           // A sideways slide scrubs speed along the existing motion instead of steering it across the road.
           const resistance=slide.state.active ? SLIDE.deceleration*(0.2+0.8*slide.state.amount) : SLIDE.deceleration;
           vel.multiplyScalar(Math.max(0, 1 - resistance * dt / Math.max(vel.length(), 0.001)));
