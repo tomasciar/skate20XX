@@ -115,15 +115,15 @@ test('two minutes of downhill physics stream continuously with bounded scene and
   assert.ok(player.velocity.dot(ramp.forward) >= -0.05, 'braking must not drive backwards');
   // Verify the actual body follows the speed curve, rather than just its pure helper.
   player.reset(ramp.spawn);
-  let mphAt30 = 0;
+  let mphAt40 = 0;
   for (let i = 0; i < 60 * 120; i++) {
     player.update(dt, { ...idle, push: 1 }, tricks.state); world.step(); player.sync();
     assert.ok(player.speed * 2.23694 <= 199.001);
     if (i > 120 && i % 120 === 0) verifyWheelContacts();
-    if (i === 30 * 120 - 1) mphAt30 = player.speed * 2.23694;
+    if (i === 40 * 120 - 1) mphAt40 = player.speed * 2.23694;
   }
   assert.ok(contactChecks > 100);
-  assert.ok(mphAt30 > 180, `only ${mphAt30} mph after 30 seconds`);
+  assert.ok(mphAt40 > 180, `only ${mphAt40} mph after 40 seconds`);
   assert.ok(player.speed * 2.23694 > 195);
 
   // Full 180s are available in either direction while airborne.

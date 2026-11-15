@@ -3,11 +3,13 @@ import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { CHUNK_LENGTH, planChunk, seededRandom } from "./generation.ts";
 import { makeCone, makeScenery, makeSign, makeFence, makePicnic } from "./scenery.ts";
 import { bakeSceneryCollisionSteps } from "./collision.ts";
+import { courseHeight, courseSlope, COURSE_STEP } from "./course.ts";
+import { placeScenery } from "./placement.ts";
 import { makeLandscape, landscapeHeight } from "./landscape.ts";
 import type { GrindRail } from "../player/grind.ts";
 import RAPIER from "@dimforge/rapier3d-compat";
 
-/** Endless downhill: seeded chunks stream ahead; the ride surface stays put. */
+/** Endless rolling downhill: road and scenery share the streamed height profile. */
 export const RAMP = {
   width: 16,
   thickness: 1.0,
@@ -30,7 +32,7 @@ export type RampWorld = {
   forward: THREE.Vector3;
   get distance(): number;
   get grindRails(): readonly GrindRail[];
-  scroll: (meters: number) => void;
+  scroll: (meters: number) => THREE.Vector3;
   reset: () => void;
   prepareNextChunk: (budgetMs?: number) => boolean;
 };
@@ -46,7 +48,7 @@ type Chunk = {
   index: number;
   root: THREE.Group;
   parts: PhysPart[];
-  rails: { id: string; start: THREE.Vector3; end: THREE.Vector3 }[];
+  rails: { id: string; start: THREE.Vector3; end: THREE.Vector3; normal?: THREE.Vector3 }[];
 };
 
 export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
@@ -64,37 +66,6 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
   const metersPerTile = 7;
   asphaltSource.repeat.set(RAMP.width / 6, RAMP.chunkLength / metersPerTile);
   const mats = makeSharedMaterials();
-
-  const span = RAMP.chunkLength * (RAMP.chunksBehind + RAMP.chunksAhead + 1);
-  // One permanent deck + rails. Visuals and kickers stream; this never teleports.
-  {
-    const deckLocal = new THREE.Vector3(0, 0, -span / 2 + RAMP.chunksBehind * RAMP.chunkLength);
-    const deckWorld = deckLocal.clone().applyQuaternion(q).add(hill.position);
-    const deckBody = world.createRigidBody(
-      RAPIER.RigidBodyDesc.fixed()
-        .setTranslation(deckWorld.x, deckWorld.y, deckWorld.z)
-        .setRotation({ x: q.x, y: q.y, z: q.z, w: q.w })
-    );
-    world.createCollider(
-      RAPIER.ColliderDesc.cuboid(RAMP.width / 2, RAMP.thickness / 2, span / 2)
-        .setFriction(0.9)
-        .setRestitution(0),
-      deckBody
-    );
-    for (const side of [-1, 1] as const) {
-      const railLocal = new THREE.Vector3(side * (RAMP.width / 2 + 0.08), RAMP.thickness / 2 + 0.18, deckLocal.z);
-      const railWorld = railLocal.clone().applyQuaternion(q).add(hill.position);
-      const railBody = world.createRigidBody(
-        RAPIER.RigidBodyDesc.fixed()
-          .setTranslation(railWorld.x, railWorld.y, railWorld.z)
-          .setRotation({ x: q.x, y: q.y, z: q.z, w: q.w })
-      );
-      world.createCollider(
-        RAPIER.ColliderDesc.cuboid(0.14, 0.25, span / 2).setFriction(0.2),
-        railBody
-      );
-    }
-  }
 
   const chunks = new Map<number, Chunk>();
   let cursor = 0;
@@ -142,56 +113,65 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
     const rng = seededRandom(Math.imul(index, 2654435761) ^ 0x9e3779b9);
     const { district, encounters } = planChunk(index);
     const root = new THREE.Group(); root.visible = false;
+    const baseHeight=courseHeight(index*RAMP.chunkLength);
     const zBase = -(index - cursor) * RAMP.chunkLength;
-    root.position.z = zBase;
+    root.position.set(0,baseHeight-courseHeight(cursor*RAMP.chunkLength),zBase);
     hill.add(root);
 
     const chunk: Chunk = { index, root, parts: [], rails: [] };
     chunks.set(index, chunk);
 
+    function warpCourse(mesh: THREE.Mesh) {
+      mesh.updateMatrix();
+      const positions=mesh.geometry.getAttribute('position'), point=new THREE.Vector3();
+      for(let i=0;i<positions.count;i++) {
+        point.fromBufferAttribute(positions,i).applyMatrix4(mesh.matrix);
+        point.y+=courseHeight(index*RAMP.chunkLength-point.z)-baseHeight;
+        positions.setXYZ(i,point.x,point.y,point.z);
+      }
+      mesh.position.set(0,0,0);mesh.rotation.set(0,0,0);mesh.scale.set(1,1,1);
+      mesh.updateMatrix();mesh.geometry.computeVertexNormals();return mesh;
+    }
     const deck = new THREE.Mesh(
-      new THREE.BoxGeometry(RAMP.width, RAMP.thickness, RAMP.chunkLength),
+      new THREE.BoxGeometry(RAMP.width,RAMP.thickness,RAMP.chunkLength,1,1,RAMP.chunkLength/COURSE_STEP),
       asphaltMaterial
     );
-    deck.userData.collision = false;
     deck.receiveShadow = true;
     deck.castShadow = true;
     deck.position.set(0, 0, -RAMP.chunkLength / 2);
-    root.add(deck);
+    root.add(warpCourse(deck));
 
     for (const side of [-1, 1] as const) {
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.5, RAMP.chunkLength), mats.rail);
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.28,0.5,RAMP.chunkLength,1,1,RAMP.chunkLength/COURSE_STEP), mats.rail);
       rail.position.set(side * (RAMP.width / 2 + 0.08), RAMP.thickness / 2 + 0.18, -RAMP.chunkLength / 2);
-      rail.userData.collision = false;
       rail.castShadow = true;
-      root.add(rail);
+      root.add(warpCourse(rail));
 
       const edge = new THREE.Mesh(
-        new THREE.BoxGeometry(0.12, 0.002, RAMP.chunkLength - 1),
+        new THREE.BoxGeometry(0.12,0.002,RAMP.chunkLength,1,1,RAMP.chunkLength/COURSE_STEP),
         mats.edge
       );
       edge.position.set(side * (RAMP.width / 2 - 0.4), RAMP.thickness / 2 + 0.001, -RAMP.chunkLength / 2);
       edge.userData.collision = false;
-      root.add(edge);
+      root.add(warpCourse(edge));
     }
 
     const dashes = Math.floor(RAMP.chunkLength / 7);
     for (let i = 0; i < dashes; i++) {
-      const dash = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.002, 2.6), mats.dash);
+      const dash = new THREE.Mesh(new THREE.BoxGeometry(0.22,0.002,2.6,1,1,4), mats.dash);
       dash.position.set(0, RAMP.thickness / 2 + 0.001, -4 - i * 7);
       dash.userData.collision = false;
-      root.add(dash);
+      root.add(warpCourse(dash));
     }
 
-    root.add(makeLandscape(index, mats.terrain));
+    root.add(makeLandscape(index,mats.terrain,baseHeight));
     for (const side of [-1,1]) {
-      const path = new THREE.Mesh(new THREE.BoxGeometry(1.8,0.08,RAMP.chunkLength),mats.path);
-      path.position.set(side*10.5,0.20,-RAMP.chunkLength/2); path.receiveShadow = true; root.add(path);
+      const path = new THREE.Mesh(new THREE.BoxGeometry(1.8,0.08,RAMP.chunkLength,1,1,RAMP.chunkLength/COURSE_STEP),mats.path);
+      path.position.set(side*10.5,0.20,-RAMP.chunkLength/2); path.receiveShadow = true; root.add(warpCourse(path));
     }
     yield;
     function plant(object: THREE.Object3D, x: number, along: number, yaw = 0) {
-      object.position.set(x, landscapeHeight(x,index*RAMP.chunkLength+along), -along);
-      object.rotation.set(angle,yaw,0); root.add(object);
+      root.add(placeScenery(object,x,along,index*RAMP.chunkLength,baseHeight,angle,yaw));
     }
 
     const treeRows = 5 + Math.floor(rng() * 3);
@@ -250,7 +230,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
       const height = 28 + rng() * 28;
       far.scale.set(radius, height, radius);
       const x = side*(200+rng()*20), along = rng()*RAMP.chunkLength;
-      far.position.set(x,landscapeHeight(x,index*RAMP.chunkLength+along)+height*0.5-3,-along);
+      far.position.set(x,landscapeHeight(x,index*RAMP.chunkLength+along)-baseHeight+height*0.5-3,-along);
       far.rotation.x = angle;
       far.rotation.y = rng() * Math.PI;
       root.add(far);
@@ -260,23 +240,30 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
       const { x, along, width, length, height, kind } = item;
       const y = RAMP.thickness / 2;
       if (kind === 'rail') {
-        const top = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.14, length), mats.rail);
-        top.position.set(x, y + height, -along); root.add(top);
-
-        for (const z of [-length / 2 + 0.6, 0, length / 2 - 0.6]) {
-          const support = new THREE.Mesh(new THREE.BoxGeometry(0.12, height, 0.12), mats.rail);
-          support.position.set(x, y + height / 2, -along + z); root.add(support);
-
-          const foot = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.05, 0.5), mats.lip);
-          foot.position.set(x, y + 0.025, -along + z); root.add(foot);
+        const s=index*RAMP.chunkLength+along;
+        const startHeight=courseHeight(s-length/2)-baseHeight, endHeight=courseHeight(s+length/2)-baseHeight;
+        const pitch=Math.atan2(endHeight-startHeight,length), physicalLength=Math.hypot(length,endHeight-startHeight);
+        const top=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.14,physicalLength),mats.rail);
+        top.position.set(x,y+(startHeight+endHeight)/2+height,-along);top.rotation.x=pitch;root.add(top);
+        for(const z of [-length/2+0.6,0,length/2-0.6]) {
+          const ground=y+courseHeight(s-z)-baseHeight;
+          const upper=y+startHeight+(endHeight-startHeight)*(length/2-z)/length+height;
+          const support=new THREE.Mesh(new THREE.BoxGeometry(0.12,upper-ground,0.12),mats.rail);
+          support.position.set(x,(ground+upper)/2,-along+z);root.add(support);
+          const foot=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.05,0.5),mats.lip);
+          foot.position.set(x,ground+0.025,-along+z);root.add(foot);
         }
-        chunk.rails.push({ id: `${index}:${along}`, start: new THREE.Vector3(x, y + height + 0.07, -along + length / 2), end: new THREE.Vector3(x, y + height + 0.07, -along - length / 2) });
+        const normal=new THREE.Vector3(0,Math.cos(pitch),Math.sin(pitch));
+        chunk.rails.push({id:`${index}:${along}`,normal,
+          start:new THREE.Vector3(x,y+startHeight+height,-along+length/2).addScaledVector(normal,0.07),
+          end:new THREE.Vector3(x,y+endHeight+height,-along-length/2).addScaledVector(normal,0.07)});
         continue;
       }
       if (kind === 'cones') {
         for (let i = 0; i < 3; i++) {
           const cone = makeCone();
-          cone.position.set(x, y, -along + (i - 1) * 1.5);
+          const s=index*RAMP.chunkLength+along-(i-1)*1.5;
+          cone.position.set(x,y+courseHeight(s)-baseHeight,-along+(i-1)*1.5); cone.rotation.x=Math.atan(courseSlope(s));
           root.add(cone);
         }
         continue;
@@ -295,10 +282,10 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
         geometry.translate(0, height / 2, 0);
       }
       const mesh = new THREE.Mesh(geometry, mats.kicker);
-      mesh.position.set(x, y, -along); root.add(mesh);
+      mesh.position.set(x,y,-along); root.add(warpCourse(mesh));
       // Colored lip announces the optional jump without forming a raised collision seam.
       const lip = new THREE.Mesh(new THREE.BoxGeometry(width, 0.004, 0.25), mats.lip);
-      lip.position.set(x, y + height - (kind === "kicker" ? height*0.13/length : 0) + 0.003, -along - length / 2 + 0.13); lip.userData.collision = false; root.add(lip);
+      lip.position.set(x, y + height - (kind === "kicker" ? height*0.13/length : 0) + 0.003, -along - length / 2 + 0.13); lip.userData.collision = false; root.add(warpCourse(lip));
     }
 
     yield;
@@ -311,7 +298,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
     function addCollider(desc: RAPIER.ColliderDesc, local: THREE.Vector3) {
       const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
       const collider = world.createCollider(desc.setFriction(0.65).setRestitution(0), body);
-      const part = { body, collider, local: local.clone().add(new THREE.Vector3(0, 0, root.position.z)), rot: q.clone() };
+      const part = { body, collider, local: local.clone().add(root.position), rot: q.clone() };
       chunk.parts.push(part); syncPart(part);
     }
     yield;
@@ -339,19 +326,22 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
 
   function placeChunk(chunk: Chunk) {
     const zBase = -(chunk.index - cursor) * RAMP.chunkLength;
-    const delta = zBase - chunk.root.position.z;
-    chunk.root.position.z = zBase;
+    const delta = zBase-chunk.root.position.z;
+    const y=courseHeight(chunk.index*RAMP.chunkLength)-courseHeight(cursor*RAMP.chunkLength);
+    const deltaY=y-chunk.root.position.y;
+    chunk.root.position.set(0,y,zBase);
     chunk.root.updateMatrix();
     for (const part of chunk.parts) {
-      part.local.z += delta;
+      part.local.z += delta; part.local.y += deltaY;
       syncPart(part);
     }
   }
 
   function refreshRails() { grindRails = [...chunks.values()].flatMap(chunk => chunk.rails.map(rail => ({
         id: rail.id,
-        start: worldFromLocal(rail.start.clone().add(new THREE.Vector3(0, 0, chunk.root.position.z))),
-        end: worldFromLocal(rail.end.clone().add(new THREE.Vector3(0, 0, chunk.root.position.z))),
+        normal: rail.normal?.clone().applyQuaternion(q),
+        start: worldFromLocal(rail.start.clone().add(chunk.root.position)),
+        end: worldFromLocal(rail.end.clone().add(chunk.root.position)),
       }))); }
   function prepareNextChunk(budgetMs = Infinity) {
     const next = cursor + RAMP.chunksAhead + 1;
@@ -378,12 +368,15 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
 
   const scroll = (meters: number) => {
     const steps = Math.round(meters / RAMP.chunkLength);
-    if (steps === 0) return;
+    if (steps === 0) return new THREE.Vector3();
+    const previousHeight=courseHeight(cursor*RAMP.chunkLength);
     cursor += steps;
     distance += steps * RAMP.chunkLength;
     for (const chunk of chunks.values()) placeChunk(chunk);
     ensureWindow();
     refreshRails();
+    world.propagateModifiedBodyPositionsToColliders();
+    return forward.clone().multiplyScalar(-steps*RAMP.chunkLength).addScaledVector(surfaceNormal,previousHeight-courseHeight(cursor*RAMP.chunkLength));
   };
 
   const reset = () => {

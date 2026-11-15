@@ -60,3 +60,18 @@ test('overbalancing drops off a rail; reverse aligned grinds work', () => {
   for (let i = 0; i < 80; i++) grind.update(1 / 120, position, velocity, forward, normal, rails, 1, false, false, false);
   assert.equal(grind.state.active, false); assert.equal(grind.state.message, 'Slipped off');
 });
+
+test('graded rails constrain the trucks and ollie exit to their own surface normal',()=>{
+  for(const pitch of [-0.2,0.2]) {
+    const tangent=forward.clone().applyAxisAngle(new THREE.Vector3(1,0,0),pitch);
+    const up=normal.clone().applyAxisAngle(new THREE.Vector3(1,0,0),pitch);
+    const rail={id:'grade',start:new THREE.Vector3(0,3,0),end:tangent.clone().multiplyScalar(20).add(new THREE.Vector3(0,3,0)),normal:up};
+    const position=rail.start.clone().addScaledVector(tangent,3).addScaledVector(up,GRIND_HEIGHT+0.02);
+    const velocity=tangent.clone().multiplyScalar(18).addScaledVector(up,-1), grind=createGrindSystem();
+    assert.ok(grind.update(1/120,position,velocity,tangent,normal,[rail],0,false,false,true));
+    assert.ok(Math.abs(position.clone().sub(rail.start).dot(up)-GRIND_HEIGHT)<1e-6);
+    assert.ok(Math.abs(velocity.dot(up))<1e-6);
+    grind.update(1/120,position,velocity,tangent,normal,[rail],0,true,false,true);
+    assert.ok(Math.abs(velocity.dot(up)-6.5)<1e-6);
+  }
+});

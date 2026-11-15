@@ -9,6 +9,7 @@ import { createPumpCycle } from "./pump.ts";
 import { createGrindSystem } from "./grind.ts";
 import { approachTopSpeed, MAX_SPEED } from "./speed.ts";
 import { LANDSCAPE_HALF_WIDTH } from "../world/landscape.ts";
+import { courseSlope } from "../world/course.ts";
 import { RAMP, type RampWorld } from "../world/ramp.ts";
 
 /** Person-sized inertia so flips take a real moment, not a frisbee twitch. */
@@ -113,7 +114,6 @@ export function createBoardPlayer(
   let visualHeightOffset = -0.11;
   let poseDt = 0;
   let posePush = 0;
-
   function sampleVisualSupport(at: THREE.Vector3) {
     if (grind.state.active) { visualHeightOffset = 0; return; }
     if (!grounded || leaveGround > 0) return;
@@ -325,9 +325,10 @@ export function createBoardPlayer(
       intent.steer, intent.wantOllie, intent.push < 0, !tricks.active && leaveGround <= 0)) {
       yaw = Math.cos(yaw) >= 0 ? 0 : Math.PI;
       body.setTranslation(position, true); body.setLinvel(velocity, true);
-      grounded = false; followSurface = false; wasOnKicker = false;
+      grounded = false; followSurface = grind.state.active; wasOnKicker = false;
+      surfaceUp.copy(grind.normal);
       if (!grind.state.active) leaveGround = 0.25;
-      holdDeck();
+      holdDeck(grind.normal);
       return;
     }
 
@@ -380,17 +381,19 @@ export function createBoardPlayer(
 
     }
 
-    if (!grounded && leaveGround <= 0 && wheelsDown >= 2 && velocity.dot(ramp.surfaceNormal) < -20) {
+    if (contactN.lengthSq() > 0) contactN.normalize();
+    else contactN.copy(ramp.surfaceNormal);
+    if (!grounded && leaveGround <= 0 && wheelsDown >= 2 && velocity.dot(contactN) < -20) {
       startCrash(tricks, velocity); return;
     }
     grounded = leaveGround <= 0 && wheelsDown >= 2;
-    if (contactN.lengthSq() > 0) contactN.normalize();
-    else contactN.copy(ramp.surfaceNormal);
 
     // Push, steer, ollie — only while the wheels are planted
     if (grounded) {
       const n = contactN.lengthSq() > 0.5 ? contactN : ramp.surfaceNormal.clone();
-      const onKicker = n.dot(ramp.surfaceNormal) < 0.97;
+      const coursePitch = Math.atan(courseSlope(ramp.distance + position.clone().sub(ramp.anchor).dot(ramp.forward)));
+      const courseUp = ramp.surfaceNormal.clone().multiplyScalar(Math.cos(coursePitch)).addScaledVector(ramp.forward,-Math.sin(coursePitch));
+      const onKicker = n.dot(courseUp) < 0.97;
       if (wasOnKicker && !onKicker) {
         // Keep the speed you had going up the face, so the lip throws you.
         wasOnKicker = false;
@@ -418,7 +421,7 @@ export function createBoardPlayer(
           vel.multiplyScalar(Math.max(0, 1 - 24 * dt / Math.max(vel.length(), 0.001)));
         } else {
           // Diminishing speed gains only when riding downhill. Uphill turns still lose speed.
-          const downhill = Math.max(0, rollingDirection.dot(ramp.forward));
+          const downhill = THREE.MathUtils.clamp(-rollingDirection.y/Math.sin(RAMP.angleDeg*Math.PI/180),0,1.3);
           const gain = (approachTopSpeed(vel.length(), dt, pump.state.active) - vel.length()) * downhill;
           const gravityAlong = -18 * rollingDirection.y;
           vel.addScaledVector(rollingDirection, gain - Math.max(0, gravityAlong) * dt);
@@ -486,7 +489,7 @@ export function createBoardPlayer(
         y: velocity.y,
         z: velocity.z,
       };
-      originShift.copy(ramp.forward).multiplyScalar(-shift);
+      originShift.copy(ramp.scroll(shift));
       position.add(originShift);
       previousPosition.add(originShift);
       if (ragdoll.active) {
@@ -497,7 +500,6 @@ export function createBoardPlayer(
         body.setTranslation({ x: position.x, y: position.y, z: position.z }, true);
         body.setLinvel(keep, true);
       }
-      ramp.scroll(shift);
     }
     if (paintFrame) render(1, poseDt);
   }

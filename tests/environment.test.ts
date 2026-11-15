@@ -70,7 +70,7 @@ test('generated trees stop physical objects and rich scenery keeps a bounded phy
   await RAPIER.init();
   const scene = new THREE.Scene(), world = new RAPIER.World({x:0,y:-18,z:0});world.timestep=1/120;
   const ramp = createRamp(scene,world);world.step();scene.updateMatrixWorld(true);
-  assert.equal(world.colliders.len(),11); // continuous road + 2 barriers + 8 scenery chunks
+  assert.equal(world.colliders.len(),8); // one combined terrain/road/scenery collider per chunk
   assert.ok(ramp.mesh.children.every(chunk=>chunk.userData.solidMeshes>100));
   const chunk = ramp.mesh.children.find(c=>c.position.z===0)!;
   const trunks = chunk.children.find(o=>o instanceof THREE.Mesh && (o.material as THREE.MeshStandardMaterial).color.getHex()===0x5a4030) as THREE.Mesh;
@@ -89,7 +89,7 @@ test('generated trees stop physical objects and rich scenery keeps a bounded phy
   ramp.prepareNextChunk(0);ramp.scroll(70);world.step();
   assert.ok(ramp.mesh.children.every(chunk=>chunk.visible));
   for(let i=0;i<20;i++){ramp.prepareNextChunk();ramp.scroll(70);world.step();assert.ok(world.colliders.len()<=12);}
-  ramp.reset();world.step();assert.equal(world.colliders.len(),11);
+  ramp.reset();world.step();assert.equal(world.colliders.len(),8);
   const player=createBoardPlayer(scene,world,ramp),tricks=createTrickSystem();
   const along=20,x=150;
   const ground=ramp.anchor.clone().addScaledVector(ramp.forward,along).add(new THREE.Vector3(x,0,0)).addScaledVector(ramp.surfaceNormal,landscapeHeight(x,along)-RAMP.thickness/2);

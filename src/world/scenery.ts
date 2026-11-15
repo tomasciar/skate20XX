@@ -24,6 +24,7 @@ export function makeCone() {
 export function makeScenery(district: District, variant: number, rng: () => number) {
   const g = new THREE.Group();
   if (district === 'village' && variant % 3 === 0) {
+    g.userData.placement = 'pad';
     const w = 4 + rng() * 3, h = 3 + rng() * 3;
     box(g, [w+0.2, 1.8, 5.2], [0, -0.9, 0], stone);
     box(g, [w, h, 5], [0, h / 2, 0], paints[Math.floor(rng()*paints.length)]!);
@@ -36,6 +37,7 @@ export function makeScenery(district: District, variant: number, rng: () => numb
     box(g, [0.9, 1.9, 0.1], [0, 0.95, 2.56], wood);
     box(g, [0.6, 1.6, 0.7], [w * 0.25, h + 1, 0], stone);
   } else if (district === 'village' && variant % 3 === 1) {
+    g.userData.placement = 'pad';
     // Parked car, set well outside the rideable road.
     box(g, [1.9, 0.7, 3.8], [0, 0.7, 0], paints[Math.floor(rng() * 3)]!);
     box(g, [1.65, 0.7, 1.9], [0, 1.3, 0.1], glass);
@@ -52,10 +54,12 @@ export function makeScenery(district: District, variant: number, rng: () => numb
       rock.rotation.set(rng(), rng(), rng()); rock.castShadow = true; g.add(rock);
     }
   } else if (variant % 3 === 1) {
+    g.userData.placement = 'pad';
     box(g, [2.5, 0.14, 0.7], [0, 0.6, 0], wood);
     box(g, [2.5, 0.65, 0.12], [0, 1, 0.32], wood);
     for (const x of [-0.9, 0.9]) box(g, [0.12, 0.6, 0.65], [x, 0.3, 0], metal);
   } else {
+    g.userData.placement = 'pad';
     box(g, [1.6, 0.5, 1.6], [0, 0.25, 0], wood);
     for (let i = 0; i < 4; i++) {
       const bush = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55, 1), leaf);
@@ -81,13 +85,13 @@ export function makeSign(district: District, index: number) {
 
 /** Rustic field fences, picnic tables and trail-side shelters share existing materials. */
 export function makeFence(length = 9) {
-  const g = new THREE.Group();
+  const g = new THREE.Group(); g.userData.placement = 'slope';
   for (let x = -length/2; x <= length/2 + 0.01; x += length/3) box(g,[0.13,1.15,0.13],[x,0.575,0],wood);
   for (const y of [0.45,0.9]) box(g,[length,0.10,0.10],[0,y,0],wood);
   return g;
 }
 export function makePicnic() {
-  const g = new THREE.Group();
+  const g = new THREE.Group(); g.userData.placement = 'pad';
   box(g,[2.5,0.12,1.1],[0,0.85,0],wood);
   for (const z of [-0.9,0.9]) box(g,[2.5,0.12,0.35],[0,0.48,z],wood);
   for (const x of [-0.8,0.8]) {
@@ -95,3 +99,5 @@ export function makePicnic() {
   }
   return g;
 }
+
+export const foundationMaterial = stone;
