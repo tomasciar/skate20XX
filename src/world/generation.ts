@@ -1,10 +1,10 @@
+import {DISTRICTS} from './environments/catalog.ts';
+import type {District} from './environments/catalog.ts';
+export {DISTRICTS,DISTRICT_NAMES} from './environments/catalog.ts';
+export type {District} from './environments/catalog.ts';
+
 /** Pure, reproducible layout rules. Every encounter leaves a 4.4 m clear corridor. */
 export const CHUNK_LENGTH = 70;
-export const DISTRICTS = ['grove', 'village', 'ridge', 'farm', 'mill'] as const;
-export type District = (typeof DISTRICTS)[number];
-export const DISTRICT_NAMES: Record<District, string> = {
-  grove: 'CEDAR GROVE', village: 'OLD TOWN', ridge: 'SUMMIT RIDGE', farm: 'GOLDEN ACRES', mill: 'TIMBER MILL',
-};
 export const ENCOUNTER_KINDS = ['kicker', 'curved', 'bank', 'cones', 'rail', 'ledge'] as const;
 // Keep the original draw order so new ramp variants do not move existing rails or ledges.
 const BASE_KINDS = ['kicker', 'cones', 'rail', 'ledge'] as const;

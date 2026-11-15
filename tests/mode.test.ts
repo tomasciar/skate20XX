@@ -24,13 +24,13 @@ test('winter materials are reversible, cached per world, and keep geometry and s
   const appearance=createWorldAppearance(),root=new THREE.Group();
   const material=surface(new THREE.MeshStandardMaterial({color:0x345678}),'road'),mesh=new THREE.Mesh(new THREE.BoxGeometry(),material);
   root.add(mesh);appearance.bind(mesh,material);const geometry=mesh.geometry;
-  appearance.setMode('snowboard',root);const winter=mesh.material;
+  appearance.setSeason('winter',root);const winter=mesh.material;
   assert.notEqual(winter,material);assert.equal(mesh.geometry,geometry);assert.equal(material.color.getHex(),0x345678);
   assert.ok((winter as THREE.MeshStandardMaterial).map instanceof THREE.CanvasTexture);
   const streamed=new THREE.Mesh(geometry,material);root.add(streamed);appearance.bind(streamed,material);assert.equal(streamed.material,winter);
   for(let i=0;i<5;i++) {
-    appearance.setMode('skate',root);assert.equal(mesh.material,material);
-    appearance.setMode('snowboard',root);assert.equal(mesh.material,winter);
+    appearance.setSeason('summer',root);assert.equal(mesh.material,material);
+    appearance.setSeason('winter',root);assert.equal(mesh.material,winter);
   }
   const other=createWorldAppearance();assert.equal(other.materialFor(material),material,'a winter world must not recolor a separate skate world');
   const sign=surface(new THREE.MeshStandardMaterial(),'scenery');sign.userData.perChunk=true;
@@ -38,7 +38,7 @@ test('winter materials are reversible, cached per world, and keep geometry and s
 });
 
 test('snow caps use the real standard shader normal and diffuse hooks while preserving visible obstacle colors',()=>{
-  const appearance=createWorldAppearance('snowboard');
+  const appearance=createWorldAppearance('winter');
   const source=surface(new THREE.MeshStandardMaterial({color:0x335522}),'scenery');
   const material=appearance.materialFor(source);
   const shader={vertexShader:THREE.ShaderLib.standard.vertexShader,fragmentShader:THREE.ShaderLib.standard.fragmentShader,uniforms:{}};
@@ -131,7 +131,7 @@ test('winter scenery follows incremental streaming and switching back restores a
       const material=object.material as THREE.MeshStandardMaterial,role=material.userData.surface;
       if(role==='road'){roads++;assert.equal(material.map!.image.width,512);}
       if(role==='scenery' || role==='terrain' || role==='path' || role==='barrier') {
-        assert.equal(material.customProgramCacheKey(),'snow-coating-v1');snowCaps++;
+        assert.ok(material.customProgramCacheKey().endsWith('|snow-coating-v1'));snowCaps++;
       }
     });
     assert.ok(roads>0 && snowCaps>5);

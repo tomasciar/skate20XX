@@ -1,13 +1,25 @@
 import * as THREE from 'three';
-import type {RideMode} from '../mode.ts';
+import type {WorldSeason} from './season.ts';
 import {seededRandom} from './generation.ts';
 
-type Surface='scenery'|'road'|'terrain'|'path'|'barrier'|'line';
+export type Surface='scenery'|'road'|'terrain'|'path'|'barrier'|'line'|'obstacle';
 export function surface<T extends THREE.Material>(material:T,kind:Surface):T {material.userData.surface=kind;return material;}
 
+/** Newly added props get winter support automatically; explicit surface roles take precedence. */
+export function prepareEnvironmentObject(root:THREE.Object3D) {
+  root.traverse(object=>{
+    if(!(object instanceof THREE.Mesh))return;
+    for(const material of Array.isArray(object.material)?object.material:[object.material]) {
+      if(!material.userData.surface)surface(material,'scenery');
+    }
+  });
+}
+
 /** Upward-facing roofs, branches and rocks get snow without extra meshes or colliders. */
-function snowCoating(material:THREE.MeshStandardMaterial) {
-  material.onBeforeCompile=shader=>{
+function snowCoating(material:THREE.MeshStandardMaterial,source:THREE.Material) {
+  const compile=source.onBeforeCompile,key=source.customProgramCacheKey();
+  material.onBeforeCompile=(shader,renderer)=>{
+    compile.call(material,shader,renderer);
     shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying float vSnowUp;')
       .replace('#include <beginnormal_vertex>','#include <beginnormal_vertex>\nvSnowUp = normalize(mat3(modelMatrix) * objectNormal).y;');
     shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying float vSnowUp;')
@@ -15,7 +27,7 @@ function snowCoating(material:THREE.MeshStandardMaterial) {
         float snowCover = smoothstep(0.35, 0.84, vSnowUp) * 0.97;
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.82, 0.90, 0.98), snowCover);`);
   };
-  material.customProgramCacheKey=()=> 'snow-coating-v1';
+  material.customProgramCacheKey=()=> `${key}|snow-coating-v1`;
 }
 
 function snowTexture(packed:boolean) {
@@ -42,12 +54,12 @@ function snowTexture(packed:boolean) {
 }
 
 /** Per-world cached winter materials. Skate materials and all geometry remain intact. */
-export function createWorldAppearance(initial:RideMode='skate') {
-  let mode=initial,packed:THREE.Texture|undefined,powder:THREE.Texture|undefined;
+export function createWorldAppearance(initial:WorldSeason='summer') {
+  let season=initial,packed:THREE.Texture|undefined,powder:THREE.Texture|undefined;
   const winter=new Map<THREE.Material,THREE.Material>(),sources=new WeakMap<THREE.Mesh,THREE.Material>();
   function materialFor(source:THREE.Material) {
     const role=source.userData.surface as Surface|undefined;
-    if(mode==='skate' || !role || source.userData.perChunk)return source;
+    if(season==='summer' || !role || role==='obstacle' || source.userData.perChunk)return source;
     let result=winter.get(source);
     if(result)return result;
     if(!(source instanceof THREE.MeshStandardMaterial || source instanceof THREE.MeshBasicMaterial))return source;
@@ -59,14 +71,14 @@ export function createWorldAppearance(initial:RideMode='skate') {
     if(clone instanceof THREE.MeshStandardMaterial) {
       clone.roughness=1;clone.metalness=0;
       if(role==='terrain')clone.map=powder ??=snowTexture(false);
-      if(role!=='road')snowCoating(clone);
+      if(role!=='road')snowCoating(clone,source);
     }
     winter.set(source,clone);return clone;
   }
   function bind(mesh:THREE.Mesh,source:THREE.Material){sources.set(mesh,source);mesh.material=materialFor(source);}
-  function setMode(next:RideMode,root:THREE.Object3D) {
-    mode=next;
+  function setSeason(next:WorldSeason,root:THREE.Object3D) {
+    season=next;
     root.traverse(object=>{if(object instanceof THREE.Mesh){const source=sources.get(object);if(source)object.material=materialFor(source);}});
   }
-  return {bind,setMode,materialFor,get mode(){return mode;}};
+  return {bind,setSeason,materialFor,get season(){return season;}};
 }

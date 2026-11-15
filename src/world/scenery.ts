@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { DISTRICT_NAMES } from './generation.ts';
 import type { District } from './generation.ts';
 import {surface} from './appearance.ts';
+import {ENVIRONMENT_BY_ID} from './environments/catalog.ts';
+import type {TreeStyle} from './environments/catalog.ts';
+export type {TreeStyle} from './environments/catalog.ts';
 
 /**
  * Props and buildings. Every builder faces +Z (its front door, if any) with the footprint centered
@@ -113,15 +116,7 @@ export function makeCone() {
 
 // ---------------------------------------------------------------- trees
 
-export type TreeStyle = 'pine' | 'cedar' | 'broadleaf' | 'birch' | 'autumn' | 'fruit' | 'snag';
-const TREE_MIX: Record<District, readonly TreeStyle[]> = {
-  grove: ['cedar','cedar','cedar','pine','broadleaf','birch'],
-  village: ['broadleaf','broadleaf','autumn','birch','pine'],
-  ridge: ['pine','pine','pine','snag','cedar'],
-  farm: ['broadleaf','autumn','autumn','birch','fruit'],
-  mill: ['pine','pine','cedar','snag','birch'],
-};
-export const treeStyleFor = (district: District, rng: () => number) => pick(TREE_MIX[district], rng);
+export const treeStyleFor = (district: District, rng: () => number) => pick(ENVIRONMENT_BY_ID.get(district)!.trees, rng);
 export function makeTree(rng: () => number, style: TreeStyle = 'broadleaf') {
   const tree = group();
   tree.userData.shadow = style === 'snag' ? 'box' : 'round';

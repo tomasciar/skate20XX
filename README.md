@@ -107,6 +107,8 @@ The renderer caps its initial drawing buffer at about two million pixels, with a
 
 `npm run bench` uses a headless test driver to steer around the curves (the game always uses player input), runs a 60-second CPU simulation and reports frame work and idle chunk preparation separately. It warms up physics first, as the game does before starting, and excludes browser/GPU rendering, so these timings are not FPS measurements.
 
+See [environment authoring](docs/environments.md) for adding districts and props that share layouts, collision, and seasonal appearance across skate and snowboard modes.
+
 ## Check
 
 ```bash

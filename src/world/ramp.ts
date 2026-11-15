@@ -15,6 +15,7 @@ import RAPIER from "@dimforge/rapier3d-compat";
 import {createWorldAppearance,surface} from './appearance.ts';
 import type {RideMode} from '../mode.ts';
 import {makeRampShape} from './rampShapes.ts';
+import {seasonForRideMode,type WorldSeason} from './season.ts';
 
 /** Endless rolling downhill: road and scenery share the streamed height profile. */
 export const RAMP = {
@@ -70,7 +71,8 @@ type Chunk = {
 };
 
 export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{startPlatform?:boolean;mode?:RideMode}={}): RampWorld {
-  const appearance=createWorldAppearance(options.mode);
+  let mode=options.mode ?? 'skate';
+  const appearance=createWorldAppearance(seasonForRideMode(mode));
   const angle = (RAMP.angleDeg * Math.PI) / 180;
   const hill = new THREE.Group();
   hill.position.set(0, RAMP.centerY, 0);
@@ -450,12 +452,12 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
     refreshRails();
   };
 
-  const backdrop=addBackdrop(scene);backdrop.setMode(appearance.mode);
+  const backdrop=addBackdrop(scene);backdrop.setSeason(appearance.season);
 
   return {
     mesh: hill,
-    get mode(){return appearance.mode;},
-    setMode(mode:RideMode){appearance.setMode(mode,hill);backdrop.setMode(mode);},
+    get mode(){return mode;},
+    setMode(next:RideMode){mode=next;appearance.setSeason(seasonForRideMode(mode),hill);backdrop.setSeason(appearance.season);},
     spawn,
     startPlatform: options.startPlatform===false ? undefined : START_PLATFORM,
     boostAt(position) {
@@ -626,8 +628,8 @@ function addBackdrop(scene: THREE.Scene) {
   const fill = new THREE.DirectionalLight(0xb8d4e8, 0.35);
   fill.position.set(40, 30, -20);
   scene.add(fill);
-  return {setMode(mode:RideMode) {
-    const snow=mode==='snowboard',horizon=snow?0xc6dce9:0x8ebfd4;
+  return {setSeason(season:WorldSeason) {
+    const snow=season==='winter',horizon=snow?0xc6dce9:0x8ebfd4;
     (scene.background as THREE.Color).setHex(horizon);(scene.fog as THREE.Fog).color.setHex(horizon);
     hemisphere.color.setHex(snow?0xe5f3ff:0xdcefff);hemisphere.groundColor.setHex(snow?0x97b4cc:0x6f8f58);
     ambient.color.setHex(snow?0xdceeff:0xd0e4f0);sun.color.setHex(snow?0xf5f9ff:0xfff0d6);
