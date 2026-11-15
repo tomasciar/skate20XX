@@ -38,7 +38,7 @@ test('ragdoll uses the rider model, retains momentum, stays joined, and cleans u
   const originalCcdSubsteps = world.maxCcdSubsteps;
   for (const speed of [0,20,89]) {
     rag.start(visual.captureRagdoll(),new THREE.Vector3(0,0,-speed),new THREE.Vector3(0,1,0));
-    assert.equal(rag.bodyCount,15); assert.equal(world.impulseJoints.len(),14);
+    assert.equal(rag.bodyCount,11); assert.equal(world.impulseJoints.len(),10);
     assert.ok(Math.abs(rag.velocity.z + speed) < 0.01);
     checkAnchors(world,0.001);
     for (let i=0;i<240;i++) {
@@ -75,7 +75,7 @@ test('obstacle crashes release rider and board, ignore controls, and allow manua
   player.body.setLinvel(ramp.forward.clone().multiplyScalar(20),true);
   for (let i=0;i<120 && !player.crashed;i++) { player.update(dt,idle,tricks.state);world.step();player.sync(); }
   assert.ok(player.crashed,'wall impact did not trigger a crash');
-  assert.equal(world.bodies.len(),bodies+16); assert.equal(world.impulseJoints.len(),14);
+  assert.equal(world.bodies.len(),bodies+12); assert.equal(world.impulseJoints.len(),10);
   assert.equal(tricks.state.message,'Bail!');
   for (let i=0;i<60;i++) {
     player.update(dt,{...idle,push:1,steer:1,wantOllie:true},tricks.state); world.step();player.sync();

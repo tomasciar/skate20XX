@@ -28,21 +28,36 @@ export function createRagdoll(scene: THREE.Scene, world: RAPIER.World) {
   }
   function start(rig: RagdollRig, momentum: THREE.Vector3, normal: THREE.Vector3) {
     clear(); previousCcdSubsteps = world.maxCcdSubsteps; world.maxCcdSubsteps = Math.max(8, world.maxCcdSubsteps); scene.add(root);
+    // Shoes and hands were fixed joints; use compound colliders instead so CCD cannot
+    // stop a shoe independently of its shin and stretch the ankle during a tweaked crash.
+    const attached = new Map<string,RagdollPart[]>();
+    const fixedChildren = new Set<string>();
+    for (const joint of rig.joints) if (joint.kind === 'fixed') {
+      const children = attached.get(joint.a) ?? [];
+      children.push(rig.parts.find(part => part.id === joint.b)!);
+      attached.set(joint.a,children); fixedChildren.add(joint.b);
+    }
     for (const spec of rig.parts) {
+      if (fixedChildren.has(spec.id)) continue;
+      const compound = [spec,...(attached.get(spec.id) ?? [])];
       const body = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(spec.center.x, spec.center.y, spec.center.z)
         .setRotation(spec.rotation).setCcdEnabled(true).setLinearDamping(0.12).setAngularDamping(1.5).setAdditionalSolverIterations(24));
       body.userData = spec.id;
-      const shape = spec.shape;
-      const desc = shape.kind === 'capsule' ? RAPIER.ColliderDesc.capsule(Math.max(0.01, shape.length / 2 - shape.radius), shape.radius)
-        : shape.kind === 'box' ? RAPIER.ColliderDesc.cuboid(shape.half.x, shape.half.y, shape.half.z) : RAPIER.ColliderDesc.ball(shape.radius);
-      // Ragdoll parts hit the world; self contacts are excluded for stable folded crash poses.
-      world.createCollider(desc.setMass(spec.mass).setFriction(0.7).setRestitution(0.03).setCollisionGroups(0x00020001), body);
+      for (const element of compound) {
+        const shape = element.shape;
+        const desc = shape.kind === 'capsule' ? RAPIER.ColliderDesc.capsule(Math.max(0.01,shape.length/2-shape.radius),shape.radius)
+          : shape.kind === 'box' ? RAPIER.ColliderDesc.cuboid(shape.half.x,shape.half.y,shape.half.z) : RAPIER.ColliderDesc.ball(shape.radius);
+        const position = element.center.clone().sub(spec.center).applyQuaternion(spec.rotation.clone().invert());
+        const rotation = spec.rotation.clone().invert().multiply(element.rotation);
+        desc.setTranslation(position.x,position.y,position.z).setRotation(rotation);
+        world.createCollider(desc.setMass(element.mass).setFriction(0.7).setRestitution(0.03).setCollisionGroups(0x00020001),body);
+      }
       const carried = momentum.clone().addScaledVector(normal, momentum.dot(normal) > -5 ? 0.6 : 0);
       body.setLinvel(carried, true);
       body.setAngvel({ x: 0.8, y: 0.2, z: spec.id === 'pelvis' ? 1.3 : 0.8 }, true);
       const group = new THREE.Group(); root.add(group);
       const inverse = new THREE.Matrix4().compose(spec.center, spec.rotation, new THREE.Vector3(1,1,1)).invert();
-      for (const original of spec.objects) {
+      for (const original of compound.flatMap(element => element.objects)) {
         const clone = original.clone(true);
         const local = new THREE.Matrix4().multiplyMatrices(inverse, original.matrixWorld);
         local.decompose(clone.position, clone.quaternion, clone.scale); clone.visible = true; group.add(clone);
@@ -51,12 +66,12 @@ export function createRagdoll(scene: THREE.Scene, world: RAPIER.World) {
       parts.set(spec.id, { body, group, previous: spec.center.clone(), current: spec.center.clone(), previousQ: spec.rotation.clone(), currentQ: spec.rotation.clone() });
     }
     for (const spec of rig.joints) {
+      if (spec.kind === "fixed") continue;
       const a = parts.get(spec.a)!, b = parts.get(spec.b)!;
       const qa = a.currentQ, qb = b.currentQ;
       const anchorA = spec.anchor.clone().sub(a.current).applyQuaternion(qa.clone().invert());
       const anchorB = spec.anchor.clone().sub(b.current).applyQuaternion(qb.clone().invert());
-      const desc = spec.kind === 'fixed' ? RAPIER.JointData.fixed(anchorA, qa.clone().invert(), anchorB, qb.clone().invert())
-        : spec.kind === 'hinge' ? RAPIER.JointData.revoluteWithAxes(anchorA, anchorB,
+      const desc = spec.kind === 'hinge' ? RAPIER.JointData.revoluteWithAxes(anchorA, anchorB,
           spec.axis!.clone().applyQuaternion(qa.clone().invert()), spec.axis!.clone().applyQuaternion(qb.clone().invert()))
         : RAPIER.JointData.spherical(anchorA, anchorB);
       const joint = world.createImpulseJoint(desc, a.body, b.body, true); joint.setContactsEnabled(false);
@@ -81,7 +96,25 @@ export function createRagdoll(scene: THREE.Scene, world: RAPIER.World) {
     sync();
   }
   function beginStep() { for (const part of parts.values()) { part.previous.copy(part.current); part.previousQ.copy(part.currentQ); } }
+  function stabilizeJoints() {
+    // Correct residual contact/CCD drift without adding velocity or separating attached shoes.
+    const qa = new THREE.Quaternion(), qb = new THREE.Quaternion();
+    const pa = new THREE.Vector3(), pb = new THREE.Vector3(), delta = new THREE.Vector3();
+    for (let pass=0; pass<3; pass++) for (const joint of joints) {
+      const a=joint.body1(), b=joint.body2(), ta=a.translation(), tb=b.translation();
+      const ra=a.rotation(), rb=b.rotation(), aa=joint.anchor1(), ab=joint.anchor2();
+      qa.set(ra.x,ra.y,ra.z,ra.w); qb.set(rb.x,rb.y,rb.z,rb.w);
+      pa.set(aa.x,aa.y,aa.z).applyQuaternion(qa).add(new THREE.Vector3(ta.x,ta.y,ta.z));
+      pb.set(ab.x,ab.y,ab.z).applyQuaternion(qb).add(new THREE.Vector3(tb.x,tb.y,tb.z));
+      delta.subVectors(pb,pa);
+      if (delta.lengthSq()<0.025**2) continue;
+      const share = b.mass()/(a.mass()+b.mass());
+      a.setTranslation({x:ta.x+delta.x*share,y:ta.y+delta.y*share,z:ta.z+delta.z*share},true);
+      b.setTranslation({x:tb.x-delta.x*(1-share),y:tb.y-delta.y*(1-share),z:tb.z-delta.z*(1-share)},true);
+    }
+  }
   function sync() {
+    stabilizeJoints();
     for (const part of parts.values()) {
       const t = part.body.translation(), q = part.body.rotation();
       part.current.set(t.x, t.y, t.z); part.currentQ.set(q.x, q.y, q.z, q.w);

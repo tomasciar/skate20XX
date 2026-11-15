@@ -62,7 +62,7 @@ The ground uses the same deterministic height triangles for rendering, physics, 
 
 ## Crashes
 
-Hard obstacle impacts, severe landings, failed flip tricks, and leaving the generated landscape trigger a ragdoll crash. The rider separates from the board with their incoming momentum; the existing character mesh is driven by 15 rigid bodies and 14 joints. Knees and elbows use limited hinges, while shoulders, hips, neck, and waist remain flexible. The board tumbles independently and the fixed downhill camera follows the rider.
+Hard obstacle impacts, severe landings, failed flip tricks, and leaving the generated landscape trigger a ragdoll crash. The rider separates from the board with their incoming momentum; the existing character mesh is driven by 11 rigid bodies and 10 joints; hands and shoes share compound bodies with their forearms and shins. Knees and elbows use limited hinges, while shoulders, hips, neck, and waist remain flexible. The board tumbles independently and the fixed downhill camera follows the rider.
 
 Ride controls are disabled during the tumble. The run restarts after about 3.2 seconds, or press R to restart immediately. Pausing freezes the crash as well. Ragdoll bodies are created only on a crash and completely removed on recovery, including their joints; extra collision substeps are restored afterward.
 
