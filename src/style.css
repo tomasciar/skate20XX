@@ -3,6 +3,7 @@
   --foam: #e8f0f4;
   --accent: #ff4d2e;
 }
+html[data-mode="snowboard"] { --accent: #91deff; --foam: #f0f9ff; }
 
 * {
   box-sizing: border-box;
@@ -166,6 +167,24 @@ body,
   opacity: 0.65 !important;
   margin-top: 16px;
 }
+.mode-hint { font-size: 0.82rem; letter-spacing: 0.02em; }
+#start-ride {
+  margin-top: 20px; padding: 10px 30px; border: 0; border-radius: 6px;
+  background: var(--accent); color: var(--ink); font: 1.3rem "Bebas Neue", sans-serif;
+  letter-spacing: 0.08em; cursor: pointer;
+}
+#mode-controls {
+  position: absolute; z-index: 4; top: 73px; left: 24px;
+  display: flex; gap: 3px; padding: 4px; border-radius: 8px;
+  border: 1px solid rgba(232,240,244,0.22); background: rgba(12,18,24,0.75);
+}
+#mode-controls button {
+  border: 0; border-radius: 5px; padding: 7px 11px; font: 600 0.76rem "DM Sans", sans-serif;
+  color: var(--foam); background: transparent; cursor: pointer;
+}
+#mode-controls button[aria-pressed="true"] { background: var(--accent); color: var(--ink); }
+#mode-controls button:hover { box-shadow: inset 0 0 0 1px var(--accent); }
+#mode-controls button:focus-visible, #start-ride:focus-visible { outline: 2px solid var(--foam); outline-offset: 3px; }
 
 #grind-balance {
   position: absolute;
@@ -215,4 +234,7 @@ body,
 #audio-controls :disabled { opacity: 0.5; cursor: default; }
 @media (max-width: 600px) {
   #audio-controls { top: auto; bottom: 76px; }
+  #mode-controls { left: 16px; top: 70px; }
+  #hud { padding: 18px 16px; }
+  .overlay-card { padding: 24px 18px; max-width: 100%; }
 }

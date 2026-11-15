@@ -14,6 +14,7 @@ export type ParticleStyle = {
 };
 export const SPARK: ParticleStyle = { color: 0xffc35a, size: 0.07, life: 0.38, gravity: 14, drag: 0.6, grow: 0.3, opacity: 1, glow: true };
 export const DUST: ParticleStyle = { color: 0xa89f8c, size: 0.2, life: 0.7, gravity: -0.4, drag: 2.4, grow: 3.2, opacity: 0.17 };
+export const SNOW: ParticleStyle = {color:0xe7f6ff,size:0.22,life:0.8,gravity:-0.25,drag:2.4,grow:3.8,opacity:0.27};
 
 /** Fixed pool of camera-facing points for sparks and dust. Nothing is allocated after creation. */
 export function createParticles(capacity = 384) {

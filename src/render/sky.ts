@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type {RideMode} from '../mode.ts';
 
 /**
  * Procedural sky drawn at the far plane: a horizon-to-zenith gradient that meets the fog colour exactly,
@@ -70,5 +71,9 @@ export function createSky(horizon: THREE.Color, sunDirection: THREE.Vector3) {
   });
   const mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), material);
   mesh.name = 'sky'; mesh.frustumCulled = false; mesh.renderOrder = -1;
-  return { mesh, update(dt: number) { uniforms.uTime.value += dt; } };
+  return { mesh, update(dt: number) { uniforms.uTime.value += dt; },setMode(mode:RideMode,horizon:THREE.Color) {
+    const snow=mode==='snowboard';uniforms.uHorizon.value.copy(horizon);
+    uniforms.uZenith.value.setHex(snow?0x4b88b4:0x2f6fb5);uniforms.uSunColor.value.setHex(snow?0xeaf5ff:0xfff1d0);
+    uniforms.uRange.value.setHex(snow?0x91aec8:0x5f86a6);
+  }};
 }

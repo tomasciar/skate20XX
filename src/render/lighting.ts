@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+const skyEnvironments=new WeakMap<THREE.Scene,THREE.WebGLRenderTarget>();
 
 /**
  * The real-time shadow map only serves the rider and board (scenery shadows are baked onto the ground),
@@ -32,7 +33,9 @@ export function createSunRig(sun: THREE.DirectionalLight, scene: THREE.Scene) {
 export function applySkyEnvironment(renderer: THREE.WebGLRenderer, scene: THREE.Scene, sky: THREE.Mesh, intensity = 0.55) {
   const generator = new THREE.PMREMGenerator(renderer), stage = new THREE.Scene();
   const copy = sky.clone(); copy.scale.setScalar(1); stage.add(copy);
-  scene.environment = generator.fromScene(stage, 0, 0.1, 10).texture;
+  const previous=skyEnvironments.get(scene),environment=generator.fromScene(stage,0,0.1,10);
+  scene.environment=environment.texture;skyEnvironments.set(scene,environment);
+  previous?.dispose();
   scene.environmentIntensity = intensity;
   generator.dispose();
 }

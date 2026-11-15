@@ -1,6 +1,8 @@
 import type { GrindState } from "../player/grind";
 import type { TrickState } from "../player/tricks";
 import type { AirRotationState } from "../player/airRotation";
+import {MODE_TITLES} from '../mode.ts';
+import type {RideMode} from '../mode.ts';
 
 export function createHud() {
   const speedEl = document.getElementById("speed")!;
@@ -16,7 +18,7 @@ export function createHud() {
   function showOverlay() {
     overlay.classList.remove("hidden");
     overlay.querySelector("h2")!.textContent = "PAUSED";
-    overlay.querySelector("p")!.textContent = "Click or press Enter to keep rolling";
+    overlay.querySelector("#overlay-description")!.textContent = "Click or press Enter to keep rolling";
   }
 
   function update(speed: number, tricks: TrickState, distance = 0, grind?: GrindState, aerial?: AirRotationState) {
@@ -53,5 +55,11 @@ export function createHud() {
     }
   }
 
-  return { update, hideOverlay, showOverlay, overlay };
+  function setMode(mode:RideMode) {
+    const title=MODE_TITLES[mode];document.title=title;
+    document.querySelector('#hud h1')!.textContent=title;
+    const heading=overlay.querySelector('h2')!;
+    if(heading.textContent!=='PAUSED')heading.textContent=title;
+  }
+  return { update, hideOverlay, showOverlay, setMode, overlay };
 }

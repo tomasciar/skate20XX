@@ -12,6 +12,8 @@ import { makeLandscape } from "./landscape.ts";
 import { makeStartPlatform, makeStartBoostPad, START_PLATFORM, START_BOOST } from "./startPlatform.ts";
 import type { GrindRail } from "../player/grind.ts";
 import RAPIER from "@dimforge/rapier3d-compat";
+import {createWorldAppearance,surface} from './appearance.ts';
+import type {RideMode} from '../mode.ts';
 
 /** Endless rolling downhill: road and scenery share the streamed height profile. */
 export const RAMP = {
@@ -34,6 +36,8 @@ export type RampWorld = {
   startPlatform?: {landingSpeed:number};
   /** Target speed of a road boost pad under this position, or zero outside the pads. */
   boostAt?: (position:THREE.Vector3)=>number;
+  setMode?: (mode:RideMode)=>void;
+  readonly mode?: RideMode;
   anchor: THREE.Vector3;
   surfaceOrigin: THREE.Vector3;
   endZ: number;
@@ -64,7 +68,8 @@ type Chunk = {
   rails: { id: string; start: THREE.Vector3; end: THREE.Vector3; normal?: THREE.Vector3 }[];
 };
 
-export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{startPlatform?:boolean}={}): RampWorld {
+export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{startPlatform?:boolean;mode?:RideMode}={}): RampWorld {
+  const appearance=createWorldAppearance(options.mode);
   const angle = (RAMP.angleDeg * Math.PI) / 180;
   const hill = new THREE.Group();
   hill.position.set(0, RAMP.centerY, 0);
@@ -99,7 +104,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
     part.body.setRotation({ x: part.rot.x, y: part.rot.y, z: part.rot.z, w: part.rot.w }, true);
   }
 
-  const asphaltMaterial = new THREE.MeshStandardMaterial({ map: asphaltSource, roughness: 0.92 });
+  const asphaltMaterial = surface(new THREE.MeshStandardMaterial({ map: asphaltSource, roughness: 0.92 }),'road');
 
   function destroyChunk(index: number) {
     const chunk = chunks.get(index);
@@ -292,7 +297,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
       chunk.parts.push(part); syncPart(part);
     }
     yield;
-    yield* batchChunk(root);
+    yield* batchChunk(root,appearance);
     const shade = shadows.build();
     if (shade) { root.add(shade); root.userData.shadowTriangles = shadows.triangles; }
     root.traverse(obj => { obj.matrixAutoUpdate = false; obj.updateMatrix(); });
@@ -437,10 +442,12 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
     refreshRails();
   };
 
-  addBackdrop(scene);
+  const backdrop=addBackdrop(scene);backdrop.setMode(appearance.mode);
 
   return {
     mesh: hill,
+    get mode(){return appearance.mode;},
+    setMode(mode:RideMode){appearance.setMode(mode,hill);backdrop.setMode(mode);},
     spawn,
     startPlatform: options.startPlatform===false ? undefined : START_PLATFORM,
     boostAt(position) {
@@ -481,14 +488,14 @@ function makeSharedMaterials() {
   return {
     // Saturated paint keeps obstacles readable without ground shadows; a little fill lifts shaded faces.
     rail: new THREE.MeshStandardMaterial({ color: 0xffc43d, roughness: 0.45, metalness: 0.25, emissive: 0xffc43d, emissiveIntensity: 0.04 }),
-    path: new THREE.MeshStandardMaterial({ color: 0xaaa58d, roughness: 1 }),
-    terrain: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, map: makeGroundTexture() }),
+    path: surface(new THREE.MeshStandardMaterial({ color: 0xaaa58d, roughness: 1 }),'path'),
+    terrain: surface(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, map: makeGroundTexture() }),'terrain'),
     edge: new THREE.MeshBasicMaterial({ color: 0xffc857 }),
-    dash: new THREE.MeshBasicMaterial({ color: 0xf2f5f8 }),
+    dash: surface(new THREE.MeshBasicMaterial({ color: 0xf2f5f8 }),'line'),
     kicker: new THREE.MeshStandardMaterial({ color: 0x1db5d0, roughness: 0.65, emissive: 0x1db5d0, emissiveIntensity: 0.06 }),
     lip: new THREE.MeshStandardMaterial({ color: 0xffedb0, roughness: 0.6 }),
     ledge: new THREE.MeshStandardMaterial({ color: 0xf46b3f, roughness: 0.8, emissive: 0xf46b3f, emissiveIntensity: 0.04 }),
-    barrier: new THREE.MeshStandardMaterial({ color: 0xc9c8c0, roughness: 0.85 }),
+    barrier: surface(new THREE.MeshStandardMaterial({ color: 0xc9c8c0, roughness: 0.85 }),'barrier'),
   };
 }
 
@@ -589,8 +596,8 @@ function addBackdrop(scene: THREE.Scene) {
   // Full visibility to 120 m; fade out by 300 m, before the streamed road ends.
   scene.fog = new THREE.Fog(0x8ebfd4, 120, 300);
 
-  scene.add(new THREE.HemisphereLight(0xdcefff, 0x6f8f58, 0.95));
-  scene.add(new THREE.AmbientLight(0xd0e4f0, 0.2));
+  const hemisphere=new THREE.HemisphereLight(0xdcefff, 0x6f8f58, 0.95);scene.add(hemisphere);
+  const ambient=new THREE.AmbientLight(0xd0e4f0, 0.2);scene.add(ambient);
 
   // Mid-morning sun from up the left flank: trees and buildings throw shadows across the road.
   const sun = new THREE.DirectionalLight(0xfff0d6, 2.1);
@@ -610,10 +617,17 @@ function addBackdrop(scene: THREE.Scene) {
   const fill = new THREE.DirectionalLight(0xb8d4e8, 0.35);
   fill.position.set(40, 30, -20);
   scene.add(fill);
+  return {setMode(mode:RideMode) {
+    const snow=mode==='snowboard',horizon=snow?0xc6dce9:0x8ebfd4;
+    (scene.background as THREE.Color).setHex(horizon);(scene.fog as THREE.Fog).color.setHex(horizon);
+    hemisphere.color.setHex(snow?0xe5f3ff:0xdcefff);hemisphere.groundColor.setHex(snow?0x97b4cc:0x6f8f58);
+    ambient.color.setHex(snow?0xdceeff:0xd0e4f0);sun.color.setHex(snow?0xf5f9ff:0xfff0d6);
+    fill.color.setHex(snow?0xb5d5ef:0xb8d4e8);
+  }};
 }
 
 /** Merge static props by material: scenery variety should not mean thousands of draw calls. */
-function* batchChunk(root: THREE.Group): Generator<void> {
+function* batchChunk(root: THREE.Group,appearance:ReturnType<typeof createWorldAppearance>): Generator<void> {
   root.updateMatrixWorld(true);
   const inverse = root.matrixWorld.clone().invert();
   const batches = new Map<THREE.Material, THREE.BufferGeometry[]>();
@@ -639,6 +653,7 @@ function* batchChunk(root: THREE.Group): Generator<void> {
     if (!merged) continue;
     merged.computeBoundingSphere();
     const mesh = new THREE.Mesh(merged, material);
+    appearance.bind(mesh,material);
     // Scenery shadows are baked onto the ground per chunk; the shadow map is reserved for the rider.
     mesh.castShadow = false;
     mesh.receiveShadow = material instanceof THREE.MeshStandardMaterial;

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { DISTRICT_NAMES } from './generation.ts';
 import type { District } from './generation.ts';
+import {surface} from './appearance.ts';
 
 /**
  * Props and buildings. Every builder faces +Z (its front door, if any) with the footprint centered
@@ -8,7 +9,7 @@ import type { District } from './generation.ts';
  * should lie on the local slope ('slope'), or simply stands upright on the ground. `userData.shadow`
  * picks the baked ground shadow: 'round' for crowns and boulders, 'none' for flat paving, a soft box otherwise.
  */
-const material = (color: number, metalness = 0, roughness = 0.8) => new THREE.MeshStandardMaterial({ color, roughness, metalness });
+const material = (color: number, metalness = 0, roughness = 0.8) => surface(new THREE.MeshStandardMaterial({ color, roughness, metalness }),'scenery');
 const wood = material(0x886044), stone = material(0x879295), white = material(0xf1ead8);
 const dark = material(0x263b43), glass = material(0x6f9aa8, 0.35, 0.25), orange = material(0xf27635);
 const coneOrange = material(0xff651a, 0, 0.65);

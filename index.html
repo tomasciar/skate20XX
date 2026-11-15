@@ -26,6 +26,10 @@
           <p>W push · A/D carve · Hold S boardslide, release + A/D to choose stance · Space crouch/ollie · Ground: ↑/↓ manuals · ←/→ grabs · Air: arrows grab · Shift + arrows board tricks · Space toggles WASD flips · R reset · Esc pause · M mute</p>
         </div>
       </div>
+      <div id="mode-controls" role="group" aria-label="Board mode">
+        <button type="button" data-mode="skate" aria-pressed="true">Skate</button>
+        <button type="button" data-mode="snowboard" aria-pressed="false">Snowboard</button>
+      </div>
       <div id="audio-controls" role="group" aria-label="Game audio">
         <button id="audio-mute" type="button" aria-pressed="false">Sound on · M</button>
         <input id="audio-volume" type="range" min="0" max="100" step="1" value="55" aria-label="Sound volume" />
@@ -33,8 +37,10 @@
       <div id="overlay">
         <div class="overlay-card">
           <h2>SKATE5</h2>
-          <p>Drop from the floating platform. Green pads beside the landing boost you to 150 mph. Click or press Enter to ride.</p>
+          <p class="mode-hint">Choose Skate or Snowboard above. Switch any time during your run.</p>
+          <p id="overlay-description">Drop from the floating platform. Green pads beside the landing boost you to 150 mph. Click or press Enter to ride.</p>
           <p class="overlay-keys">W push · A / D carve · Hold S to boardslide<br />Release S, then tap A to face left or D to face right<br />Hold & release Space to ollie, including from manuals<br />Ground: hold ↑ nose manual · ↓ manual · ←/→ grabs<br />Air: arrows grab · Shift + arrows board tricks · Space toggles W/S flips + A/D rolls<br />Esc pause · R restart · M mute</p>
+          <button id="start-ride" type="button">Drop in</button>
         </div>
       </div>
     </div>

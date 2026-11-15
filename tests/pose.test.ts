@@ -158,6 +158,9 @@ test('shorter leg proportions keep each visible bone at the configured length', 
     const shin = visual.root.getObjectByName(`shin-${side}`)!;
     assert.ok(Math.abs(shin.scale.y - RIDER.lowerLeg) < 1e-8);
   }
-  let meshCount = 0; visual.root.traverse(obj => { if (obj instanceof THREE.Mesh) meshCount++; });
-  assert.ok(meshCount < 55, `too many individual rider meshes: ${meshCount}`);
+  for(const mode of ['skate','snowboard'] as const) {
+    visual.setMode(mode);
+    let meshCount = 0; visual.root.traverseVisible(obj => { if (obj instanceof THREE.Mesh) meshCount++; });
+    assert.ok(meshCount < 55, `too many rendered rider meshes in ${mode}: ${meshCount}`);
+  }
 });

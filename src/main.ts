@@ -15,13 +15,16 @@ import { createHud } from "./ui/hud";
 import { LANDING_SPEED } from "./player/speed";
 import { createSky } from "./render/sky";
 import { createSunRig, applySkyEnvironment } from "./render/lighting";
-import { createParticles, SPARK, DUST } from "./render/particles";
+import { createParticles, SPARK, DUST, SNOW } from "./render/particles";
+import {loadRideMode} from './mode';
+import {createModeControls} from './ui/modes';
 
 async function main() {
   await RAPIER.init();
 
   const canvas = document.getElementById("game") as HTMLCanvasElement;
   const hud = createHud();
+  let mode=loadRideMode();hud.setMode(mode);
   const input = createInput();
   const controller = createController();
   const tricks = createTrickSystem();
@@ -60,14 +63,15 @@ async function main() {
   const fixedDt = 1 / 120;
   world.timestep = fixedDt;
 
-  const ramp = createRamp(scene, world);
+  const ramp = createRamp(scene, world,{mode});
   const chase = createChaseCamera(camera, ramp.forward);
-  const player = createBoardPlayer(scene, world, ramp);
+  const player = createBoardPlayer(scene, world, ramp,mode);
   const courseDirection=ramp.forward.clone();
 
   const sun = scene.getObjectByName("sun") as THREE.DirectionalLight;
   const sunRig = createSunRig(sun, scene);
   const sky = createSky((scene.fog as THREE.Fog).color, sunRig.direction);
+  sky.setMode(mode,(scene.fog as THREE.Fog).color);
   scene.add(sky.mesh);
   applySkyEnvironment(renderer, scene, sky.mesh);
   const particles = createParticles();
@@ -102,10 +106,16 @@ async function main() {
   let audioResetCount = player.resetCount;
   let pausedSceneDirty = true;
   let hudElapsed = 0;
+  createModeControls(mode,next=>{
+    mode=next;ramp.setMode!(mode);player.setMode(mode);hud.setMode(mode);
+    sky.setMode(mode,(scene.fog as THREE.Fog).color);applySkyEnvironment(renderer,scene,sky.mesh);
+    particles.clear();pausedSceneDirty=true;
+  });
   const alongCourse = new THREE.Vector3();
   // Sparks and dust follow what the board is doing; rates are per second so they look the same at any refresh rate.
   const effect = { owed: 0, wasAirborne: false, fallSpeed: 0, at: new THREE.Vector3(), behind: new THREE.Vector3(), motion: new THREE.Vector3() };
   function emitEffects(dt: number) {
+    const spray=mode==='snowboard'?SNOW:DUST;
     const airborne = !player.grounded && !player.grind.active;
     if (player.crashed) { effect.wasAirborne = false; effect.owed = 0; return; }
     const vertical = player.velocity.dot(ramp.surfaceNormal);
@@ -117,7 +127,7 @@ async function main() {
         const angle = Math.random() * Math.PI * 2;
         effect.motion.copy(player.velocity).multiplyScalar(0.3).addScaledVector(ramp.surfaceNormal, 0.5 + Math.random());
         effect.motion.x += Math.cos(angle) * 2.2; effect.motion.z += Math.sin(angle) * 2.2;
-        particles.emit(DUST, effect.at, effect.motion, 0.6);
+        particles.emit(spray, effect.at, effect.motion, 0.6);
       }
     }
     if (airborne) effect.fallSpeed = vertical;
@@ -135,7 +145,7 @@ async function main() {
         particles.emit(SPARK, effect.at, effect.motion, 3.2);
       } else {
         effect.motion.copy(player.velocity).multiplyScalar(braking ? 0.3 : 0.5).addScaledVector(ramp.surfaceNormal, 0.4);
-        particles.emit(DUST, effect.behind, effect.motion, 1.1, braking ? 1 : 0.8);
+        particles.emit(spray, effect.behind, effect.motion, 1.1, braking ? 1 : 0.8);
       }
     }
   }
