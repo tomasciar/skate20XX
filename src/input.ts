@@ -1,5 +1,6 @@
 export type InputState = {
-  grabModifier: boolean;
+  /** Shift changes the arrow stick from held grabs to board tricks. */
+  trickModifier: boolean;
   grabDX: number;
   grabDY: number;
   grabPress: number;
@@ -27,7 +28,7 @@ export function createInput(): {
   dispose: () => void;
 } {
   const state: InputState = {
-    grabModifier: false,
+    trickModifier: false,
     grabDX: 0,
     grabDY: 0,
     grabPress: 0,
@@ -60,8 +61,8 @@ export function createInput(): {
     switch (e.code) {
       case "ShiftLeft":
       case "ShiftRight":
-        shifts.add(e.code); state.grabModifier = true;
-        pendingFlick = null; state.flickReady = false;
+        if (!state.trickModifier) queueFlick();
+        shifts.add(e.code); state.trickModifier = true;
         break;
       case "KeyW":
         state.push = true;
@@ -105,7 +106,7 @@ export function createInput(): {
     switch (e.code) {
       case "ShiftLeft":
       case "ShiftRight":
-        shifts.delete(e.code); state.grabModifier = shifts.size > 0;
+        shifts.delete(e.code); state.trickModifier = shifts.size > 0;
         break;
       case "KeyW":
         state.push = false;
@@ -141,7 +142,11 @@ export function createInput(): {
   /** Arrow keys are the trick stick. Held pairs count as diagonals. */
   function queueTrick() {
     state.grabPress++;
-    if (state.grabModifier) return;
+    if (state.trickModifier) queueFlick();
+  }
+
+  /** Accept either chord order, and preserve quick Shift + arrow taps until consumption. */
+  function queueFlick() {
     const x = (arrows.right ? 1 : 0) - (arrows.left ? 1 : 0);
     const y = (arrows.down ? 1 : 0) - (arrows.up ? 1 : 0);
     if (x === 0 && y === 0) return;
@@ -154,8 +159,8 @@ export function createInput(): {
   function beginFrame() {
     state.arrowDX = (arrows.right ? 1 : 0) - (arrows.left ? 1 : 0);
     state.arrowDY = (arrows.down ? 1 : 0) - (arrows.up ? 1 : 0);
-    state.grabDX = state.grabModifier ? state.arrowDX : 0;
-    state.grabDY = state.grabModifier ? state.arrowDY : 0;
+    state.grabDX = state.trickModifier ? 0 : state.arrowDX;
+    state.grabDY = state.trickModifier ? 0 : state.arrowDY;
     state.crouchPressed ||= state.crouch && !crouchWasDown;
     state.crouchReleased ||= !state.crouch && crouchWasDown;
     crouchWasDown = state.crouch;
@@ -175,7 +180,7 @@ export function createInput(): {
 
   function clear() {
     consume();
-    shifts.clear(); state.grabModifier = false; state.grabDX = state.grabDY = 0;
+    shifts.clear(); state.trickModifier = false; state.grabDX = state.grabDY = 0;
     state.arrowDX = state.arrowDY = 0;
     state.push = state.brake = state.left = state.right = state.crouch = false;
     arrows.up = arrows.down = arrows.left = arrows.right = false;

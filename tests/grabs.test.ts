@@ -8,24 +8,28 @@ import { createTrickSystem } from '../src/player/tricks.ts';
 import { createSkaterVisual } from '../src/player/skaterVisual.ts';
 import { BOARD, RIDER } from '../src/player/dimensions.ts';
 
-test('Shift uses held arrows for grabs without changing push or steering or leaking flicks', () => {
+test('plain arrows hold grabs and Shift switches to board tricks without changing movement', () => {
   const events = new EventTarget(); Object.assign(globalThis, { window: events });
   const input = createInput(), controller = createController();
   const key = (type: string, code: string) => events.dispatchEvent(Object.assign(new Event(type), { code, repeat: false }));
   key('keydown', 'KeyW'); key('keydown', 'KeyD');
-  key('keydown', 'ArrowUp'); key('keydown', 'ShiftLeft'); input.beginFrame();
+  key('keydown', 'ArrowUp'); input.beginFrame();
   let intent = controller.update(input.state, 1 / 120);
   assert.equal(intent.push, 1); assert.equal(intent.steer, 1);
   assert.equal(intent.grabModifier, true); assert.equal(intent.grabDY, -1); assert.equal(intent.flickReady, false);
   input.consume(); input.beginFrame();
   assert.equal(input.state.grabDY, -1, 'held grab must survive physics consumption');
-  key('keydown', 'ShiftRight'); key('keyup', 'ShiftLeft'); input.beginFrame(); assert.ok(input.state.grabModifier);
+  key('keydown', 'ShiftLeft');input.beginFrame();intent=controller.update(input.state,1/120);
+  assert.equal(intent.grabModifier,false);assert.equal(intent.grabDY,0);assert.equal(intent.flickReady,true);
+  input.consume();
+  key('keydown', 'ShiftRight'); key('keyup', 'ShiftLeft'); input.beginFrame(); assert.ok(input.state.trickModifier);
+  assert.equal(input.state.flickReady,false,'a second Shift key must not trigger another trick');
   key('keyup', 'ShiftRight'); input.beginFrame(); intent = controller.update(input.state, 1 / 120);
-  assert.equal(intent.grabModifier, false); assert.equal(intent.grabDY, 0); assert.equal(intent.flickReady, false);
+  assert.equal(intent.grabModifier, true); assert.equal(intent.grabDY, -1); assert.equal(intent.flickReady, false);
   key('keyup', 'ArrowUp'); key('keydown', 'ArrowLeft'); input.beginFrame();
-  assert.equal(input.state.flickReady, true);
+  assert.equal(input.state.flickReady, false);
   key('keydown', 'ShiftLeft'); events.dispatchEvent(new Event('blur'));
-  assert.equal(input.state.grabModifier, false); assert.equal(input.state.grabDX, 0);
+  assert.equal(input.state.trickModifier, false); assert.equal(input.state.grabDX, 0);
   input.dispose(); delete (globalThis as Record<string, unknown>).window;
 });
 
@@ -143,7 +147,7 @@ test('a quick arrow re-press survives input frame consumption without leaking a 
   const events=new EventTarget();Object.assign(globalThis,{window:events});
   const input=createInput(),controller=createController();
   const key=(type:string,code:string,repeat=false)=>events.dispatchEvent(Object.assign(new Event(type),{code,repeat}));
-  key('keydown','ShiftLeft');key('keydown','ArrowLeft');input.beginFrame();
+  key('keydown','ArrowLeft');input.beginFrame();
   const first=controller.update(input.state,1/120);assert.ok(first.grabPress!>0);
   input.consume();input.beginFrame();assert.equal(input.state.grabPress,first.grabPress);
   key('keydown','ArrowLeft',true);assert.equal(input.state.grabPress,first.grabPress);
@@ -151,6 +155,26 @@ test('a quick arrow re-press survives input frame consumption without leaking a 
   const second=controller.update(input.state,1/120);
   assert.equal(second.grabDX,-1);assert.ok(second.grabPress!>first.grabPress!);assert.equal(second.flickReady,false);
   input.dispose();delete (globalThis as Record<string,unknown>).window;
+});
+
+test('Shift arrow tricks preserve quick taps, diagonals and one-shot consumption without grabbing',()=>{
+  const events=new EventTarget();Object.assign(globalThis,{window:events});
+  const input=createInput(),controller=createController(),tricks=createTrickSystem();
+  const key=(type:string,code:string,repeat=false)=>events.dispatchEvent(Object.assign(new Event(type),{code,repeat}));
+  try {
+    key('keydown','ShiftLeft');key('keydown','ArrowUp');key('keydown','ArrowLeft');
+    key('keyup','ShiftLeft');key('keyup','ArrowUp');key('keyup','ArrowLeft');
+    input.beginFrame();input.beginFrame();
+    const intent=controller.update(input.state,1/120,true);
+    assert.equal(intent.flickReady,true);assert.equal(intent.flickDX,-80);assert.equal(intent.flickDY,-80);
+    assert.equal(intent.grabModifier,false);
+    tricks.setGrab(intent.grabDX,intent.grabDY,intent.grabModifier,true);
+    tricks.tryFlick(intent.flickDX,intent.flickDY,true);
+    assert.equal(tricks.state.grab,null);assert.equal(tricks.state.active?.id,'varial');
+    input.consume();input.beginFrame();assert.equal(controller.update(input.state,1/120,true).flickReady,false);
+    key('keydown','ShiftRight');key('keydown','ArrowLeft');input.beginFrame();input.consume();
+    key('keydown','ArrowLeft',true);input.beginFrame();assert.equal(input.state.flickReady,false);
+  } finally {input.dispose();delete (globalThis as Record<string,unknown>).window;}
 });
 
 test('backward grab folds knees below the hips and retains the chest in the crash rig',()=>{

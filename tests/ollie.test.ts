@@ -48,7 +48,7 @@ test('Space charges and pops across a small wheel gap, including uphill, without
       assert.equal(f.player.canOllie,true);
       assert.equal(f.player.ollieCount,0);
       const controller=createController();
-      const input:InputState={grabModifier:false,grabDX:0,grabDY:0,grabPress:0,push:false,brake:false,
+      const input:InputState={trickModifier:false,grabDX:0,grabDY:0,grabPress:0,push:false,brake:false,
         left:false,right:false,crouch:true,crouchPressed:true,crouchReleased:false,reset:false,
         flickDX:0,flickDY:0,flickReady:false};
       const press=controller.update(input,dt,!f.player.grounded,f.player.canOllie);
@@ -100,7 +100,7 @@ test('tolerance cannot provide a second midair ollie or block airborne flip cont
       assert.equal(f.player.ollieCount,1);
     }
     const controller=createController();
-    const input:InputState={grabModifier:false,grabDX:0,grabDY:0,grabPress:0,push:false,brake:false,
+    const input:InputState={trickModifier:false,grabDX:0,grabDY:0,grabPress:0,push:false,brake:false,
       left:false,right:false,crouch:true,crouchPressed:true,crouchReleased:false,reset:false,
       flickDX:0,flickDY:0,flickReady:false};
     const intent=controller.update(input,dt,!f.player.grounded,f.player.canOllie);
@@ -120,7 +120,7 @@ test('Space charges and releases an ollie from either manual, including uphill, 
       assert.equal(f.player.pump.active,false,'both feet must stay planted during a manual');
       assert.equal(f.player.ollieCount,0);assert.equal(f.player.canOllie,true);
       const controller=createController();
-      const input:InputState={grabModifier:false,grabDX:0,grabDY:0,grabPress:0,arrowDY:direction,push:false,brake:false,
+      const input:InputState={trickModifier:false,grabDX:0,grabDY:0,grabPress:0,arrowDY:direction,push:false,brake:false,
         left:false,right:false,crouch:true,crouchPressed:true,crouchReleased:false,reset:false,
         flickDX:0,flickDY:0,flickReady:false};
       for(let i=0;i<30;i++) {

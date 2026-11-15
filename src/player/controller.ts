@@ -55,12 +55,12 @@ export function createController() {
     const push = (input.push ? 1 : 0) - (input.brake ? 1 : 0);
 
     const intent: PlayerIntent = {
-      grabModifier: input.grabModifier,
+      grabModifier: !input.trickModifier && !input.flickReady,
       grabDX: input.grabDX,
       grabDY: input.grabDY,
       grabPress: input.grabPress,
-      groundDX: input.grabModifier ? 0 : input.arrowDX ?? 0,
-      groundDY: input.grabModifier ? 0 : input.arrowDY ?? 0,
+      groundDX: input.trickModifier ? 0 : input.arrowDX ?? 0,
+      groundDY: input.trickModifier ? 0 : input.arrowDY ?? 0,
       toggleAirFlip,
       push,
       steer,
@@ -71,7 +71,7 @@ export function createController() {
       reset: input.reset,
       flickDX: input.flickDX,
       flickDY: input.flickDY,
-      flickReady: input.flickReady && !input.grabModifier,
+      flickReady: input.flickReady,
     };
 
     // consume one-shot reset

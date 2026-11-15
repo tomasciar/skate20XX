@@ -57,7 +57,7 @@ test('input edges survive render-only frames and are consumed once', () => {
   const input = createInput(); const controller = createController();
   const key = (type: string, code: string) => events.dispatchEvent(Object.assign(new Event(type), { code, repeat: false }));
   key('keydown', 'Space'); input.beginFrame(); controller.update(input.state, 1 / 60); input.consume();
-  key('keyup', 'Space'); key('keydown', 'ArrowLeft'); input.beginFrame(); input.beginFrame();
+  key('keyup', 'Space'); key('keydown', 'ShiftLeft'); key('keydown', 'ArrowLeft'); input.beginFrame(); input.beginFrame();
   const intent = controller.update(input.state, 1 / 60);
   assert.ok(intent.wantOllie); assert.ok(intent.flickReady);
   input.consume(); assert.equal(controller.update(input.state, 1 / 60).wantOllie, false);
