@@ -6,6 +6,7 @@ import { createSkaterVisual } from '../src/player/skaterVisual.ts';
 import { createRagdoll } from '../src/player/ragdoll.ts';
 import { createBoardPlayer } from '../src/player/board.ts';
 import { createRamp } from '../src/world/ramp.ts';
+import { GRABS } from '../src/player/grabs.ts';
 import { createTrickSystem } from '../src/player/tricks.ts';
 
 const context = new Proxy({}, { get: () => () => {} });
@@ -34,6 +35,7 @@ test('ragdoll uses the rider model, retains momentum, stays joined, and cleans u
   const visual = createSkaterVisual(); visual.root.position.set(0,0.15,0); scene.add(visual.root);
   for (let i=0;i<120;i++) visual.setPose(pose);
   const rag = createRagdoll(scene,world);
+  const originalCcdSubsteps = world.maxCcdSubsteps;
   for (const speed of [0,20,89]) {
     rag.start(visual.captureRagdoll(),new THREE.Vector3(0,0,-speed),new THREE.Vector3(0,1,0));
     assert.equal(rag.bodyCount,15); assert.equal(world.impulseJoints.len(),14);
@@ -51,6 +53,11 @@ test('ragdoll uses the rider model, retains momentum, stays joined, and cleans u
     rag.clear(); assert.equal(world.bodies.len(),1); assert.equal(world.colliders.len(),1); assert.equal(world.impulseJoints.len(),0);
     assert.equal(rag.active,false); assert.equal(scene.getObjectByName('crash-ragdoll'),undefined);
   }
+  // A tucked grab must transfer into physics without snapping joints apart.
+  for (let i=0;i<240;i++) visual.setPose({...pose,airborne:true,grab:GRABS.indy});
+  rag.start(visual.captureRagdoll(),new THREE.Vector3(0,0,-30),new THREE.Vector3(0,1,0));
+  for (let i=0;i<120;i++) { rag.beginStep();world.step();rag.sync();checkAnchors(world); }
+  rag.clear(); assert.equal(world.maxCcdSubsteps,originalCcdSubsteps);
   world.free();
 });
 
@@ -84,5 +91,19 @@ test('obstacle crashes release rider and board, ignore controls, and allow manua
   for (let i=0;i<400 && player.crashed;i++) { player.update(dt,idle,tricks.state);world.step();player.sync(); }
   assert.equal(player.crashed,false); assert.equal(player.resetCount,resetCount+1);
   assert.equal(world.bodies.len(),bodies); assert.equal(world.colliders.len(),colliders); assert.equal(world.impulseJoints.len(),0);
+  // Ordinary small bumps stay rideable, while a genuinely hard drop ragdolls.
+  player.reset(ramp.spawn); tricks.reset();
+  for (let i=0;i<90;i++) { player.update(dt,idle,tricks.state); world.step();player.sync(); }
+  const bump = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
+  bump.setTranslation(player.position.clone().addScaledVector(ramp.forward,0.45),true); bump.setRotation(q,true);
+  world.createCollider(RAPIER.ColliderDesc.cuboid(1,0.5,0.1),bump);
+  player.body.setLinvel(ramp.forward.clone().multiplyScalar(2),true);
+  player.update(dt,idle,tricks.state); world.step();player.sync();
+  assert.equal(player.crashed,false,'small bump incorrectly triggered a ragdoll');
+  world.removeRigidBody(bump);
+  player.reset(ramp.spawn.clone().addScaledVector(ramp.surfaceNormal,18));
+  for (let i=0;i<300 && !player.crashed;i++) { player.update(dt,idle,tricks.state);world.step();player.sync(); }
+  assert.ok(player.crashed,'hard landing did not trigger a ragdoll');
+  player.reset(ramp.spawn); assert.equal(world.impulseJoints.len(),0);
   world.free();
 });
