@@ -5,6 +5,7 @@ import {populateGrove} from './grove.ts';
 import {populateRidge} from './ridge.ts';
 import {populateFarm} from './farm.ts';
 import {populateMill} from './mill.ts';
+import {populateCity} from './city.ts';
 
 /** Every registered environment uses the same seasonal appearance and physical-world pipeline. */
 export const ENVIRONMENT_LAYOUTS:Record<District,(context:LayoutContext)=>void> = {
@@ -13,4 +14,5 @@ export const ENVIRONMENT_LAYOUTS:Record<District,(context:LayoutContext)=>void> 
   ridge:populateRidge,
   farm:populateFarm,
   mill:populateMill,
+  city:populateCity,
 };

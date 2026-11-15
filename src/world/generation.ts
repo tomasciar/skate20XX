@@ -23,23 +23,34 @@ export function seededRandom(seed: number) {
 const BLOCK = 13;
 type Block = { districts: District[]; starts: number[] };
 const blocks = new Map<number, Block>();
-function shuffled(block: number) {
-  const rng = seededRandom(Math.imul(block, 0x85ebca6b) ^ 0x51ed27f3), order = [...DISTRICTS];
+function environmentBag(cycle:number) {
+  const rng=seededRandom(Math.imul(cycle,0x85ebca6b)^0x51ed27f3),order=[...DISTRICTS];
   for (let i = order.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1)); [order[i], order[j]] = [order[j]!, order[i]!];
   }
   // The run always opens in the grove.
-  if (block === 0) { const at = order.indexOf('grove'); [order[0], order[at]] = [order[at]!, order[0]!]; }
+  if (cycle === 0) { const at = order.indexOf('grove'); [order[0], order[at]] = [order[at]!, order[0]!]; }
+  // The first city starts at 210 m, close enough to try immediately after the opening ramps.
+  if (cycle === 0) { const at = order.indexOf('city'); [order[1], order[at]] = [order[at]!, order[1]!]; }
+  return order;
+}
+function environmentForRun(run:number):District {
+  const cycle=Math.floor(run/DISTRICTS.length),local=run-cycle*DISTRICTS.length,order=environmentBag(cycle);
+  // Each bag visits the whole catalog once; a boundary swap prevents adjacent repeats.
+  if(cycle!==0 && order[0]===environmentBag(cycle-1).at(-1)) [order[0],order[1]]=[order[1]!,order[0]!];
+  return order[local]!;
+}
+function shuffled(block: number) {
+  const rng=seededRandom(Math.imul(block,0x85ebca6b)^0x51ed27f3);
+  const order=Array.from({length:3},(_,run)=>environmentForRun(block*3+run));
   // Run lengths of 3 to 7 chunks (210 to 490 m).
   const first = 3 + Math.floor(rng() * 4), second = 3 + Math.floor(rng() * Math.min(4, BLOCK - first - 5));
-  return { order, starts: [0, first, first + second] };
+  return { order, starts: block===0 ? [0,3,7] : [0, first, first + second] };
 }
 function blockAt(block: number): Block {
   let cached = blocks.get(block);
   if (!cached) {
     const { order, starts } = shuffled(block), districts = order.slice(0, 3);
-    // Never repeat a district across a block boundary.
-    if (block !== 0 && districts[0] === shuffled(block - 1).order[2]) districts[0] = order[3]!;
     cached = { districts, starts };
     blocks.set(block, cached);
     if (blocks.size > 64) blocks.delete(blocks.keys().next().value!);

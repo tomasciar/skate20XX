@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { courseHeight, courseX, courseCurveSlope, COURSE_STEP } from './course.ts';
 import { CHUNK_LENGTH, districtAt } from './generation.ts';
-import type { District } from './generation.ts';
+import {ENVIRONMENTS} from './environments/catalog.ts';
 export const LANDSCAPE_HALF_WIDTH = 260;
 export const LANDSCAPE_X = [-260,-220,-180,-145,-115,-90,-70,-52,-38,-26,-18,-12,-8.3,0,8.3,12,18,26,38,52,70,90,115,145,180,220,260];
 const STEP = COURSE_STEP;
@@ -28,10 +28,7 @@ function heightRow(along: number) {
 }
 const ground = (left: number, right: number, rock = 0) => ({ left: new THREE.Color(left), right: new THREE.Color(right), rock });
 /** Ground cover per district: uphill flank, downhill flank, and how readily bare rock shows through. */
-const GROUND: Record<District, ReturnType<typeof ground>> = {
-  grove: ground(0x3e6c49, 0x55804c), village: ground(0x5f8a50, 0x76985a), ridge: ground(0x7f8568, 0x8e9072, 0.7),
-  farm: ground(0xb0a658, 0x86a04e), mill: ground(0x6c764a, 0x82724f, 0.15),
-};
+const GROUND = new Map(ENVIRONMENTS.map(({id,ground:palette})=>[id,ground(palette[0],palette[1],palette[2])]));
 const VERGE = new THREE.Color(0x7d7f58);
 /** Uses the same triangles as the mesh, so scenery sits exactly on its supporting ground. */
 export function landscapeHeight(x: number, along: number) {
@@ -52,7 +49,7 @@ export function makeLandscape(index: number, material: THREE.Material, originHei
   const columns = LANDSCAPE_X.length, rows = 15;
   const positions = new Float32Array(columns * rows * 3), normals = positions.slice(), colors = positions.slice(), uv = new Float32Array(columns * rows * 2);
   const indices: number[] = [], normal = new THREE.Vector3(), color = new THREE.Color(), rock = new THREE.Color(0x929585);
-  const here = GROUND[districtAt(index).district], before = GROUND[districtAt(index-1).district], left = new THREE.Color(), right = new THREE.Color();
+  const here = GROUND.get(districtAt(index).district)!, before = GROUND.get(districtAt(index-1).district)!, left = new THREE.Color(), right = new THREE.Color();
   for (let row = 0; row < rows; row++) for (let col = 0; col < columns; col++) {
     const x = LANDSCAPE_X[col]!, along = index * CHUNK_LENGTH + row * STEP, y = landscapeHeight(x,along), i = row*columns+col;
     positions.set([x+courseX(along)-originX,y-originHeight,-row*STEP],i*3); uv.set([x/20,along/20],i*2);
