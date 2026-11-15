@@ -11,6 +11,7 @@ import type { District } from './generation.ts';
 const material = (color: number, metalness = 0, roughness = 0.8) => new THREE.MeshStandardMaterial({ color, roughness, metalness });
 const wood = material(0x886044), stone = material(0x879295), white = material(0xf1ead8);
 const dark = material(0x263b43), glass = material(0x6f9aa8, 0.35, 0.25), orange = material(0xf27635);
+const coneOrange = material(0xff651a, 0, 0.65);
 const leaf = material(0x668c55), metal = material(0x53646b, 0.5, 0.5);
 const paints = [0xdab786, 0x88a6a0, 0xc99578, 0xa9bfd0, 0xe8d28c, 0xece6d8, 0xa9604a].map(c => material(c, 0, 0.85));
 const roofs = [0x874c3f, 0x4d5a63, 0x6b4636].map(c => material(c, 0, 0.75));
@@ -101,9 +102,9 @@ function doorOn(g: THREE.Object3D, facing: number, offset: number, y: number, ou
 }
 
 export function makeCone() {
-  const g = group();
+  const g = group(); g.userData.shadow = 'none';
   box(g, [0.5, 0.06, 0.5], [0, 0.03, 0], dark);
-  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.65, 10), orange);
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.65, 10), coneOrange);
   cone.position.y = 0.38; g.add(cone);
   const band = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.13, 0.12, 10), white);
   band.position.y = 0.38; g.add(band); return g;

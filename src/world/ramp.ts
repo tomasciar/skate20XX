@@ -188,12 +188,6 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
     const shadows = createShadowBuilder(sunOnHill), bounds = new THREE.Box3();
     const centerAt = (z: number) => courseX(index*RAMP.chunkLength-z)-baseX;
     const groundAt = (x: number, z: number) => landscapeWorldHeight(x+baseX,index*RAMP.chunkLength-z)-baseHeight+0.1;
-    const roadAt = (_x: number, z: number) => RAMP.thickness/2+courseHeight(index*RAMP.chunkLength-z)-baseHeight+0.025;
-    /** Shadow of something standing on the road; it stays on the asphalt. */
-    function shadeOnRoad(caster: THREE.Object3D, round = false) {
-      caster.updateMatrixWorld(true);
-      shadows.add(bounds.setFromObject(caster), round ? 'round' : 'box', roadAt, -RAMP.width/2+0.1, RAMP.width/2-0.1,centerAt);
-    }
     function plant(object: THREE.Object3D, x: number, along: number, yaw = 0) {
       const placed = placeScenery(object,x,along,index*RAMP.chunkLength,baseHeight,angle,yaw,baseX);
       // Roadside shadows are draped on the terrain, which runs underneath the raised road and footpath,
@@ -226,7 +220,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
         if(kind==='ledge') {
           const depth=height+0.5;
           const block=new THREE.Mesh(new THREE.BoxGeometry(width,depth,physicalLength),mats.ledge);
-          block.position.copy(center).addScaledVector(normal,0.07-depth/2);block.quaternion.copy(rotation);shadeOnRoad(block);root.add(block);
+          block.position.copy(center).addScaledVector(normal,0.07-depth/2);block.quaternion.copy(rotation);root.add(block);
           for(const side of [-1,1]) {
             const coping=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.06,physicalLength),mats.rail);
             coping.position.copy(center).addScaledVector(normal,0.045).addScaledVector(right,side*(width/2-0.02));
@@ -234,7 +228,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
           }
         } else {
           const top=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.14,physicalLength),mats.rail);
-          top.position.copy(center);top.quaternion.copy(rotation);shadeOnRoad(top);root.add(top);
+          top.position.copy(center);top.quaternion.copy(rotation);root.add(top);
           for(const z of [-length/2+0.6,0,length/2-0.6]) {
             const point=start.clone().lerp(end,(length/2-z)/length),ground=y+courseHeight(s-z)-baseHeight;
             const support=new THREE.Mesh(new THREE.BoxGeometry(0.12,Math.max(0.05,point.y-ground),0.12),mats.rail);
@@ -252,28 +246,22 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
           const cone = makeCone();
           const s=index*RAMP.chunkLength+along-(i-1)*1.5;
           cone.position.set(x+courseX(s)-baseX,y+courseHeight(s)-baseHeight,-along+(i-1)*1.5); cone.rotation.x=Math.atan(courseSlope(s));
-          shadeOnRoad(cone, true); root.add(cone);
+          root.add(cone);
         }
         continue;
       }
-      let geometry: THREE.BufferGeometry;
-      if (kind === 'kicker') {
-        // A solid wedge begins flush with the asphalt; physics and render share vertices.
-        const w = width / 2, l = length / 2;
-        const vertices = new Float32Array([-w, 0, l, w, 0, l, -w, 0, -l, w, 0, -l, -w, height, -l, w, height, -l]);
-        geometry = new THREE.BufferGeometry();
-        geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-        geometry.setIndex([0,1,5, 0,5,4, 2,4,5, 2,5,3, 0,4,2, 1,3,5, 0,2,3, 0,3,1]);
-        geometry.computeVertexNormals();
-      } else {
-        geometry = new THREE.BoxGeometry(width, height, length);
-        geometry.translate(0, height / 2, 0);
-      }
+      // A solid kicker wedge begins flush with the asphalt; physics and render share vertices.
+      const w = width / 2, l = length / 2;
+      const vertices = new Float32Array([-w, 0, l, w, 0, l, -w, 0, -l, w, 0, -l, -w, height, -l, w, height, -l]);
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+      geometry.setIndex([0,1,5, 0,5,4, 2,4,5, 2,5,3, 0,4,2, 1,3,5, 0,2,3, 0,3,1]);
+      geometry.computeVertexNormals();
       const mesh = new THREE.Mesh(geometry, mats.kicker);
-      mesh.position.set(x,y,-along); shadeOnRoad(warpCourse(mesh)); root.add(mesh);
+      mesh.position.set(x,y,-along); root.add(warpCourse(mesh));
       // Colored lip announces the optional jump without forming a raised collision seam.
       const lip = new THREE.Mesh(new THREE.BoxGeometry(width, 0.004, 0.25), mats.lip);
-      lip.position.set(x, y + height - (kind === "kicker" ? height*0.13/length : 0) + 0.003, -along - length / 2 + 0.13); lip.userData.collision = false; root.add(warpCourse(lip));
+      lip.position.set(x, y + height - height*0.13/length + 0.003, -along - length / 2 + 0.13); lip.userData.collision = false; root.add(warpCourse(lip));
     }
 
     yield;
@@ -465,14 +453,15 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World): RampWorld {
 
 function makeSharedMaterials() {
   return {
-    rail: new THREE.MeshStandardMaterial({ color: 0xc9d2d8, roughness: 0.32, metalness: 0.85 }),
+    // Saturated paint keeps obstacles readable without ground shadows; a little fill lifts shaded faces.
+    rail: new THREE.MeshStandardMaterial({ color: 0xffc43d, roughness: 0.45, metalness: 0.25, emissive: 0xffc43d, emissiveIntensity: 0.04 }),
     path: new THREE.MeshStandardMaterial({ color: 0xaaa58d, roughness: 1 }),
     terrain: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, map: makeGroundTexture() }),
     edge: new THREE.MeshBasicMaterial({ color: 0xffc857 }),
     dash: new THREE.MeshBasicMaterial({ color: 0xf2f5f8 }),
-    kicker: new THREE.MeshStandardMaterial({ color: 0xd5dde4, roughness: 0.55, metalness: 0.15 }),
-    lip: new THREE.MeshStandardMaterial({ color: 0xff4d2e, roughness: 0.45 }),
-    ledge: new THREE.MeshStandardMaterial({ color: 0xb9b6ab, roughness: 0.9 }),
+    kicker: new THREE.MeshStandardMaterial({ color: 0x1db5d0, roughness: 0.65, emissive: 0x1db5d0, emissiveIntensity: 0.06 }),
+    lip: new THREE.MeshStandardMaterial({ color: 0xffedb0, roughness: 0.6 }),
+    ledge: new THREE.MeshStandardMaterial({ color: 0xf46b3f, roughness: 0.8, emissive: 0xf46b3f, emissiveIntensity: 0.04 }),
     barrier: new THREE.MeshStandardMaterial({ color: 0xc9c8c0, roughness: 0.85 }),
   };
 }

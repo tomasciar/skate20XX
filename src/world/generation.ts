@@ -5,7 +5,7 @@ export type District = (typeof DISTRICTS)[number];
 export const DISTRICT_NAMES: Record<District, string> = {
   grove: 'CEDAR GROVE', village: 'OLD TOWN', ridge: 'SUMMIT RIDGE', farm: 'GOLDEN ACRES', mill: 'TIMBER MILL',
 };
-export const ENCOUNTER_KINDS = ['kicker', 'pad', 'cones', 'rail', 'ledge'] as const;
+export const ENCOUNTER_KINDS = ['kicker', 'cones', 'rail', 'ledge'] as const;
 export type Encounter = { kind: (typeof ENCOUNTER_KINDS)[number]; x: number; along: number; width: number; length: number; height: number };
 export function seededRandom(seed: number) {
   let a = seed >>> 0;
@@ -61,7 +61,7 @@ export function planChunk(index: number, seed = 0x9e3779b9) {
       const grindable = kind === 'rail' || kind === 'ledge';
       encounters.push({ kind, x: (rng() < 0.5 ? -1 : 1) * 4.9,
         along: along + (rng() - 0.5) * 2, width: grindable ? 0.7 : 3 + rng() * 0.8,
-        length: kind === 'kicker' ? 8 + rng() * 2 : kind === 'pad' ? 6 : kind === 'rail' ? 16 : kind === 'ledge' ? 12 : 4,
+        length: kind === 'kicker' ? 8 + rng() * 2 : kind === 'rail' ? 16 : kind === 'ledge' ? 12 : 4,
         height: kind === 'kicker' ? 1.2 + rng() * 0.5 : kind === 'rail' ? 0.75 : kind === 'ledge' ? 0.45 : 0.32 });
     }
   }

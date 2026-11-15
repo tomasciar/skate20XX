@@ -25,7 +25,7 @@ export function createShadowBuilder(sun: THREE.Vector3) {
   /**
    * Adds the shadow of whatever fills `bounds`. Crowns, bushes and boulders use a soft ellipse; built
    * shapes use a rectangle with a feathered edge. `minX`/`maxX` confine the patch to the surface it is draped on:
-   * the road for obstacles, one verge for roadside scenery.
+   * one verge for roadside scenery.
    */
   function add(bounds: THREE.Box3, kind: ShadowKind, ground: GroundHeight, minX = -Infinity, maxX = Infinity, centerAt?: (z: number)=>number) {
     const cx = (bounds.min.x + bounds.max.x) / 2, cz = (bounds.min.z + bounds.max.z) / 2;
