@@ -24,13 +24,13 @@ export function createController() {
   let ollieArmed = false;
   let airSpaceHeld = false;
 
-  function update(input: InputState, dt: number, airborne = false): PlayerIntent {
-    const toggleAirFlip=airborne && input.crouchPressed;
-    if(airborne) {
+  function update(input: InputState, dt: number, airborne = false, canOllie = !airborne): PlayerIntent {
+    const toggleAirFlip=airborne && !canOllie && input.crouchPressed;
+    if(airborne && !canOllie) {
       airSpaceHeld ||= input.crouch || input.crouchPressed;
       crouchHold=0;ollieArmed=false;
     }
-    const allowOllie=!airborne && !airSpaceHeld;
+    const allowOllie=canOllie && !airSpaceHeld;
     if (allowOllie && (input.crouch || input.crouchPressed)) {
       crouchHold = Math.min(1, crouchHold + dt * 3.2);
       ollieArmed = true;

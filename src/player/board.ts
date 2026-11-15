@@ -24,6 +24,10 @@ const WHEEL_R = BOARD.wheelRadius;
 const RAY_LEN = REST + TRAVEL + WHEEL_R;
 const STIFF = 28000;
 const DAMP = 2400;
+// Jump forgiveness is separate from contact: tiny gaps must not fake landings or wheel grip.
+const OLLIE_GAP = 0.05;
+const OLLIE_GRACE = 0.1;
+const OLLIE_BUFFER = 0.1;
 
 /** Local mounts: x right, y up, z toward tail. Nose is -Z. */
 const MOUNTS = [
@@ -37,6 +41,7 @@ export type BoardPlayer = {
   mesh: THREE.Group;
   body: RAPIER.RigidBody;
   grounded: boolean;
+  readonly canOllie: boolean;
   readonly crashed: boolean;
   readonly resetCount: number;
   readonly ollieCount: number;
@@ -116,6 +121,12 @@ export function createBoardPlayer(
   let wheelRoll = 0;
   let ollieCooldown = 0;
   let leaveGround = 0;
+  let ollieGrace = 0;
+  let pendingOllie = 0;
+  let pendingOlliePower = 0;
+  let nearGround = false;
+  const ollieNormal = ramp.surfaceNormal.clone();
+  const nearbyNormal = new THREE.Vector3();
   let crashElapsed = 0;
   const impactVelocity = new THREE.Vector3();
   const loosePrevious = new THREE.Vector3();
@@ -254,6 +265,9 @@ export function createBoardPlayer(
     crashElapsed = 0;
     ollieCooldown = 0;
     leaveGround = 0;
+    ollieGrace = pendingOllie = pendingOlliePower = 0;
+    nearGround = false;
+    ollieNormal.copy(ramp.surfaceNormal);
     wasOnKicker = false;
     followSurface = false;
     lean = 0;
@@ -308,6 +322,7 @@ export function createBoardPlayer(
     ragdoll.start(rig, momentum, ramp.surfaceNormal); visual.setRagdoll(true);
     visual.board.position.set(0,0,0); visual.board.rotation.set(0,0,0);
     pump.reset(); grind.reset(); crashElapsed = 0; grounded = false; followSurface = false;
+    ollieGrace = pendingOllie = 0; nearGround = false;
     air.reset();airOffset.set(0,0,0);previousAirOffset.set(0,0,0);
     tricks.active = null; tricks.grab = null; tricks.grabTime = 0;
     tricks.boardSpin = {x:0,y:0,z:0}; tricks.bail = true; tricks.message = "Bail!"; tricks.messageAge = 0;
@@ -355,6 +370,11 @@ export function createBoardPlayer(
     return false;
   }
 
+  function canOllie() {
+    return !ragdoll.active && !grind.state.active && !air.state.engaged && ollieCooldown <= 0 &&
+      (grounded || nearGround || ollieGrace > 0);
+  }
+
   function update(dt: number, intent: PlayerIntent, tricks: TrickState) {
     if (intent.reset) {
       reset(ramp.spawn);
@@ -383,6 +403,12 @@ export function createBoardPlayer(
     pump.update(dt, intent.push > 0, speed, grounded && !grind.state.active && !intent.crouch && !intent.wantOllie && !tricks.bail);
     ollieCooldown = Math.max(0, ollieCooldown - dt);
     leaveGround = Math.max(0, leaveGround - dt);
+    ollieGrace = Math.max(0, ollieGrace - dt);
+    pendingOllie = Math.max(0, pendingOllie - dt);
+    if (intent.wantOllie) {
+      pendingOllie = OLLIE_BUFFER;
+      pendingOlliePower = intent.olliePower;
+    }
     const steering=air.state.active ? 0 : intent.steer;
     lean = THREE.MathUtils.damp(lean, steering, grounded ? CARVE.response : 8, dt);
 
@@ -399,6 +425,7 @@ export function createBoardPlayer(
       yaw = Math.atan2(-tmp.x,tmp.dot(ramp.forward));
       body.setTranslation(position, true); body.setLinvel(velocity, true);
       grounded = false; followSurface = grind.state.active; wasOnKicker = false;
+      ollieGrace = pendingOllie = 0; nearGround = false;
       surfaceUp.copy(grind.normal);
       if (!grind.state.active) leaveGround = 0.25;
       holdDeck(grind.normal);
@@ -411,6 +438,8 @@ export function createBoardPlayer(
     // --- suspension rays ---
     rayDir.copy(boardUp).multiplyScalar(-1);
     wheelsDown = 0;
+    let nearbyWheels = 0;
+    nearbyNormal.set(0,0,0);
     let contactN = new THREE.Vector3();
     for (const m of MOUNTS) {
       mount.set(m.x, m.y, m.z).applyQuaternion(quat).add(position);
@@ -421,13 +450,17 @@ export function createBoardPlayer(
       const hit = world.castRayAndGetNormal(ray, RAY_LEN, true, undefined, undefined, undefined, body);
       if (!hit) continue;
       const compressed = REST - (hit.timeOfImpact - WHEEL_R);
-      if (compressed <= 0) continue;
       let nx = hit.normal.x;
       let ny = hit.normal.y;
       let nz = hit.normal.z;
       const upDot =
         nx * ramp.surfaceNormal.x + ny * ramp.surfaceNormal.y + nz * ramp.surfaceNormal.z;
       if (upDot < 0.4) continue;
+      if (compressed >= -OLLIE_GAP) {
+        nearbyWheels++;
+        nearbyNormal.x += nx; nearbyNormal.y += ny; nearbyNormal.z += nz;
+      }
+      if (compressed <= 0) continue;
       wheelsDown++;
       contactN.add(new THREE.Vector3(nx, ny, nz));
 
@@ -463,8 +496,15 @@ export function createBoardPlayer(
       startCrash(tricks, velocity); return;
     }
     grounded = leaveGround <= 0 && wheelsDown >= 2;
+    nearbyNormal.normalize();
+    nearGround = leaveGround <= 0 && nearbyWheels >= 2 && boardUp.dot(nearbyNormal) > 0.8 &&
+      Math.abs(velocity.dot(nearbyNormal)) < 2.5;
+    if (grounded) {
+      ollieGrace = OLLIE_GRACE;
+      ollieNormal.copy(contactN);
+    } else if (nearGround) ollieNormal.copy(nearbyNormal);
 
-    // Push, steer, ollie — only while the wheels are planted
+    // Wheel grip and pushing still require real suspension contact.
     if (grounded) {
       if(air.state.engaged) {
         const courseRight=new THREE.Vector3().crossVectors(ramp.forward,ramp.surfaceNormal);
@@ -526,23 +566,9 @@ export function createBoardPlayer(
         body.setLinvel({ x: vel.x, y: vel.y, z: vel.z }, true);
         velocity.copy(vel);
 
-        if (intent.wantOllie && ollieCooldown <= 0) {
-          ollieCount++;
-          const hop = 4.4 + intent.olliePower * 2.2 + Math.min(speed, 40) * 0.13;
-          const lin = vel.clone();
-          lin.addScaledVector(n, hop);
-          body.setLinvel({ x: lin.x, y: lin.y, z: lin.z }, true);
-          velocity.copy(lin);
-          leaveGround = 0.28 + Math.min(speed, 40) * 0.006;
-          ollieCooldown = 0.3;
-          grounded = false;
-          followSurface = false;
-          holdDeck();
-        } else {
-          followSurface = true;
-          surfaceUp.copy(n);
-          holdDeck(n);
-        }
+        followSurface = true;
+        surfaceUp.copy(n);
+        holdDeck(n);
       }
     } else {
       if (wasOnKicker) {
@@ -556,6 +582,19 @@ export function createBoardPlayer(
         velocity.multiplyScalar(dragSpeed(airSpeed,dt,aeroTuck)/airSpeed);
         body.setLinvel(velocity,true);
       }
+      holdDeck();
+    }
+
+    if (pendingOllie > 0 && canOllie()) {
+      ollieCount++;
+      const hop = 4.4 + pendingOlliePower * 2.2 + Math.min(speed, 40) * 0.13;
+      const lin = body.linvel();
+      velocity.set(lin.x,lin.y,lin.z).addScaledVector(ollieNormal,hop);
+      body.setLinvel(velocity,true);
+      leaveGround = 0.28 + Math.min(speed, 40) * 0.006;
+      ollieCooldown = 0.3;
+      ollieGrace = pendingOllie = 0;
+      nearGround = grounded = followSurface = false;
       holdDeck();
     }
 
@@ -640,6 +679,7 @@ export function createBoardPlayer(
     get crashed() { return ragdoll.active; },
     get resetCount() { return resetCount; },
     get ollieCount() { return ollieCount; },
+    get canOllie() { return canOllie(); },
     pump: pump.state,
     aerial: air.state,
     grind: grind.state,

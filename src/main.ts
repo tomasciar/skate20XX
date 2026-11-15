@@ -208,7 +208,8 @@ async function main() {
 
     acc += raw;
     while (acc >= fixedDt) {
-      const intent = controller.update(input.state, fixedDt, !player.grounded && !player.grind.active && !player.crashed);
+      const intent = controller.update(input.state, fixedDt, !player.grounded && !player.grind.active && !player.crashed,
+        player.canOllie || player.grind.active);
       lastPush = player.aerial.active ? 0 : intent.push; lastSteer = player.aerial.active ? 0 : intent.steer;
 
       tricks.setGrab(intent.grabDX, intent.grabDY, intent.grabModifier, !player.grounded && !player.grind.active && !player.crashed,
