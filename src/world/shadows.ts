@@ -27,7 +27,7 @@ export function createShadowBuilder(sun: THREE.Vector3) {
    * shapes use a rectangle with a feathered edge. `minX`/`maxX` confine the patch to the surface it is draped on:
    * the road for obstacles, one verge for roadside scenery.
    */
-  function add(bounds: THREE.Box3, kind: ShadowKind, ground: GroundHeight, minX = -Infinity, maxX = Infinity) {
+  function add(bounds: THREE.Box3, kind: ShadowKind, ground: GroundHeight, minX = -Infinity, maxX = Infinity, centerAt?: (z: number)=>number) {
     const cx = (bounds.min.x + bounds.max.x) / 2, cz = (bounds.min.z + bounds.max.z) / 2;
     const height = bounds.max.y - ground(cx, cz);
     if (!(height > 0.2)) return;
@@ -43,7 +43,8 @@ export function createShadowBuilder(sun: THREE.Vector3) {
     const strength = DARKNESS * Math.min(1, 0.55 + height / 2.5), first = positions.length / 3;
     for (let i = 0; i <= columns; i++) for (let j = 0; j <= rows; j++) {
       const along = start + span * i / columns, across = acrossHalf * (j / rows * 2 - 1);
-      const x = THREE.MathUtils.clamp(cx + ux * along + vx * across, minX, maxX), z = cz + uz * along + vz * across;
+      const z = cz + uz * along + vz * across,center=centerAt?.(z) ?? 0;
+      const x = THREE.MathUtils.clamp(cx + ux * along + vx * across, minX+center, maxX+center);
       positions.push(x, ground(x, z), z);
       const edge = i === 0 || i === columns || j === 0 || j === rows;
       const radius = Math.hypot((i / columns * 2 - 1), (j / rows * 2 - 1));

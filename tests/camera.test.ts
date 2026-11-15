@@ -31,3 +31,22 @@ test('streaming moves the camera with the rider without a camera jump', () => {
   chase.shift(shift); target.add(shift); chase.update(1 / 60, target);
   assert.ok(camera.position.clone().sub(target).distanceTo(offset) < 1e-10);
 });
+
+test('camera eases around road bends and keeps its framing across lateral rebases and resets',()=>{
+  const camera=new THREE.PerspectiveCamera(),straight=new THREE.Vector3(0,0,-1);
+  const chase=createChaseCamera(camera,straight),target=new THREE.Vector3(0,20,0);
+  chase.snap(target);
+  const curve=new THREE.Vector3(0.18,0,-1).normalize();
+  for(let i=0;i<300;i++) {
+    const before=camera.quaternion.clone();chase.update(1/60,target,curve);
+    assert.ok(camera.quaternion.angleTo(before)<0.02,'road heading changed the camera abruptly');
+  }
+  const offset=camera.position.clone().sub(target);
+  assert.ok(offset.clone().setY(0).normalize().dot(curve)<-0.99999);
+  assert.ok(Math.abs(offset.y-5.6)<1e-8);
+  const rebase=new THREE.Vector3(35,15,68);target.add(rebase);chase.shift(rebase);
+  chase.update(1/60,target,curve);
+  assert.ok(camera.position.clone().sub(target).distanceTo(offset)<0.00001);
+  chase.snap(target,straight);
+  assert.ok(Math.abs(camera.position.x-target.x)<1e-8);
+});

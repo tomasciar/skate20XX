@@ -3,6 +3,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { createRamp } from '../src/world/ramp.ts';
 import { createBoardPlayer } from '../src/player/board.ts';
 import { createTrickSystem } from '../src/player/tricks.ts';
+import { steerAlongCourse } from './driveCourse.ts';
 const context = new Proxy({}, { get: () => () => {} });
 Object.assign(globalThis, { document: { createElement: () => ({ width: 0, height: 0, getContext: () => context }) } });
 await RAPIER.init();
@@ -22,6 +23,7 @@ let preparedAt = -1;
 for (let frame = 0; frame < 3600; frame++) {
   const distance = ramp.distance, before = performance.now();
   for (let tick = 0; tick < 2; tick++) {
+    intent.steer=steerAlongCourse(player,ramp);
     player.update(1 / 120, intent, tricks.state); world.step();
     if (split) (player.sync as (paint: boolean) => void)(false); else player.sync();
   }

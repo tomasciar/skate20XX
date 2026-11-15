@@ -67,5 +67,5 @@ export function createGrindSystem() {
     // Even an ollie exit uses this frame's constrained position and exit velocity.
     return true;
   }
-  return { state, normal: railNormal, update, reset };
+  return { state, normal: railNormal, tangent, update, reset };
 }

@@ -25,3 +25,32 @@ export function courseSlope(along: number) {
   const cycle=Math.floor(along/PERIOD), i=Math.floor((along-cycle*PERIOD)/COURSE_STEP);
   return (SAMPLES[i+1]!-SAMPLES[i]!)/COURSE_STEP;
 }
+
+// Broad bends plus a smaller wandering line. The opening stays straight for learning controls.
+const CURVE_START=280, CURVE_EASE=280;
+const curveSamples=new Map<number,number>();
+function curveSample(along: number) {
+  let value=curveSamples.get(along);
+  if(value===undefined) {
+    const distance=Math.max(0,along-CURVE_START),u=Math.min(1,distance/CURVE_EASE);
+    // Integrate a smooth turn-in so both heading and curvature start without a kink.
+    const phase=distance<CURVE_EASE ? CURVE_EASE*(u*u*u-u*u*u*u/2) : distance-CURVE_EASE/2;
+    value=40*Math.sin(phase*Math.PI*2/2200)+5*Math.sin(phase*Math.PI*2/850);
+    curveSamples.set(along,value);
+    if(curveSamples.size>512)curveSamples.delete(curveSamples.keys().next().value!);
+  }
+  return value;
+}
+/** Lateral centerline in the hill frame; interpolate the same 5 m rows used by collision. */
+export function courseX(along: number) {
+  const start=Math.floor(along/COURSE_STEP)*COURSE_STEP,u=(along-start)/COURSE_STEP;
+  return curveSample(start)*(1-u)+curveSample(start+COURSE_STEP)*u;
+}
+export function courseCurveSlope(along: number) {
+  const start=Math.floor(along/COURSE_STEP)*COURSE_STEP;
+  return (curveSample(start+COURSE_STEP)-curveSample(start))/COURSE_STEP;
+}
+/** Horizontal heading after the original hill tilt; used by upright buildings facing the road. */
+export function courseHeading(along: number, hillAngle: number) {
+  return Math.atan2(-courseCurveSlope(along),Math.cos(hillAngle)-Math.sin(hillAngle)*courseSlope(along));
+}

@@ -27,13 +27,13 @@ Open the local URL printed by Vite. Click or press Enter to start.
 | **Esc** | Pause / resume |
 | **M** | Mute / unmute sound |
 
-The camera automatically follows the rider from a fixed downhill direction and distance. WASD controls the skater; steering never orbits the camera, and speed never zooms it. There are no manual camera controls.
+The camera automatically follows the rider and eases around the road’s bends at a fixed follow distance. WASD controls the skater; steering never orbits the camera, and speed never zooms it. There are no manual camera controls.
 
 Switching tabs or losing window focus pauses the game and clears held keys.
 
 ## Course and rider
 
-The deterministic course streams through five districts: Cedar Grove, Old Town, Summit Ridge, Golden Acres farmland and the Timber Mill. Districts arrive in runs of 3 to 7 chunks (210 to 490 m) in a seeded order that never repeats one back to back; the run always opens in the grove and visits every district within the first two kilometres. A sign marks each district boundary. It stays mostly downhill, with smoothly changing grades, genuinely level stretches and short rises of about 1.5 degrees. Grade transitions extend over 210 m so they remain rideable at high speed. The view stays clear to 120 m and fades gently to the sky by 300 m (previously 45–120 m). Terrain streams beyond this range. Optional wedge jumps, raised pads, cones, grind rails, and low concrete ledges sit outside a clear center corridor; the first chunk is clear for learning the controls. The landscape extends 260 m to each side. The valley slowly changes shape along the route, with one flank rising into a hillside while the other opens out, and ground cover takes on each district's colour, blending over the first 20 m of a new district. Every building, tree, vehicle, fence and prop has collision generated from its mesh. R restarts the same course so you can practice a line.
+The deterministic course streams through five districts: Cedar Grove, Old Town, Summit Ridge, Golden Acres farmland and the Timber Mill. Districts arrive in runs of 3 to 7 chunks (210 to 490 m) in a seeded order that never repeats one back to back; the run always opens in the grove and visits every district within the first two kilometres. A sign marks each district boundary. It stays mostly downhill, with smoothly changing grades, genuinely level stretches and short rises of about 1.5 degrees. After a straight 280 m opening, broad sweeping bends and a smaller wave meander through the landscape. Heading changes gradually, with kilometre-scale bend radii so high-speed turns need small corrections. The road, paint, barriers, footpaths, terrain, level foundations and baked shadows share the centerline. Props remain rigid and face the local road; grind rails and ledges stay straight and align with their section of the bend. Grade transitions extend over 210 m so they remain rideable at high speed. The view stays clear to 120 m and fades gently to the sky by 300 m (previously 45–120 m). Terrain streams beyond this range. Optional wedge jumps, raised pads, cones, grind rails, and low concrete ledges sit outside a clear center corridor; the first chunk is clear for learning the controls. The landscape extends 260 m to each side. The valley slowly changes shape along the route, with one flank rising into a hillside while the other opens out, and ground cover takes on each district's colour, blending over the first 20 m of a new district. Every building, tree, vehicle, fence and prop has collision generated from its mesh. R restarts the same course so you can practice a line.
 
 The rider has shorter, sturdier legs and uses a left-foot-forward sideways stance with the head aimed down the course as the body turns, consistent elbow/knee bend directions, connected limb lengths, and feet planted on the grip during crouches and carves. Smooth weight shifts, a pushing cycle, subtle coasting sway, and landing compression make the stance less rigid. Knee flex responds to speed, carving, braking, grinds, and landings while both soles stay planted during coasting. Visible wheel contacts are fitted to the road and ramp surfaces independently of suspension travel; grind height matches the truck geometry. The board has a rounded maple deck, raised ends, grip tape, trucks, and rotating wheels.
 
@@ -47,7 +47,7 @@ Everything is laid out from the road outward: guardrail at 8 m, a footpath from 
 - **Golden Acres**: roadside fences with a gate at the farm track, a farmhouse with barn, silos, windpump, tractor and hay bales on one side, and orchards, baled fields or fenced pasture on the other.
 - **Timber Mill**: a fenced yard with a sawmill shed or warehouse and loading dock, log decks, stacked lumber, a log truck, tanks and a brick stack; the opposite side is felled to stumps with a plantation in rows beyond, and power poles follow the road.
 
-Generation rules live in `src/world/generation.ts`, district layouts in `src/world/districts.ts`, and buildings and props in `src/world/scenery.ts`. Static scenery is merged by material within each chunk. The road mesh and collider follow the same sampled height profile. The player, camera, and all streamed geometry shift together horizontally and vertically at chunk boundaries to keep coordinates near the origin.
+Generation rules live in `src/world/generation.ts`, district layouts in `src/world/districts.ts`, and buildings and props in `src/world/scenery.ts`. Static scenery is merged by material within each chunk. The road mesh and collider follow the same sampled height profile. The player, camera, particles and all streamed geometry shift together sideways, vertically and along the course at chunk boundaries to keep coordinates near the origin.
 
 ## Speed and grinds
 
@@ -61,7 +61,7 @@ Shift changes only the arrow trick controls: movement, gravity, and A/D steering
 
 Steering shifts the rider's weight onto an edge rather than turning the board directly: the lean builds over a fraction of a second, the deck rolls on its trucks, and the turn follows the lean. At walking pace the board pivots tightly. Above roughly 30 mph the arc is limited by lateral grip, so the turning circle widens as speed rises and high-speed lines have to be set up early. The wheels roll where the board points, with only a slight slip. A full-grip carve scrubs a little speed, so wide S-turns are a way to check a fast descent, while gentle steering is nearly free. Landing with the board across the direction of travel slides and sheds speed before it rolls out. The rider leans over the inside edge of the turn as travelled, including when riding switch, folding over the toes on a toeside turn and sitting back on a heelside one, and both soles stay flat on the tilted grip. Tuning values are in `src/player/carve.ts`.
 
-In the air, A/D rotations are unrestricted. An airborne 180 can land switch while retaining downhill momentum. The camera stays pointed downhill throughout.
+In the air, A/D rotations are unrestricted. An airborne 180 can land switch while retaining downhill momentum. The camera follows the course through bends while the rider turns independently.
 
 ## Flips
 
@@ -83,7 +83,7 @@ The ground uses the same deterministic height triangles for rendering, physics, 
 
 ## Crashes
 
-Hard obstacle impacts, severe landings, inverted or sideways touchdowns after a flip, failed flip tricks, and leaving the generated landscape trigger a ragdoll crash. The rider separates from the board with their incoming momentum; the existing character mesh is driven by 11 rigid bodies and 10 joints; hands and shoes share compound bodies with their forearms and shins. Knees and elbows use limited hinges, while shoulders, hips, neck, and waist remain flexible. The board tumbles independently and the fixed downhill camera follows the rider.
+Hard obstacle impacts, severe landings, inverted or sideways touchdowns after a flip, failed flip tricks, and leaving the generated landscape trigger a ragdoll crash. The rider separates from the board with their incoming momentum; the existing character mesh is driven by 11 rigid bodies and 10 joints; hands and shoes share compound bodies with their forearms and shins. Knees and elbows use limited hinges, while shoulders, hips, neck, and waist remain flexible. The board tumbles independently and the course-following camera follows the rider.
 
 Ride controls are disabled during the tumble. The run restarts after about 3.2 seconds, or press R to restart immediately. Pausing freezes the crash as well. Ragdoll bodies are created only on a crash and completely removed on recovery, including their joints; extra collision substeps are restored afterward.
 
@@ -97,7 +97,7 @@ Physics stays at 120 Hz, while presentation and wheel-contact fitting run once p
 
 The renderer caps its initial drawing buffer at about two million pixels, with a maximum pixel ratio of 1.5. Sustained slow frames reduce resolution gradually; stable fast frames restore it. The course visibility remains 300 m. Chunk preparation runs ahead of crossings in small cooperative steps every frame, resuming where it left off until three chunks beyond the visible window are ready, so crossing into new road only moves and culls chunks. Prop construction, collision baking, and material batching yield between batches; partial chunks remain hidden until ready. Synchronous completion remains a fallback if the rider reaches the next window before preparation finishes. Shared construction geometry reduces allocation, and each scenery chunk uses one fixed body/collider. Paused scenes only redraw when needed, and HUD text updates at 10 Hz.
 
-`npm run bench` runs a 60-second CPU simulation and reports frame work and idle chunk preparation separately. It warms up physics first, as the game does before starting, and excludes browser/GPU rendering, so these timings are not FPS measurements.
+`npm run bench` uses a headless test driver to steer around the curves (the game always uses player input), runs a 60-second CPU simulation and reports frame work and idle chunk preparation separately. It warms up physics first, as the game does before starting, and excludes browser/GPU rendering, so these timings are not FPS measurements.
 
 ## Check
 

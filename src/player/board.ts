@@ -99,6 +99,7 @@ export function createBoardPlayer(
   const landingProbe = new THREE.Vector3(), landingDown = ramp.surfaceNormal.clone().negate();
   const velocity = new THREE.Vector3();
   const forward = ramp.forward.clone();
+  const courseForward=ramp.forward.clone();
   const quat = new THREE.Quaternion();
   const boardUp = new THREE.Vector3();
   const boardRight = new THREE.Vector3();
@@ -275,7 +276,7 @@ export function createBoardPlayer(
     const offset = grind.state.active ? 0 : visualHeightOffset;
     visual.root.position.copy(at).addScaledVector(up, offset);
     visual.setPose({
-      headForward: ramp.forward,
+      headForward: ramp.directionAt?.(at,courseForward) ?? ramp.forward,
       headFrame: air.state.engaged && !grounded ? headFrame.copy(renderQuat).multiply(renderBaseQuat.invert()) : undefined,
       grab: liveTricks?.grab ?? null,
       pump: pump.state,
@@ -373,7 +374,9 @@ export function createBoardPlayer(
     previousPosition.copy(position); previousQuat.copy(quat);
     previousAirOffset.copy(airOffset); previousBaseQuat.copy(baseQuat);
     if (tricks.bail || obstacleAhead(dt)) { startCrash(tricks, velocity); return; }
-    air.update(dt,intent.toggleAirFlip ?? false,intent.push,intent.steer,!grounded && !grind.state.active,yaw);
+    ramp.directionAt?.(position,courseForward);
+    const courseYaw=Math.atan2(-courseForward.x,courseForward.dot(ramp.forward));
+    air.update(dt,intent.toggleAirFlip ?? false,intent.push,intent.steer,!grounded && !grind.state.active,yaw-courseYaw);
     aeroTuck=THREE.MathUtils.damp(aeroTuck,THREE.MathUtils.clamp(intent.crouchHold,0,1),12,dt);
     pump.update(dt, intent.push > 0, speed, grounded && !grind.state.active && !intent.crouch && !intent.wantOllie && !tricks.bail);
     ollieCooldown = Math.max(0, ollieCooldown - dt);
@@ -389,7 +392,9 @@ export function createBoardPlayer(
       steering, intent.wantOllie, intent.push < 0, !tricks.active && leaveGround <= 0 && boardUp.dot(ramp.surfaceNormal)>0.8,aeroTuck)) {
       if(intent.wantOllie)ollieCount++;
       air.reset();airOffset.set(0,0,0);
-      yaw = Math.cos(yaw) >= 0 ? 0 : Math.PI;
+      const facing=forward.dot(grind.tangent)>=0 ? 1 : -1;
+      tmp.copy(grind.tangent).multiplyScalar(facing);
+      yaw = Math.atan2(-tmp.x,tmp.dot(ramp.forward));
       body.setTranslation(position, true); body.setLinvel(velocity, true);
       grounded = false; followSurface = grind.state.active; wasOnKicker = false;
       surfaceUp.copy(grind.normal);
@@ -555,7 +560,7 @@ export function createBoardPlayer(
     const along = Math.max(0, velocity.dot(forward));
     wheelRoll += (along / WHEEL_R) * dt;
 
-    if (Math.abs(position.x) > LANDSCAPE_HALF_WIDTH - 10 || tmp.copy(position).sub(ramp.anchor).dot(ramp.surfaceNormal) < -50) {
+    if (Math.abs(ramp.roadOffset?.(position) ?? position.x) > LANDSCAPE_HALF_WIDTH - 10 || tmp.copy(position).sub(ramp.anchor).dot(ramp.surfaceNormal) < -50) {
       startCrash(tricks, velocity);
     }
   }

@@ -63,6 +63,7 @@ async function main() {
   const ramp = createRamp(scene, world);
   const chase = createChaseCamera(camera, ramp.forward);
   const player = createBoardPlayer(scene, world, ramp);
+  const courseDirection=ramp.forward.clone();
 
   const sun = scene.getObjectByName("sun") as THREE.DirectionalLight;
   const sunRig = createSunRig(sun, scene);
@@ -91,7 +92,7 @@ async function main() {
     world.step();
     player.sync();
   }
-  chase.snap(player.position);
+  chase.snap(player.position,ramp.directionAt?.(player.position,courseDirection));
   sunRig.update(player.position);
 
   let running = false;
@@ -211,7 +212,7 @@ async function main() {
       lastPush = player.aerial.active ? 0 : intent.push; lastSteer = player.aerial.active ? 0 : intent.steer;
 
       tricks.setGrab(intent.grabDX, intent.grabDY, intent.grabModifier, !player.grounded && !player.grind.active && !player.crashed,
-        screenGrabFacing(player.forward,ramp.forward,ramp.surfaceNormal),intent.grabPress);
+        screenGrabFacing(player.forward,ramp.directionAt?.(player.position,courseDirection) ?? ramp.forward,ramp.surfaceNormal),intent.grabPress);
       if (intent.flickReady && !player.grounded && !player.grind.active && !player.crashed) {
         tricks.tryFlick(intent.flickDX, intent.flickDY, true);
       }
@@ -229,7 +230,7 @@ async function main() {
       audio.step(fixedDt, audioState());
       chase.shift(player.originShift);
       particles.shift(player.originShift);
-      if (intent.reset) chase.snap(player.position);
+      if (intent.reset) chase.snap(player.position,ramp.directionAt?.(player.position,courseDirection));
       acc -= fixedDt;
     }
 
@@ -237,12 +238,12 @@ async function main() {
       player.reset(ramp.spawn);
       audio.reset(); audioResetCount = player.resetCount;
       particles.clear(); effect.wasAirborne = false;
-      chase.snap(player.position);
+      chase.snap(player.position,ramp.directionAt?.(player.position,courseDirection));
     }
 
     player.render(acc / fixedDt, raw);
     audio.mix(audioState());
-    chase.update(raw, player.renderPosition);
+    chase.update(raw, player.renderPosition,ramp.directionAt?.(player.renderPosition,courseDirection,20));
     sunRig.update(player.renderPosition);
     sky.update(raw);
     emitEffects(raw);

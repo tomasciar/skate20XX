@@ -10,6 +10,7 @@ import { createInput } from '../src/input.ts';
 import { BOARD } from '../src/player/dimensions.ts';
 import { createController } from '../src/player/controller.ts';
 import { createSoundEvents } from '../src/audio/events.ts';
+import { steerAlongCourse, canJumpOnCourse } from '../scripts/driveCourse.ts';
 
 test('10,000 seeded chunks remain reproducible, spaced, and passable', () => {
   const kinds = new Set(), districts = new Set();
@@ -98,7 +99,7 @@ test('two minutes of downhill physics stream continuously with bounded scene and
     }
   }
   for (let i = 0; i < 14400; i++) {
-    const intent = { ...idle, wantOllie: i % 600 === 360, olliePower: 0.5 };
+    const intent = { ...idle, steer:steerAlongCourse(player,ramp),wantOllie: i % 600 === 360 && canJumpOnCourse(player,ramp), olliePower: 0.5 };
     player.update(dt, intent, tricks.state);
     try { world.step(); } catch (err) { throw new Error(`physics failed at frame ${i}, distance ${previous}, position ${player.position.toArray()}`, { cause: err }); }
     player.sync();
@@ -143,7 +144,7 @@ test('two minutes of downhill physics stream continuously with bounded scene and
   let mphAt40 = 0;
   const coastSounds=createSoundEvents();
   for (let i = 0; i < 60 * 120; i++) {
-    player.update(dt, { ...idle, push: 1 }, tricks.state); world.step(); player.sync();
+    player.update(dt, { ...idle, push: 1,steer:steerAlongCourse(player,ramp) }, tricks.state); world.step(); player.sync();
     const sounds=coastSounds.step(dt,{speed:player.speed,grounded:player.grounded,grinding:player.grind.active,
       verticalSpeed:player.velocity.dot(ramp.surfaceNormal),ollieCount:player.ollieCount,resetCount:player.resetCount,
       braking:false,steer:0,pumpPhase:player.pump.phase,pumpStarts:player.pump.starts,trick:null,bail:player.crashed});
@@ -155,6 +156,23 @@ test('two minutes of downhill physics stream continuously with bounded scene and
   assert.ok(contactChecks > 100);
   assert.ok(mphAt40 > 180, `only ${mphAt40} mph after 40 seconds`);
   assert.ok(player.speed * 2.23694 > 175);
+
+  // Broad curves should be negotiable above 200 mph with gentle corrections.
+  player.reset(ramp.spawn);
+  player.body.setLinvel(ramp.forward.clone().multiplyScalar(85),true);
+  let fastest=0,maxOffset=0,maxSteering=0;
+  for(let i=0;i<1440;i++) {
+    const steer=steerAlongCourse(player,ramp);
+    maxSteering=Math.max(maxSteering,Math.abs(steer));
+    player.update(dt,{...idle,steer,crouch:true,crouchHold:1},tricks.state);world.step();player.sync();
+    if(i%2===0)ramp.prepareNextChunk(4);
+    fastest=Math.max(fastest,player.speed*2.23694);
+    maxOffset=Math.max(maxOffset,Math.abs(ramp.roadOffset!(player.position)));
+    assert.equal(player.crashed,false,'gentle road bends should remain rideable at high speed');
+  }
+  assert.ok(fastest>200);
+  assert.ok(maxOffset<2.2,`drifted out of the clear corridor: ${maxOffset}`);
+  assert.ok(maxSteering<0.65,`bend required an abrupt steering correction: ${maxSteering}`);
 
   // Carrying speed above the old cap must decelerate smoothly on the road and in the air.
   for(const height of [0,20]) {
@@ -191,7 +209,7 @@ test('two minutes of downhill physics stream continuously with bounded scene and
 
   // Catch and exit a generated physical rail, using the same player update as the game.
   player.reset(ramp.spawn);
-  const rail = ramp.grindRails[0]!;
+  const rail = ramp.grindRails.find(rail=>Math.abs(rail.end.x-rail.start.x)>0.3) ?? ramp.grindRails[0]!;
   assert.ok(rail);
   const railForward = rail.end.clone().sub(rail.start).normalize();
   const landing = rail.start.clone().addScaledVector(railForward, 2).addScaledVector(ramp.surfaceNormal, -0.05);
@@ -200,6 +218,7 @@ test('two minutes of downhill physics stream continuously with bounded scene and
   for (let i = 0; i < 20; i++) {
     player.update(dt, idle, tricks.state); world.step(); player.sync();
     assert.ok(player.grind.active, `failed to stay locked at frame ${i}`);
+    assert.ok(player.forward.dot(railForward)>0.9999,'board must align with an angled rail');
   }
   player.update(dt, { ...idle, wantOllie: true }, tricks.state); world.step(); player.sync();
   assert.equal(player.grind.active, false);
