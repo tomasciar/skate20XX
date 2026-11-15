@@ -15,15 +15,42 @@ function exactHeight(along: number) {
 // Sample once rather than integrating the profile for every terrain/prop vertex.
 const SAMPLES = Float64Array.from({length: PERIOD/COURSE_STEP+1},(_,i)=>exactHeight(i*COURSE_STEP));
 const CYCLE_HEIGHT = SAMPLES[SAMPLES.length-1]!;
+
+// One drop between each pair of flatter stretches. Long shoulders keep fast cresting rideable;
+// the extra descent remains in the height afterwards rather than springing back uphill.
+const DROP_START=1540, DROP_EASE=490, DROP_LENGTH=DROP_EASE*2;
+const DROP_SLOPES=[26,34,28,38].map(degrees=>Math.tan((14-degrees)*Math.PI/180));
+const DROP_HEIGHTS=[0];
+for(const slope of DROP_SLOPES)DROP_HEIGHTS.push(DROP_HEIGHTS[DROP_HEIGHTS.length-1]!+slope*DROP_EASE);
+// Integral of a smoothstep grade, sampled on the same rows as road collision.
+const DROP_SAMPLES=Float64Array.from({length:DROP_LENGTH/COURSE_STEP+1},(_,i)=>{
+  const along=i*COURSE_STEP;
+  if(along<DROP_EASE) {
+    const u=along/DROP_EASE;
+    return DROP_EASE*(u*u*u-u*u*u*u/2);
+  }
+  const u=(along-DROP_EASE)/DROP_EASE;
+  return DROP_EASE/2+DROP_EASE*(u-u*u*u+u*u*u*u/2);
+});
+function dropSample(along:number) {
+  if(along<DROP_START)return 0;
+  const cycle=Math.floor((along-DROP_START)/PERIOD),local=along-DROP_START-cycle*PERIOD;
+  const sequence=cycle%DROP_SLOPES.length,rounds=Math.floor(cycle/DROP_SLOPES.length);
+  const accumulated=rounds*DROP_HEIGHTS[DROP_HEIGHTS.length-1]!+DROP_HEIGHTS[sequence]!;
+  const sample=Math.min(DROP_SAMPLES.length-1,Math.round(local/COURSE_STEP));
+  return accumulated+DROP_SLOPES[sequence]!*DROP_SAMPLES[sample]!;
+}
 /** Shared piecewise-linear profile for road, landscape, collision, and prop placement. */
 export function courseHeight(along: number) {
   const cycle=Math.floor(along/PERIOD), sample=(along-cycle*PERIOD)/COURSE_STEP;
   const i=Math.floor(sample), u=sample-i;
-  return cycle*CYCLE_HEIGHT+SAMPLES[i]!*(1-u)+SAMPLES[i+1]!*u;
+  const start=Math.floor(along/COURSE_STEP)*COURSE_STEP;
+  return cycle*CYCLE_HEIGHT+(SAMPLES[i]!+dropSample(start))*(1-u)+(SAMPLES[i+1]!+dropSample(start+COURSE_STEP))*u;
 }
 export function courseSlope(along: number) {
   const cycle=Math.floor(along/PERIOD), i=Math.floor((along-cycle*PERIOD)/COURSE_STEP);
-  return (SAMPLES[i+1]!-SAMPLES[i]!)/COURSE_STEP;
+  const start=Math.floor(along/COURSE_STEP)*COURSE_STEP;
+  return (SAMPLES[i+1]!-SAMPLES[i]!+dropSample(start+COURSE_STEP)-dropSample(start))/COURSE_STEP;
 }
 
 // Broad bends plus a smaller wandering line. The opening stays straight for learning controls.

@@ -47,6 +47,9 @@ test('Space charges and pops across a small wheel gap, including uphill, without
       assert.equal(f.player.grounded,false);
       assert.equal(f.player.canOllie,true);
       assert.equal(f.player.ollieCount,0);
+      f.player.render(1,dt);
+      const visibleUp=new THREE.Vector3(0,1,0).applyQuaternion(f.player.mesh.quaternion);
+      assert.ok(visibleUp.dot(f.normal)>0.9999,'tiny contact gaps must keep the visible board aligned to the road');
       const controller=createController();
       const input:InputState={trickModifier:false,grabDX:0,grabDY:0,grabPress:0,push:false,brake:false,
         left:false,right:false,crouch:true,crouchPressed:true,crouchReleased:false,reset:false,

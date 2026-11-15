@@ -152,7 +152,8 @@ export function createBoardPlayer(
 
   function sampleVisualSupport(at: THREE.Vector3) {
     if (grind.state.active) { visualHeightOffset = 0; return; }
-    if (!grounded || leaveGround > 0) return;
+    // Fit the visible wheels through tiny suspension gaps, including on steep grades.
+    if ((!grounded && !nearGround) || leaveGround > 0) return;
     // Re-sample after fitting the board plane: pitching around a ramp seam shifts wheel positions.
     for (let pass = 0; pass < 3; pass++) {
       let contactCount = 0;

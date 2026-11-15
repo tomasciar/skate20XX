@@ -20,7 +20,18 @@ export function placeScenery(object: THREE.Object3D, x: number, along: number, c
     }
     floor+=0.015;
     let depth=0.12;
-    for (const corner of corners) depth=Math.max(depth,(floor+corner.y-landscapeWorldHeight(x+corner.x,globalAlong-corner.z))/Math.cos(hillAngle)+0.12);
+    const upY=Math.cos(hillAngle),upZ=Math.sin(hillAngle);
+    // A level foundation extends downhill in the tilted hill frame as it gets deeper.
+    // Recheck its bottom footprint so steep terrain cannot leave a gap underneath it.
+    for(let pass=0;pass<6;pass++) {
+      let nextDepth=depth;
+      for(const corner of corners) {
+        const ground=landscapeWorldHeight(x+corner.x,globalAlong-corner.z+depth*upZ);
+        nextDepth=Math.max(nextDepth,depth+(floor+corner.y-depth*upY-ground+0.12)/upY);
+      }
+      if(nextDepth-depth<0.0001)break;
+      depth=nextDepth;
+    }
     const root=new THREE.Group();
     root.position.set(x-baseX,floor-baseHeight,-along);root.quaternion.copy(rotation);
     object.position.y=-Math.max(0,bounds.min.y);root.add(object);
