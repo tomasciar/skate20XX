@@ -326,6 +326,7 @@ export function createBoardPlayer(
     visual.setPose({
       headForward: ramp.directionAt?.(at,courseForward) ?? ramp.forward,
       headFrame: air.state.engaged && !grounded ? headFrame.copy(renderQuat).multiply(renderBaseQuat.invert()) : undefined,
+      flipLean: air.lean,
       grab: liveTricks?.grab ?? null,
       groundTrick: slide.state.active ? null : liveTricks?.ground ?? null,
       slide: slide.state.amount*slide.state.side,
