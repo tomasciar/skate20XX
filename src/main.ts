@@ -21,6 +21,8 @@ import {createModeControls} from './ui/modes';
 import {createHudOptions} from './ui/hudOptions';
 import {loadCharacter} from './characters';
 import {createCharacterControls} from './ui/characters';
+import {createScore} from './player/score';
+import {loadHighScore,saveHighScore} from './highScore';
 
 async function main() {
   await RAPIER.init();
@@ -112,10 +114,20 @@ async function main() {
   let hudElapsed = 0;
   createHudOptions();
   createCharacterControls(character,next=>{input.clear();controller.reset();player.setCharacter(next);pausedSceneDirty=true;});
+  // Scoring: one run per spawn, and a best per ride mode that is kept in memory in case storage is blocked.
+  const score=createScore(),bests={skate:loadHighScore('skate'),snowboard:loadHighScore('snowboard')};
+  let toBeat=bests[mode],scoreResetCount=player.resetCount;
+  function showScore() { hud.setScore(score.total,Math.max(bests[mode],score.total),toBeat>0 && score.total>toBeat); }
+  // Called wherever a run can end or the page can go away, so a best is never lost with the tab.
+  function commitScore() { if(score.total>bests[mode])bests[mode]=saveHighScore(mode,score.total); }
+  function newScoreRun() { commitScore();score.reset();toBeat=bests[mode]; }
+  showScore();
   createModeControls(mode,next=>{
+    newScoreRun();
     mode=next;ramp.setMode!(mode);player.setMode(mode);hud.setMode(mode);
     sky.setMode(mode,(scene.fog as THREE.Fog).color);applySkyEnvironment(renderer,scene,sky.mesh);
     particles.clear();pausedSceneDirty=true;
+    toBeat=bests[mode];showScore();
   });
   const alongCourse = new THREE.Vector3();
   // Sparks and dust follow what the board is doing; rates are per second so they look the same at any refresh rate.
@@ -190,6 +202,7 @@ async function main() {
     running = false; acc = 0; pausedSceneDirty = true;
     lastSteer = 0;
     audio.setRunning(false);
+    commitScore();showScore();
     input.clear(); controller.reset(); hud.showOverlay();
   }
   window.addEventListener("keydown", (e) => {
@@ -244,12 +257,18 @@ async function main() {
       input.consume();
       if (tricks.state.bail) tricks.clearBail();
 
+      const landingGrade=tricks.state.landing ?? null;
       if (!player.crashed) tricks.update(fixedDt, player.grounded || player.grind.active, player.uprightDot, player.speed);
 
       world.step();
       player.sync(false);
       if (audioResetCount !== player.resetCount) { audio.reset(); controller.reset(); tricks.reset(); particles.clear(); effect.wasAirborne = false; audioResetCount = player.resetCount; }
       audio.step(fixedDt, audioState());
+      if (scoreResetCount !== player.resetCount) { newScoreRun(); scoreResetCount = player.resetCount; }
+      score.step(tricks.state,{
+        distance:ramp.distance + Math.max(0, alongCourse.copy(player.position).sub(ramp.anchor).dot(ramp.forward)),
+        grounded:player.grounded,crashed:player.crashed,landing:landingGrade,grind:player.grind,pitch:player.aerial.pitch,roll:player.aerial.roll,
+      });
       chase.shift(player.originShift);
       particles.shift(player.originShift);
       if (intent.reset) chase.snap(player.position,ramp.directionAt?.(player.position,courseDirection));
@@ -273,6 +292,7 @@ async function main() {
     hudElapsed += raw;
     if (hudElapsed >= 0.1) {
       hud.update(player.speed, tricks.state, ramp.distance + Math.max(0, alongCourse.copy(player.position).sub(ramp.anchor).dot(ramp.forward)), player.grind, player.aerial);
+      showScore();
       hudElapsed = 0;
     }
     if (quality.update(frameDt)) applyRenderSize();

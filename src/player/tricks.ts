@@ -69,6 +69,9 @@ export type TrickState = {
   /** Set by the player on the tick of a graded touchdown; consumed by the next update. */
   landing?: LandingGrade | null;
   boardSpin: { x: number; y: number; z: number };
+  /** The last cleanly landed combo as data; `landings` counts them so a reader can tell a new one. */
+  landed?: { id: TrickId; spins: number }[];
+  landings?: number;
   lastLanded: string | null;
   bail: boolean;
   message: string | null;
@@ -90,6 +93,8 @@ export function createTrickSystem() {
     combo: [],
     started: 0,
     boardSpin: { x: 0, y: 0, z: 0 },
+    landed: [],
+    landings: 0,
     lastLanded: null,
     bail: false,
     message: null,
@@ -101,6 +106,12 @@ export function createTrickSystem() {
   let turns=0, target=0, held=false, dirX=0, dirY=0, elapsed=0;
   let easeFrom=0, easeTime=0, easeT=0, foot=0, footFrom=0, catchTime=0;
   let queued: { dx: number; dy: number } | null = null;
+  const caught: { id: TrickId; spins: number }[] = [];
+  function complete(trick: TrickDef, spins: number) {
+    // `combo` is emptied in several places; an empty one means this trick opens a new air.
+    if (!state.combo.length) caught.length = 0;
+    state.combo.push(trickName(trick, spins)); caught.push({ id: trick.id, spins });
+  }
 
   function classifyFlick(dx: number, dy: number): TrickDef | null {
     const mag = Math.hypot(dx, dy);
@@ -243,7 +254,7 @@ export function createTrickSystem() {
 
       // Caught: the board is back under the feet, so another trick or a grab can start.
       if (!grounded && target && easeT >= easeTime && easeT >= catchTime) {
-        state.combo.push(trickName(trick, target));
+        complete(trick, target);
         endTrick();
         if (queued) { const next = queued; queued = null; tryFlick(next.dx, next.dy, true); }
       }
@@ -257,7 +268,8 @@ export function createTrickSystem() {
         state.message = "Bail!";
         state.messageAge = 0;
       } else {
-        if (state.active) state.combo.push(trickName(state.active, done));
+        if (state.active) complete(state.active, done);
+        state.landed = caught.slice(); state.landings = (state.landings ?? 0) + 1;
         state.lastLanded = state.combo.join(" + ");
         state.message = state.landing ? `${state.lastLanded} · ${state.landing}` : state.lastLanded;
         state.messageAge = 0;

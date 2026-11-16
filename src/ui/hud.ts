@@ -55,11 +55,22 @@ export function createHud() {
     }
   }
 
+  const scoreEl=document.getElementById('score'),bestEl=document.getElementById('best');
+  const bestRow=document.getElementById('best-row'),bestLabel=document.getElementById('best-label'),overlayBest=document.getElementById('overlay-best');
+  /** `record` marks a run that has passed the best it started against. */
+  function setScore(score:number,best:number,record=false) {
+    if(scoreEl)scoreEl.textContent=score.toLocaleString('en-US');
+    if(bestEl)bestEl.textContent=best.toLocaleString('en-US');
+    if(bestLabel)bestLabel.textContent=record?'New best':'Best';
+    bestRow?.classList.toggle('record',record);
+    if(overlayBest) {overlayBest.hidden=best<=0;overlayBest.textContent=`Best score · ${best.toLocaleString('en-US')}`;}
+  }
+
   function setMode(mode:RideMode) {
     const title=MODE_TITLES[mode];document.title=title;
     document.querySelector('#hud h1')!.textContent=title;
     const heading=overlay.querySelector('h2')!;
     if(heading.textContent!=='PAUSED')heading.textContent=title;
   }
-  return { update, hideOverlay, showOverlay, setMode, overlay };
+  return { update, hideOverlay, showOverlay, setMode, setScore, overlay };
 }
