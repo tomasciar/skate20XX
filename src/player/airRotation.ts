@@ -3,6 +3,7 @@ import * as THREE from 'three';
 /** `pitch` and `roll` accumulate signed radians about the rider's local axes; positive pitch is a backflip. */
 export type AirRotationState = { active: boolean; engaged: boolean; pitch: number; roll: number };
 export const AIR_ROTATION_SPEED = Math.PI*2/0.95;
+export const AIR_YAW_SPEED = 6.7;
 
 /** Local quaternion rotations allow complete and combined flips without Euler limits. */
 export function createAirRotation() {

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
-import { createAirRotation, describeAirRotation, AIR_ROTATION_SPEED } from '../src/player/airRotation.ts';
+import { createAirRotation, describeAirRotation, AIR_ROTATION_SPEED, AIR_YAW_SPEED } from '../src/player/airRotation.ts';
 import { createInput } from '../src/input.ts';
 import { createController } from '../src/player/controller.ts';
 import { createBoardPlayer } from '../src/player/board.ts';
@@ -38,6 +38,49 @@ async function fixture(height=15) {
   tick();
   return {world,player,tricks,ramp,tick};
 }
+
+test('actual left/right spins drive the chest and hips without changing horizontal spin speed',async()=>{
+  for(const direction of [-1,1]) {
+    const f=await fixture(100);
+    try {
+      // Finish the spawn/ground-to-air pose blend before comparing with settled airtime.
+      for(let frame=0;frame<90;frame++)f.tick();
+      const torso=f.player.mesh.getObjectByName('chest')!.parent!,hips=torso.parent!,neutral=torso.rotation.y;
+      let heading=Math.atan2(-f.player.forward.x,-f.player.forward.z);
+      for(let frame=0;frame<18;frame++) {
+        f.tick({...idle,steer:direction});
+        const next=Math.atan2(-f.player.forward.x,-f.player.forward.z);
+        const difference=Math.atan2(Math.sin(next-heading),Math.cos(next-heading));
+        assert.ok(Math.abs(difference+direction*AIR_YAW_SPEED*dt)<1e-5,'posing changed actual yaw control');
+        heading=next;
+      }
+      assert.ok((torso.rotation.y-neutral)*direction<-.18,'shoulders should visibly turn into the spin');
+      assert.ok(hips.rotation.y*direction<-.025,'hips should follow the rotation');
+      const driving=torso.rotation.y;
+      for(let frame=0;frame<12;frame++)f.tick();
+      assert.ok((torso.rotation.y-driving)*direction>.15,'the body should unwind when the spin stops');
+      for(let frame=0;frame<120;frame++)f.tick();
+      assert.ok(Math.abs(torso.rotation.y-neutral)<.003&&Math.abs(hips.rotation.y)<.003);
+    } finally {f.world.free();}
+  }
+});
+
+test('spin-driven core motion changes local direction when the rider is inverted',async()=>{
+  const f=await fixture(150);
+  try {
+    let inverted=false;
+    for(let frame=0;frame<120;frame++) {
+      f.tick({...idle,push:1,toggleAirFlip:frame===0});
+      if(f.player.uprightDot<-.995){inverted=true;break;}
+    }
+    assert.ok(inverted);f.tick({...idle,toggleAirFlip:true});
+    for(let frame=0;frame<90;frame++)f.tick();
+    const torso=f.player.mesh.getObjectByName('chest')!.parent!,hips=torso.parent!,neutral=torso.rotation.y;
+    for(let frame=0;frame<18;frame++)f.tick({...idle,steer:1});
+    assert.ok(torso.rotation.y-neutral>.18,'world-right rotation should twist the inverted chest in positive local yaw');
+    assert.ok(hips.rotation.y>.025,'inverted hips must follow the same actual rotation axis');
+  } finally {f.world.free();}
+});
 
 test('quaternion flips pass through inversion and complete 360s on either axis and diagonally',()=>{
   for(const [pitch,roll] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1]]) {

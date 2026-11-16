@@ -2,12 +2,12 @@ import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
 import type { PlayerIntent } from "./controller.ts";
 import type { TrickState } from "./tricks.ts";
-import { BOARD, WHEEL_BOTTOM } from "./dimensions.ts";
+import { BOARD, WHEEL_BOTTOM, RIDER } from "./dimensions.ts";
 import { createSkaterVisual } from "./skaterVisual.ts";
 import { createRagdoll } from "./ragdoll.ts";
 import { createPumpCycle } from "./pump.ts";
 import { createGrindSystem } from "./grind.ts";
-import { createAirRotation, describeAirRotation } from "./airRotation.ts";
+import { createAirRotation, describeAirRotation, AIR_YAW_SPEED, AIR_ROTATION_SPEED } from "./airRotation.ts";
 import { coastSpeed, dragSpeed, SPEED } from "./speed.ts";
 import { CARVE, carveDrag, carveLean, carveTurnRate } from "./carve.ts";
 import { createSlide, SLIDE } from "./slide.ts";
@@ -136,6 +136,8 @@ export function createBoardPlayer(
   let uprightDot = 1;
   let lean = 0;
   let yaw = 0;
+  let yawVelocity=0;
+  const spinAxis=new THREE.Vector3(),spinFrame=new THREE.Quaternion(),spinUp=new THREE.Vector3(0,1,0);
   let wheelRoll = 0;
   let ollieCooldown = 0;
   let leaveGround = 0;
@@ -290,6 +292,7 @@ export function createBoardPlayer(
     introLanding = !!ramp.startPlatform && to.distanceToSquared(ramp.spawn)<1e-8;
     boostEntered = false;
     yaw = 0;
+    yawVelocity=0;
     const q = facingQuat();
     const p = to.clone().addScaledVector(ramp.surfaceNormal, 0.22);
     body.setTranslation({ x: p.x, y: p.y, z: p.z }, true);
@@ -322,9 +325,14 @@ export function createBoardPlayer(
     const up = new THREE.Vector3(0, 1, 0).applyQuaternion(renderQuat);
     // The suspension body stays stable; its visible wheel bottoms sit on the measured surface.
     visual.root.position.copy(at).addScaledVector(up, visualHeightOffset);
+    // Project the actual yaw onto the rider's axes, including while inverted in a flip.
+    spinAxis.copy(ramp.surfaceNormal).multiplyScalar(yawVelocity)
+      .applyQuaternion(spinFrame.copy(renderQuat).invert()).applyAxisAngle(spinUp,-RIDER.stanceY);
     visual.setPose({
       headForward: speed>1 ? velocity : ramp.directionAt?.(at,courseForward) ?? ramp.forward,
       flipLean: air.lean,
+      rotationRate:{yaw:spinAxis.y/AIR_YAW_SPEED,pitch:air.lean.pitch+spinAxis.x/AIR_ROTATION_SPEED,
+        roll:air.lean.roll+spinAxis.z/AIR_ROTATION_SPEED},
       grab: liveTricks?.grab ?? null,
       groundTrick: slide.state.active ? null : liveTricks?.ground ?? null,
       travelSide,
@@ -462,9 +470,11 @@ export function createBoardPlayer(
     lean = THREE.MathUtils.damp(lean, slide.state.active ? 0 : steering, grounded ? CARVE.response : 8, dt);
 
     // On the road the trucks turn as weight shifts onto an edge; in the air the rider spins freely.
+    const previousYaw=yaw;
     if (slide.state.active) yaw=slideYaw;
-    else yaw = slideYaw - (grounded ? lean * carveTurnRate(speed) * dt : steering * 6.7 * dt);
+    else yaw = slideYaw - (grounded ? lean * carveTurnRate(speed) * dt : steering * AIR_YAW_SPEED * dt);
     yaw = Math.atan2(Math.sin(yaw), Math.cos(yaw));
+    yawVelocity=!grounded&&!grind.state.active&&dt>0?Math.atan2(Math.sin(yaw-previousYaw),Math.cos(yaw-previousYaw))/dt:0;
 
     const wasGrinding = grind.state.active;
     grindPoint.copy(position).addScaledVector(boardUp, visualHeightOffset);

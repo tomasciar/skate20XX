@@ -44,6 +44,31 @@ test('air balance reacts consistently at 30, 60 and 120 fps',()=>{
     assert.ok(Math.abs(value-reference[key as keyof typeof reference])<.025,`${key}: render-rate dependent air motion`);
 });
 
+test('actual spin rate leads the shoulders, then the hips, with a single opposite checking motion on release',()=>{
+  for(const direction of [-1,1]) {
+    const air=createAirPose();air.update({...input,verticalSpeed:0,yaw:0});
+    for(let frame=0;frame<12;frame++)air.update({...input,verticalSpeed:0,yaw:direction,turn:0});
+    assert.ok(air.state.yaw*direction>air.state.hipYaw*direction,'the chest should initiate before the hips follow');
+    assert.ok(air.state.spinEffort*direction>.3);
+    for(let frame=0;frame<240;frame++)air.update({...input,yaw:direction,turn:0});
+    assert.ok(Math.abs(air.state.spinEffort)<.001,'a sustained spin should not repeatedly wind up');
+    for(let frame=0;frame<12;frame++)air.update({...input,yaw:0,turn:0});
+    assert.ok(air.state.spinEffort*direction<-.3,'release should visibly check the previous rotation');
+    for(let frame=0;frame<240;frame++)air.update({...input,yaw:0,turn:0});
+    assert.ok(Math.abs(air.state.yaw)<.001&&Math.abs(air.state.hipYaw)<.001);
+  }
+});
+
+test('flip loading and release follow their signed rotation axes and settle during a constant flip',()=>{
+  const air=createAirPose();air.update({...input,pitch:0,roll:0});
+  for(let frame=0;frame<12;frame++)air.update({...input,pitch:1,roll:-1});
+  assert.ok(air.state.pitchEffort>.2&&air.state.rollEffort<-.2);
+  for(let frame=0;frame<240;frame++)air.update({...input,pitch:1,roll:-1});
+  assert.ok(Math.abs(air.state.pitchEffort)<.001&&Math.abs(air.state.rollEffort)<.001);
+  for(let frame=0;frame<12;frame++)air.update({...input,pitch:0,roll:0});
+  assert.ok(air.state.pitchEffort<-.2&&air.state.rollEffort>.2);
+});
+
 function assertConnected(visual:ReturnType<typeof createSkaterVisual>) {
   visual.root.updateMatrixWorld(true);
   for(const side of [-1,1]) {
@@ -83,4 +108,22 @@ test('a grabbed hand remains locked while the free hand reacts to changing fligh
     assert.ok(hand.distanceTo(target)<.025,`${grab.id}: air balance displaced the held grip`);
     assert.ok(free.position.distanceTo(before)>.04,'the free hand should keep balancing during a grab');
   }
+});
+
+test('combined spin and flip poses keep grabs and planted feet connected through all riders and modes',()=>{
+  for(const mode of ['skate','snowboard'] as const)for(const character of ['boy','girl','goku','naruto','kick'] as const)
+    for(const grab of [undefined,GRABS.tomahawk,GRABS.nosebone,GRABS.tailbone]) {
+      const visual=createSkaterVisual(mode,character);
+      for(let frame=0;frame<120;frame++) {
+        const yaw=frame<60?-1:1;
+        visual.setPose({...pose,grab,verticalSpeed:8-frame/8,lean:-yaw,flipLean:{pitch:.5,roll:-.35},
+          rotationRate:{yaw,pitch:.5,roll:-.35}});
+        if(frame%20===0)assertConnected(visual);
+      }
+      if(grab) {
+        const grip=visual.board.localToWorld(new THREE.Vector3(grab.grip.x,grab.grip.y,grab.grip.z).applyAxisAngle(new THREE.Vector3(0,1,0),RIDER.stanceY));
+        assert.ok(visual.root.getObjectByName(`hand-${grab.hand}`)!.getWorldPosition(new THREE.Vector3()).distanceTo(grip)<.025,
+          `${character} ${grab.id}: body rotation displaced the grip`);
+      }
+    }
 });

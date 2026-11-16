@@ -53,6 +53,8 @@ export type SkaterVisual = {
     headForward?: THREE.Vector3;
     /** Whole-body flip rate in rider terms, -1..1: pitch onto the back, roll over the leading shoulder. */
     flipLean?: { pitch: number; roll: number };
+    /** Actual angular rates in the rider's frame, normalized per axis. */
+    rotationRate?:{yaw:number;pitch:number;roll:number};
     pump?: PumpState;
     trick?: TrickDef | null;
     trickTime?: number;
@@ -233,7 +235,9 @@ export function createSkaterVisual(initialMode:RideMode='skate',initialCharacter
     const footTrick=opts.airborne && !opts.grinding && !opts.bail && !selectedGrab ? opts.trick : null;
     const trickProgress=footTrick ? (opts.trickTime ?? 0)/footTrick.duration : 0;
     const air=airPose.update({dt:opts.dt,active:opts.airborne&&!opts.grinding&&!opts.bail,verticalSpeed:opts.verticalSpeed,
-      turn:opts.lean,pitch:opts.flipLean?.pitch ?? 0,roll:opts.flipLean?.roll ?? 0,travelSide:cruise.travelSide});
+      turn:opts.lean,yaw:opts.rotationRate?.yaw,
+      pitch:opts.rotationRate?.pitch ?? opts.flipLean?.pitch ?? 0,roll:opts.rotationRate?.roll ?? opts.flipLean?.roll ?? 0,
+      travelSide:cruise.travelSide});
     // Blend out before changing hands or grip targets, avoiding a hand snapping across the board.
     if (selectedGrab && (!heldGrab || heldGrab.id === selectedGrab.id || grabBlend < 0.02)) {
       heldGrab = selectedGrab;heldGroundGrab=!!groundGrab;
@@ -264,13 +268,16 @@ export function createSkaterVisual(initialMode:RideMode='skate',initialCharacter
     if(opts.bail || (!flip?.pitch && !flip?.roll && Math.hypot(flipPitch,flipRoll)<1e-3))flipPitch=flipRoll=0;
     // Keep held-grab lean restrained so the fixed grip remains within arm's reach.
     const flipScale=1-FLIP_LEAN.grab*grabBlend;
+    const rotationWeight=air.weight*(1-cruiseWeight)*flipScale;
+    const spinCheck=Math.min(1,Math.max(0,Math.abs(air.hipYaw)-Math.abs(air.yaw))*2);
     const leanPitch=flipPitch*(flipPitch>0 ? FLIP_LEAN.back : FLIP_LEAN.forward)*flipScale, leanRoll=flipRoll*FLIP_LEAN.side*flipScale;
     const flipTuck=Math.min(1,Math.hypot(flipPitch,flipRoll));
     // The rear grab arches the back by itself; leaning back with a flip on top would cock the rider too far.
     const baseTweak = heldGroundGrab ? RIDING_GRAB : heldGrab?.tweak ?? TUCK;
     const tweak = heldGrab?.direction==='back' && !heldGroundGrab ? softenGrab(baseTweak,Math.max(0,flipPitch)) : baseTweak;
     const c = THREE.MathUtils.lerp(THREE.MathUtils.clamp(m.crouch+m.air*0.25+m.kneeLoad+Math.abs(manual)*0.25+Math.abs(slide)*0.5+flipTuck*FLIP_LEAN.tuck
-      +cruiseWeight*(.06+cruise.pace*.035+Math.abs(cruise.turn)*.05+cruise.compression),0,1),tweak.crouch,grabBlend);
+      +cruiseWeight*(.06+cruise.pace*.035+Math.abs(cruise.turn)*.05+cruise.compression)
+      +rotationWeight*(Math.abs(air.yaw)*.07+Math.abs(air.spinEffort)*.04+Math.abs(air.pitchEffort)*.04),0,1),tweak.crouch,grabBlend);
     const grabPose = grabTransform(tweak,grabBlend);
     const stance = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),RIDER.stanceY);
     board.position.copy(grabPose.offset).applyQuaternion(stance);
@@ -303,6 +310,9 @@ export function createSkaterVisual(initialMode:RideMode='skate',initialCharacter
     hips.rotation.set(cruiseWeight*(cruise.settle*.025-cruise.turn*.04),
       cruiseWeight*(cruise.turn*.09+cruise.settle*.055),
       cruiseWeight*cruise.travelSide*(cruise.settle*.025+cruise.acceleration*.035));
+    hips.rotation.x+=rotationWeight*air.pitchEffort*.035;
+    hips.rotation.y+=rotationWeight*air.hipYaw*.10;
+    hips.rotation.z+=rotationWeight*air.rollEffort*.04;
     // Toeside carves fold the chest over the toes; heelside carves sit back over the heels.
     torso.rotation.set(THREE.MathUtils.lerp(-0.08-c*0.25-m.brake*0.1,tweak.chestPitch,grabBlend) - carve*(carve>0 ? 0.26 : 0.14) - slide*0.15,
       -0.15+pushSwing*0.07+m.sway*2, m.lean*0.13-m.sway*1.2+tweak.chestRoll*grabBlend - manual*0.12 - grabHand*ridingGrabBlend*0.95);
@@ -310,6 +320,9 @@ export function createSkaterVisual(initialMode:RideMode='skate',initialCharacter
     torso.rotation.x+=cruiseWeight*(-.065+(cruise.turn-cruise.chestTurn)*.13-cruise.chestSettle*.025);
     torso.rotation.y=THREE.MathUtils.lerp(torso.rotation.y,cruise.travelSide*.18+cruise.chestTurn*.14-cruise.chestSettle*.07,cruiseWeight);
     torso.rotation.z-=cruiseWeight*cruise.travelSide*(cruise.acceleration*.085+cruise.chestSettle*.035);
+    torso.rotation.x+=rotationWeight*air.pitchEffort*.09;
+    torso.rotation.y+=rotationWeight*(air.yaw*.22+air.spinEffort*.18);
+    torso.rotation.z+=rotationWeight*air.rollEffort*.10;
     for (const l of legs) {
       // Only the pushing foot leaves the grip; all other weight shifts preserve the stance.
       l.foot.position.set(0,FOOT_Y-BOARD.gripY,0).applyQuaternion(carveTilt);
@@ -360,6 +373,7 @@ export function createSkaterVisual(initialMode:RideMode='skate',initialCharacter
       shoulder.z+=cruiseWeight*(.006-leading*.018+a.side*lag*.008);
       shoulder.y+=airWeight*(air.lift*.012+air.descent*.008+a.side*air.roll*.012);
       shoulder.z+=airWeight*(air.pitch*.012+a.side*air.turn*.008);
+      shoulder.z-=airWeight*a.side*(air.spinEffort*.02+air.yaw*.012);
       const spread = 0.27 + m.air * 0.07 + (opts.grinding ? 0.10 : 0) + Math.abs(manual)*0.1 + Math.abs(slide)*0.1;
       const hand = new THREE.Vector3(a.side * spread + m.lean * 0.04 - m.sway,
         -0.04 + c * 0.14 + m.air * 0.04 + a.side * pushSwing * 0.035,
@@ -382,15 +396,19 @@ export function createSkaterVisual(initialMode:RideMode='skate',initialCharacter
       hand.lerp(a.restHand,cruiseWeight);
       const flick=footTrick?Math.sin(Math.PI*THREE.MathUtils.smoothstep(trickProgress,0,.65))
         *(1-THREE.MathUtils.smoothstep(trickProgress,.5,.85)):0;
-      airTarget.set(a.side*(.32+air.lift*.10+air.descent*.07+air.launch*.04+flick*.03)+air.roll*.07,
-        .015+airLeading*.015+air.lift*.12+air.descent*.055+air.launch*.11+a.side*air.roll*.065+a.side*air.turn*.035+airLeading*flick*.035,
-        -.09-airLeading*.065-air.lift*.035+air.descent*.025+air.pitch*.09+a.side*air.turn*.09+THREE.MathUtils.lerp(.02,-.025,airLeading)*flick);
+      airTarget.set(a.side*(.32+air.lift*.10+air.descent*.07+air.launch*.04+flick*.03-Math.abs(air.yaw)*.05+spinCheck*.07)
+        +air.roll*.07+air.rollEffort*.055,
+        .015+airLeading*.015+air.lift*.12+air.descent*.055+air.launch*.11+a.side*air.roll*.065+a.side*air.turn*.035+airLeading*flick*.035
+        +Math.abs(air.spinEffort)*.05+spinCheck*.045+Math.abs(air.yaw)*.02+Math.abs(air.pitchEffort)*.045+a.side*air.rollEffort*.045,
+        -.09-airLeading*.065-air.lift*.035+air.descent*.025+air.pitch*.09+a.side*air.turn*.09+THREE.MathUtils.lerp(.02,-.025,airLeading)*flick
+        -a.side*(air.spinEffort*.12+air.yaw*.03)+air.pitchEffort*.06);
       if(!a.airReady){a.airHand.copy(airTarget);a.airReady=true;}
       else a.airHand.lerp(airTarget,1-Math.exp(-(5+airLeading*1.5)*opts.dt));
       hand.lerp(a.airHand,airWeight);
       const reach=hand.sub(shoulder);
       const restReach=.432+leading*.015+load*.02+Math.abs(manual)*.015;
-      const airReach=Math.min(.478,.445+airLeading*.008+air.descent*.02+Math.abs(air.roll)*.012+air.launch*.008-air.lift*.006);
+      const airReach=Math.min(.478,.445+airLeading*.008+air.descent*.02+Math.abs(air.roll)*.012+air.launch*.008-air.lift*.006
+        -Math.abs(air.yaw)*.015+spinCheck*.012);
       reach.setLength(THREE.MathUtils.lerp(THREE.MathUtils.lerp(THREE.MathUtils.lerp(.475,.48,flipTuck),restReach,cruiseWeight),airReach,airWeight));
       hand.add(shoulder);
       if (heldGrab && a.side === heldGrab.hand) {
