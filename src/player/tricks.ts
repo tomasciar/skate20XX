@@ -72,6 +72,8 @@ export type TrickState = {
   /** The last cleanly landed combo as data; `landings` counts them so a reader can tell a new one. */
   landed?: { id: TrickId; spins: number }[];
   landings?: number;
+  /** Tricks caught so far in the current air. Only meaningful while `combo` is not empty. */
+  caught?: readonly { id: TrickId; spins: number }[];
   lastLanded: string | null;
   bail: boolean;
   message: string | null;
@@ -112,6 +114,7 @@ export function createTrickSystem() {
     if (!state.combo.length) caught.length = 0;
     state.combo.push(trickName(trick, spins)); caught.push({ id: trick.id, spins });
   }
+  state.caught = caught;
 
   function classifyFlick(dx: number, dy: number): TrickDef | null {
     const mag = Math.hypot(dx, dy);

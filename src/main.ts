@@ -117,10 +117,13 @@ async function main() {
   // Scoring: one run per spawn, and a best per ride mode that is kept in memory in case storage is blocked.
   const score=createScore(),bests={skate:loadHighScore('skate'),snowboard:loadHighScore('snowboard')};
   let toBeat=bests[mode],scoreResetCount=player.resetCount;
-  function showScore() { hud.setScore(score.total,Math.max(bests[mode],score.total),toBeat>0 && score.total>toBeat); }
+  function showScore() {
+    hud.setScore(score.total,Math.max(bests[mode],score.total),toBeat>0 && score.total>toBeat);
+    hud.setPoints(score.pending,score.event);
+  }
   // Called wherever a run can end or the page can go away, so a best is never lost with the tab.
   function commitScore() { if(score.total>bests[mode])bests[mode]=saveHighScore(mode,score.total); }
-  function newScoreRun() { commitScore();score.reset();toBeat=bests[mode]; }
+  function newScoreRun() { commitScore();score.reset();hud.clearPoints(score.event);toBeat=bests[mode]; }
   showScore();
   createModeControls(mode,next=>{
     newScoreRun();
@@ -264,7 +267,7 @@ async function main() {
       player.sync(false);
       if (audioResetCount !== player.resetCount) { audio.reset(); controller.reset(); tricks.reset(); particles.clear(); effect.wasAirborne = false; audioResetCount = player.resetCount; }
       audio.step(fixedDt, audioState());
-      if (scoreResetCount !== player.resetCount) { newScoreRun(); scoreResetCount = player.resetCount; }
+      if (scoreResetCount !== player.resetCount) { newScoreRun(); hud.newRun(); scoreResetCount = player.resetCount; }
       score.step(tricks.state,{
         distance:ramp.distance + Math.max(0, alongCourse.copy(player.position).sub(ramp.anchor).dot(ramp.forward)),
         grounded:player.grounded,crashed:player.crashed,landing:landingGrade,grind:player.grind,pitch:player.aerial.pitch,roll:player.aerial.roll,

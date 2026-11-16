@@ -174,3 +174,36 @@ test('high scores persist per mode, only improve, and tolerate blocked or invali
   // The caller still gets the score back, so the session keeps its best in memory.
   assert.equal(saveHighScore('skate',700,blocked),700);
 });
+
+test('points build while a trick is in progress, pay out as one event, and are shown as lost on a bail',()=>{
+  const run=createRun();
+  run.tick({grounded:false});assert.equal(run.score.pending,0);
+  run.flick(-80,0);assert.equal(run.score.pending,SCORE.trick.kickflip);
+  run.flick(80,0,0.33);
+  const combo=airPoints([SCORE.trick.kickflip,SCORE.trick.heelflip*SCORE.spins[1]!]);
+  assert.equal(run.score.pending,combo);assert.equal(run.score.total,0);assert.equal(run.score.event.id,0);
+  // A flip in progress counts once it has gone round.
+  run.tick({grounded:false,pitch:TURN});assert.equal(run.score.pending,airPoints([SCORE.trick.kickflip,SCORE.trick.heelflip*SCORE.spins[1]!,SCORE.flip]));
+  run.tick({grounded:false});
+  run.tick({landing:'Perfect'});
+  const paid=airPoints([SCORE.trick.kickflip,SCORE.trick.heelflip*SCORE.spins[1]!],'Perfect');
+  assert.deepEqual({...run.score.event},{id:1,points:paid,lost:false});
+  assert.equal(run.score.pending,0);assert.equal(run.score.total,paid);
+  run.tick();assert.equal(run.score.event.id,1,'one payout per landing');
+
+  // Grinds count up and pay when they end.
+  run.tick({grounded:false,grind:{active:true,meters:0,name:'50-50'}});
+  run.tick({grounded:false,grind:{active:true,meters:10,name:'50-50'}});
+  assert.equal(run.score.pending,10*SCORE.grind['5050']!);
+  run.tick({grind:{active:false,meters:10,name:'50-50'}});
+  assert.deepEqual({...run.score.event},{id:2,points:10*SCORE.grind['5050']!,lost:false});
+
+  // A bail mid-trick reports what was riding on it and pays nothing.
+  const total=run.score.total;
+  run.tick({grounded:false});run.flick(-80,0);
+  run.tricks.tryFlick(-80,0,true);for(let i=0;i<10;i++)run.tick({grounded:false});
+  run.tick();
+  assert.deepEqual({...run.score.event},{id:3,points:SCORE.trick.kickflip,lost:true});
+  assert.equal(run.score.pending,0);assert.equal(run.score.total,total);
+  run.score.reset();assert.equal(run.score.pending,0);
+});

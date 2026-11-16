@@ -103,20 +103,28 @@ export function createScore() {
   let riding: TrickState["ground"] = null, rode = 0;
   let railMeters = 0, railPoints = 0;
   let wasAirborne = false, pitch = 0, roll = 0;
+  // What the HUD shows as it happens: points riding on the current air, grind or manual, and the last result.
+  let pending = 0, gained = 0;
+  const preview: number[] = [];
+  const event = { id: 0, points: 0, lost: false };
+  function bank(points: number) { banked += points; gained += points; }
 
   function drop() {
     air.length = 0; grab = null; held = 0; riding = null; rode = 0;
     railMeters = railPoints = 0; wasAirborne = false; pitch = roll = 0;
   }
   function reset() {
-    drop(); banked = 0; origin = Infinity; far = -Infinity; ended = false; seen = -1;
+    drop(); banked = 0; origin = Infinity; far = -Infinity; ended = false; seen = -1; pending = gained = 0;
   }
 
   function step(tricks: TrickState, ride: RideSample) {
     const landings = tricks.landings ?? 0;
     if (ended || seen < 0) seen = landings;
     if (ended) return;
-    if (ride.crashed || tricks.bail) { drop(); ended = true; return; }
+    if (ride.crashed || tricks.bail) {
+      if (pending >= 1) { event.id++; event.points = Math.round(pending); event.lost = true; }
+      drop(); pending = 0; ended = true; return;
+    }
     // A restart can be sampled before the course rewinds, so a distance behind the start becomes the start.
     if (ride.distance < origin) origin = far = ride.distance;
     far = Math.max(far, ride.distance);
@@ -139,10 +147,10 @@ export function createScore() {
       if (points) air.push(points);
     }
     pitch = ride.pitch ?? 0; roll = ride.roll ?? 0; wasAirborne = airborne;
-    if (!airborne && air.length) { banked += airPoints(air, ride.landing); air.length = 0; }
+    if (!airborne && air.length) { bank(airPoints(air, ride.landing)); air.length = 0; }
 
     if (tricks.ground !== riding || tricks.groundMeters < rode) {
-      if (riding) banked += rode * (riding.manual ? SCORE.manual : SCORE.ridingGrab);
+      if (riding) bank(rode * (riding.manual ? SCORE.manual : SCORE.ridingGrab));
       riding = tricks.ground; rode = 0;
     }
     if (riding) rode = tricks.groundMeters;
@@ -152,7 +160,18 @@ export function createScore() {
       // The name is read per tick, so changing position mid-grind pays each stretch at its own rate.
       railPoints += (meters < railMeters ? meters : meters - railMeters) * grindRate(ride.grind!.name);
       railMeters = meters;
-    } else if (railPoints) { banked += railPoints; railMeters = railPoints = 0; }
+    } else if (railPoints) { bank(railPoints); railMeters = railPoints = 0; }
+
+    // The air is previewed before its landing bonus: that is only known at touchdown.
+    preview.length = 0;
+    for (const points of air) preview.push(points);
+    if (tricks.combo.length) for (const trick of tricks.caught ?? []) preview.push(trickPoints(trick.id, trick.spins));
+    const holding = grab ? grabPoints(held) : 0, turning = airborne ? flipPoints(pitch, roll) : 0;
+    if (holding) preview.push(holding);
+    if (turning) preview.push(turning);
+    pending = airPoints(preview) + railPoints + (riding ? rode * (riding.manual ? SCORE.manual : SCORE.ridingGrab) : 0);
+    if (gained >= 1) { event.id++; event.points = Math.round(gained); event.lost = false; }
+    gained = 0;
   }
 
   return {
@@ -161,5 +180,9 @@ export function createScore() {
     /** Points from tricks, grinds and manuals alone. */
     get tricks() { return Math.floor(banked); },
     get ended() { return ended; },
+    /** Points not yet banked: they are paid when the air, grind or manual ends cleanly, and lost on a bail. */
+    get pending() { return Math.floor(pending); },
+    /** The most recent payout, or loss; `id` changes with each one. */
+    event: event as Readonly<typeof event>,
   };
 }

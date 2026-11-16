@@ -127,6 +127,33 @@ body,
   opacity: 1;
 }
 
+/* Points riding on the current trick, under its name; the payout flashes when they bank. */
+.trick-points {
+  position: absolute;
+  left: 50%;
+  top: calc(28% + 3rem);
+  transform: translateX(-50%);
+  font-family: "Bebas Neue", sans-serif;
+  font-size: 1.5rem;
+  letter-spacing: 0.1em;
+  color: var(--foam);
+  text-shadow: 0 3px 16px rgba(0, 0, 0, 0.65);
+  opacity: 0;
+  transition: opacity 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+.trick-points.show { opacity: 0.85; }
+.trick-points.banked { color: var(--accent); opacity: 1; animation: points-banked 0.35s ease-out; }
+.trick-points.lost { opacity: 0.55; text-decoration: line-through; }
+@keyframes points-banked { from { transform: translateX(-50%) scale(1.4); } to { transform: translateX(-50%) scale(1); } }
+/* With trick names hidden, only the payout is shown, beside the score. */
+html[data-hud-tricks="off"] .trick-points {
+  left: auto; right: 24px; top: 138px; transform: none; font-size: 1.05rem; animation: none;
+}
+html[data-hud-tricks="off"] .trick-points:not(.banked) { opacity: 0; }
+@media (prefers-reduced-motion: reduce) { .trick-points.banked { animation: none; } }
+@media (max-width: 600px) { html[data-hud-tricks="off"] .trick-points { right: 16px; top: 134px; } }
+
 .trick.bail {
   color: var(--accent);
 }
@@ -236,6 +263,7 @@ body,
 #hud-options button:focus-visible { outline: 2px solid var(--foam); outline-offset: 1px; }
 /* Display options are a menu setting: only offered while the start or pause overlay is up. */
 #app:has(#overlay.hidden) #hud-options { display: none; }
+html[data-hud-controls="off"] #air-mode { display: none; }
 html[data-hud-controls="off"] .hud-bottom { visibility: hidden; }
 html[data-hud-tricks="off"] #trick { display: none; }
 #mode-controls button {
