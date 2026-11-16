@@ -79,6 +79,22 @@ Board tricks (Shift + arrows in the air) can be chained: once the board is caugh
 
 A touchdown is judged by how hard the wheels hit the surface and how well the board points along its travel (landing switch counts as aligned). Up to 20 m/s into the surface always rides away. Beyond that, a board within 15 degrees of its travel absorbs an extra 0.25 m/s of impact per m/s of rolling speed, so big airs at 200 mph are landable when they are straight; the allowance fades to nothing by 45 degrees, where a heavy touchdown bails. Gentle crooked landings still slide and shed speed rather than crash. Landing within 5 degrees is Perfect and within 15 is Clean: both pump a little of the touchdown back into rolling speed (10% / 5%, at most 2 m/s), and the grade is shown after the trick or flip name, or on its own after a heavy touchdown. Mid-flip, tilt from the surface counts as misalignment. Tuning values are in `src/player/landing.ts`.
 
+## Scoring
+
+Every run has a score, shown under the distance with the best score for the current board. It restarts from zero with the run (R, or the automatic restart after a crash) and is made of:
+
+- **Distance**: 1 point per metre down the course.
+- **Board tricks**: Pop Shove-It and FS 180 150, Kickflip and Heelflip 200, Varial Flip 350, Hardflip 400. A double is worth 2.5 times the single, a triple 4.5 times and a quadruple 7 times.
+- **Flips**: Frontflip, Backflip and Barrel Roll 600, Corkscrew 1,000, with the same 2.5 and 4.5 multipliers for doubles and triples.
+- **Grabs**: 100 for the catch plus 300 per second held, up to 2 seconds.
+- **Combos and landings**: everything landed in one air is added up, then multiplied by 1 + 0.25 for each trick after the first (up to 3 times), and by 1.5 for a Perfect or 1.2 for a Clean landing.
+- **Grinds**: points per metre ground, by grind type (5 for a 50-50, more for harder positions and slides; an unlisted type scores 5).
+- **Manuals and riding grabs**: 2 and 0.5 points per metre, on top of distance.
+
+Tricks only count once they are ridden away from: a bail or crash scores nothing for that air, grind or manual and stops the run's scoring, but the points already banked still count towards the best score. Skate and snowboard keep separate best scores; switching board mid-run banks the run and starts a new score. The rules and every value live in `SCORE` at the top of `src/player/score.ts`; storage is in `src/highScore.ts`.
+
+Best scores are stored only in this browser (`localStorage`), so they do not follow you to another browser or device and clearing site data removes them. Accounts with single sign-on (Google and similar) are planned but not implemented: there is no login, backend or network call today. The intent is to collect only the bare minimum needed to keep a profile for high scores, and possibly a friends list later.
+
 ## Sound
 
 Audio starts after clicking or pressing Enter to ride. Separate, band-limited wheel rumble and soft wind textures respond to actual speed; a gentle airborne wind baseline keeps jumps from going silent; rolling stops in the air, rail grinding has a metallic scrape, and braking/carving add a wheel scrub. Push strokes, ollies, tricks, landings, rail catches/exits, and bails have distinct effects triggered by physics transitions. Ollie clicks follow successful physics pops, including rail exits, so grade changes and suspension contact chatter stay quiet.
