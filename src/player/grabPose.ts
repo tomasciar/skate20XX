@@ -16,6 +16,13 @@ export const TOMAHAWK: GrabTweak = { offset:{x:0,y:0.62,z:0.42},rotation:{x:-1.1
 export const PUSH_OUT: GrabTweak = { offset:{x:0,y:0.17,z:-0.42},rotation:{x:-0.18,y:0,z:0},hipX:0,crouch:0.6,hipDrop:0.03,chestPitch:-1.25,chestRoll:0 };
 export const NOSEBONE: GrabTweak = { offset:{x:-0.30,y:0.22,z:-0.06},rotation:{x:0,y:0,z:-0.12},hipX:0.055,crouch:0.65,hipDrop:0.02,chestPitch:-0.95,chestRoll:0.18 };
 export const TAILBONE: GrabTweak = { ...NOSEBONE,offset:{x:0.30,y:0.22,z:-0.06},rotation:{x:0,y:0,z:0.12},hipX:-0.055,chestRoll:-0.18 };
+/** Pull-back tweaks ease off as a flip already tips the rider onto their back; `amount` 0 returns the tweak as is. */
+export function softenGrab(tweak: GrabTweak, amount: number): GrabTweak {
+  if(amount<=0) return tweak;
+  // Lowering the board straightens the legs; easing only its pull-back would fold the knees through the deck.
+  return {...tweak,chestPitch:tweak.chestPitch*(1-0.27*amount),
+    offset:{...tweak.offset,y:tweak.offset.y*(1-0.12*amount),z:tweak.offset.z*(1-0.1*amount)}};
+}
 export function grabTransform(tweak: GrabTweak, blend: number) {
   const offset = new THREE.Vector3(tweak.offset.x,tweak.offset.y,tweak.offset.z).multiplyScalar(blend);
   const rotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(tweak.rotation.x*blend,tweak.rotation.y*blend,tweak.rotation.z*blend));

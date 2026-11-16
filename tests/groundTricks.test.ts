@@ -71,6 +71,30 @@ test('manuals pivot on the correct wheels, keep both soles planted, and ease out
   }
 });
 
+test('Down balances on the rear wheels and Up on the front wheels even riding switch',()=>{
+  for(const yaw of [0,Math.PI/3,-Math.PI/3,2*Math.PI/3,-2*Math.PI/3,Math.PI]) for(const dy of [-1,1]) {
+    const visual=createSkaterVisual(),tricks=createTrickSystem();visual.root.rotation.y=yaw;
+    const boardForward=forward.clone().applyAxisAngle(up,yaw);
+    const travelSide=boardForward.dot(forward)<0 ? -1 : 1;
+    const facing=screenGrabFacing(boardForward,forward,up);
+    tricks.setGround(0,dy,true,facing,1);
+    assert.equal(tricks.state.ground?.name,dy>0?'Manual':'Nose Manual');
+    for(let i=0;i<120;i++)visual.setPose({...base,groundTrick:tricks.state.ground,travelSide});
+    visual.root.updateMatrixWorld(true);
+    for(const wheel of visual.wheels) {
+      const center=wheel.getWorldPosition(new THREE.Vector3());
+      const inFront=center.dot(forward)>0;
+      const shouldSupport=dy<0 ? inFront : !inFront;
+      if(shouldSupport)assert.ok(Math.abs(center.y-BOARD.wheelY)<1e-7,`${yaw}: wrong supporting wheels for ${tricks.state.ground?.name}`);
+      else assert.ok(center.y>BOARD.wheelY+0.1,'opposite axle should lift');
+    }
+    assertPlanted(visual);
+    tricks.setGround(0,0,true,facing,2);
+    for(let i=0;i<150;i++)visual.setPose({...base,groundTrick:tricks.state.ground,travelSide});
+    assert.ok(visual.board.quaternion.angleTo(new THREE.Quaternion())<0.0001);
+  }
+});
+
 function assertPlanted(visual:ReturnType<typeof createSkaterVisual>) {
   for(const side of [-1,1]) {
     const foot=visual.root.getObjectByName(`foot-${side}`)!;

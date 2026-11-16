@@ -121,7 +121,7 @@ export function createInput(): {
         state.right = false;
         break;
       case "Space":
-        state.crouchReleased = true;
+        if(state.crouch)state.crouchReleased = true;
         state.crouch = false;
         break;
       case "ArrowUp":
