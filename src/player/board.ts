@@ -463,7 +463,7 @@ export function createBoardPlayer(
 
     // On the road the trucks turn as weight shifts onto an edge; in the air the rider spins freely.
     if (slide.state.active) yaw=slideYaw;
-    else yaw = slideYaw - (grounded ? lean * carveTurnRate(speed) * dt : steering * 5 * dt);
+    else yaw = slideYaw - (grounded ? lean * carveTurnRate(speed) * dt : steering * 6.7 * dt);
     yaw = Math.atan2(Math.sin(yaw), Math.cos(yaw));
 
     const wasGrinding = grind.state.active;
