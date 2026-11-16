@@ -110,3 +110,25 @@ test('obstacle crashes release rider and board, ignore controls, and allow manua
   player.reset(ramp.spawn); assert.equal(world.impulseJoints.len(),0);
   world.free();
 });
+
+test('no body part outruns a high-speed crash, whatever pose it starts from', async () => {
+  await RAPIER.init();
+  for (const [lean,crouch,speed] of [[0,0.5,89],[0.3,0.5,60],[-0.5,0,100],[1,0,110],[1,0.5,100]] as const) {
+    const scene = new THREE.Scene(), world = new RAPIER.World({x:0,y:-18,z:0}); world.timestep = dt;
+    const floor = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0,-0.5,0));
+    world.createCollider(RAPIER.ColliderDesc.cuboid(2000,0.5,2000),floor);
+    const visual = createSkaterVisual(); visual.root.position.set(0,0.15,0); scene.add(visual.root);
+    for (let i=0;i<120;i++) visual.setPose({...pose,lean,crouch});
+    const rag = createRagdoll(scene,world);
+    rag.start(visual.captureRagdoll(),new THREE.Vector3(0,0,-speed),new THREE.Vector3(0,1,0));
+    for (let i=0;i<360;i++) {
+      rag.beginStep(); world.step(); rag.sync();
+      world.bodies.forEach(body => {
+        const v = body.linvel();
+        assert.ok(Math.hypot(v.x,v.y,v.z) < speed + 25.01, `${String(body.userData)} was flung at frame ${i} of a ${speed} m/s crash`);
+      });
+      checkAnchors(world);
+    }
+    rag.clear(); world.free();
+  }
+});

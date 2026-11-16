@@ -8,8 +8,10 @@ export type RagdollPart = {
 export type RagdollJoint = {
   a: string; b: string; anchor: THREE.Vector3; kind: 'ball' | 'hinge' | 'fixed'; axis?: THREE.Vector3; flex?: number;
 };
-export type RagdollRig = { parts: RagdollPart[]; joints: RagdollJoint[] };
+export type RagdollRig = { parts: RagdollPart[]; joints: RagdollJoint[];visualScale?:number };
 type Part = { body: RAPIER.RigidBody; group: THREE.Group; previous: THREE.Vector3; current: THREE.Vector3; previousQ: THREE.Quaternion; currentQ: THREE.Quaternion };
+/** No body part may outrun the crash's launch speed by more than this (m/s), or spin faster than MAX_SPIN (rad/s). */
+const SPEED_MARGIN = 25, MAX_SPIN = 40;
 const quaternion = (q: RAPIER.Rotation) => new THREE.Quaternion(q.x, q.y, q.z, q.w);
 
 /** Created only during a crash; all bodies and joints are removed on recovery. */
@@ -18,6 +20,7 @@ export function createRagdoll(scene: THREE.Scene, world: RAPIER.World) {
   const parts = new Map<string, Part>(), joints: RAPIER.ImpulseJoint[] = [];
   let previousCcdSubsteps: number | null = null;
   const focus = new THREE.Vector3(), velocity = new THREE.Vector3();
+  let speedLimit = Infinity;
   function clear() {
     for (const joint of joints) if (joint.isValid()) world.removeImpulseJoint(joint, true);
     joints.length = 0;
@@ -27,7 +30,7 @@ export function createRagdoll(scene: THREE.Scene, world: RAPIER.World) {
     // Clones share the skater's geometry and materials, so never dispose those assets here.
   }
   function start(rig: RagdollRig, momentum: THREE.Vector3, normal: THREE.Vector3) {
-    clear(); previousCcdSubsteps = world.maxCcdSubsteps; world.maxCcdSubsteps = Math.max(8, world.maxCcdSubsteps); scene.add(root);
+    clear(); speedLimit = momentum.length() + SPEED_MARGIN; previousCcdSubsteps = world.maxCcdSubsteps; world.maxCcdSubsteps = Math.max(8, world.maxCcdSubsteps); scene.add(root);
     // Shoes and hands were fixed joints; use compound colliders instead so CCD cannot
     // stop a shoe independently of its shin and stretch the ankle during a tweaked crash.
     const attached = new Map<string,RagdollPart[]>();
@@ -61,6 +64,7 @@ export function createRagdoll(scene: THREE.Scene, world: RAPIER.World) {
         const clone = original.clone(true);
         const local = new THREE.Matrix4().multiplyMatrices(inverse, original.matrixWorld);
         local.decompose(clone.position, clone.quaternion, clone.scale); clone.visible = true; group.add(clone);
+        clone.userData.ragdollBodyScale=rig.visualScale ?? 1;
       }
       group.position.copy(spec.center); group.quaternion.copy(spec.rotation);
       parts.set(spec.id, { body, group, previous: spec.center.clone(), current: spec.center.clone(), previousQ: spec.rotation.clone(), currentQ: spec.rotation.clone() });
@@ -116,6 +120,11 @@ export function createRagdoll(scene: THREE.Scene, world: RAPIER.World) {
   function sync() {
     stabilizeJoints();
     for (const part of parts.values()) {
+      // A crash only sheds energy. At speed a pinched limb can be flung by the solver; cap it at the launch speed.
+      const v = part.body.linvel(), fast = Math.hypot(v.x, v.y, v.z);
+      if (fast > speedLimit) { const k = speedLimit / fast; part.body.setLinvel({ x: v.x*k, y: v.y*k, z: v.z*k }, true); }
+      const w = part.body.angvel(), spin = Math.hypot(w.x, w.y, w.z);
+      if (spin > MAX_SPIN) { const k = MAX_SPIN / spin; part.body.setAngvel({ x: w.x*k, y: w.y*k, z: w.z*k }, true); }
       const t = part.body.translation(), q = part.body.rotation();
       part.current.set(t.x, t.y, t.z); part.currentQ.set(q.x, q.y, q.z, q.w);
     }
