@@ -13,6 +13,9 @@ import type { GroundTrick, TrickDef } from "./tricks.ts";
 import {applyRideSkin} from '../mode.ts';
 import type {RideMode} from '../mode.ts';
 import {createSnowboardVisual,SNOWBOARD} from './snowboardVisual.ts';
+import {applyCharacterSkin,characterPalette} from '../characters.ts';
+import type {CharacterId} from '../characters.ts';
+import {addCharacterLooks,addStuntStripe} from './characterVisuals.ts';
 
 const RIDING_GRAB = {...TUCK,offset:{x:0,y:0,z:0},rotation:{x:0,y:0,z:0},
   crouch:0.95,hipDrop:0.14,chestPitch:-0.4};
@@ -24,6 +27,8 @@ export type SkaterVisual = {
   deck: THREE.Group;
   wheels: THREE.Object3D[];
   setMode: (mode:RideMode)=>void;
+  readonly character:CharacterId;
+  setCharacter:(character:CharacterId)=>void;
   resetPose: () => void;
   captureRagdoll: () => RagdollRig;
   setRagdoll: (active: boolean) => void;
@@ -54,7 +59,7 @@ export type SkaterVisual = {
   }) => void;
 };
 
-export function createSkaterVisual(initialMode:RideMode='skate'): SkaterVisual {
+export function createSkaterVisual(initialMode:RideMode='skate',initialCharacter:CharacterId='boy'): SkaterVisual {
   const root = new THREE.Group(), board = new THREE.Group(), rider = new THREE.Group(), deck = new THREE.Group();
   root.add(board, rider); board.add(deck);
   const skateDeck=new THREE.Group(),skateGear=new THREE.Group();
@@ -64,7 +69,8 @@ export function createSkaterVisual(initialMode:RideMode='skate'): SkaterVisual {
   const grip = mat(0x222a2b), maple = mat(0xd1aa72), orange = mat(0xf27543);
   const steel = mat(0xaab9bf, 0.3, 0.8), rubber = mat(0xe8dfc6);
   const skin = mat(0xc48a65), shirt = mat(0x267a79), pants = mat(0x293b4a);
-  const armSurface=mat(0xc48a65);
+  const armSurface=mat(0xc48a65),sleeveSurface=mat(0x267a79);
+  const hair=mat(0x493228),characterAccent=mat(0xef7846),gloves=mat(0x202e32),kneeSurface=mat(0x202e32);
   const shoes = mat(0x253035), sole = mat(0xece1c7), helmet = mat(0xef7846, 0.35);
   function mesh(parent: THREE.Object3D, geo: THREE.BufferGeometry, material: THREE.Material, x = 0, y = 0, z = 0) {
     const m = new THREE.Mesh(geo, material); m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m;
@@ -110,22 +116,11 @@ export function createSkaterVisual(initialMode:RideMode='skate'): SkaterVisual {
   chest.name = 'chest';
   chest.scale.z = 0.65;
   box(torso, [0.23, 0.025, 0.15], shirt, 0, 0.065, 0);
-  box(torso, [0.085, 0.06, 0.008], sole, -0.065, 0.29, -0.105);
   mesh(torso, new THREE.CylinderGeometry(0.044, 0.05, 0.07, 10), skin, 0, 0.44, 0);
   const head = new THREE.Group(); head.position.y = 0.53; torso.add(head);
   head.name = 'head';
-  const face = mesh(head, new THREE.SphereGeometry(0.095, 16, 12), skin); face.scale.set(0.87, 1.13, 0.95);
-  mesh(head, new THREE.SphereGeometry(0.106, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.58), helmet, 0, 0.035, 0);
-  box(head, [0.15, 0.014, 0.08], helmet, 0, 0.045, -0.085);
   const black = mat(0x202e32);
-  for (const x of [-0.037, 0.037]) {
-    box(head, [0.044, 0.027, 0.014], black, x, 0.008, -0.085);
-    mesh(head, new THREE.SphereGeometry(0.018, 8, 6), skin, Math.sign(x) * 0.09, 0, 0);
-  }
-  box(head, [0.03, 0.008, 0.014], black, 0, 0.01, -0.09);
-  mesh(head, new THREE.SphereGeometry(0.017, 8, 6), skin, 0, -0.019, -0.091);
-  box(head, [0.052, 0.012, 0.012], black, 0, -0.075, -0.05);
-  batchStaticMeshes(head);
+  addCharacterLooks(head,torso,{skin,helmet,hair,ink:black,accent:characterAccent,white:sole,steel},batchStaticMeshes);
   const goggles=new THREE.Group();goggles.userData.rideSkin='snowboard';head.add(goggles);
   box(goggles,[0.16,0.048,0.032],black,0,0.012,-0.083);
   box(goggles,[0.135,0.031,0.008],mat(0x88cfe7,0.2,0.35),0,0.016,-0.103);
@@ -133,10 +128,11 @@ export function createSkaterVisual(initialMode:RideMode='skate'): SkaterVisual {
   batchStaticMeshes(goggles);
   function arm(side: number) {
     const upper = mesh(torso, new THREE.CylinderGeometry(0.032, 0.041, 1, 10), armSurface);
-    const sleeve = mesh(torso, new THREE.CylinderGeometry(0.048, 0.054, 1, 10), shirt);
+    const sleeve = mesh(torso, new THREE.CylinderGeometry(0.048, 0.054, 1, 10), sleeveSurface);
     const fore = mesh(torso, new THREE.CylinderGeometry(0.025, 0.03, 1, 10), armSurface);
     const elbow = mesh(torso, new THREE.SphereGeometry(0.034, 10, 8), armSurface);
-    const hand = mesh(torso, new THREE.CapsuleGeometry(0.032, 0.035, 4, 10), black);
+    const hand = mesh(torso, new THREE.CapsuleGeometry(0.032, 0.035, 4, 10), gloves);
+    addStuntStripe(upper,characterAccent);addStuntStripe(fore,characterAccent);
     sleeve.name = `sleeve-${side}`;
     upper.name = `upper-arm-${side}`;
     fore.name = `forearm-${side}`;
@@ -148,7 +144,7 @@ export function createSkaterVisual(initialMode:RideMode='skate'): SkaterVisual {
   function leg(side: number) {
     const thigh = mesh(rider, new THREE.CylinderGeometry(0.072, 0.055, 1, 10), pants);
     const shin = mesh(rider, new THREE.CylinderGeometry(0.052, 0.038, 1, 10), pants);
-    const knee = mesh(rider, new THREE.SphereGeometry(0.063, 10, 8), black);
+    const knee = mesh(rider, new THREE.SphereGeometry(0.063, 10, 8), kneeSurface);
     knee.name = `knee-${side}`;
     shin.name = `shin-${side}`;
     const foot = new THREE.Group(); foot.position.set(side * 0.255, FOOT_Y, 0); rider.add(foot);
@@ -182,12 +178,19 @@ export function createSkaterVisual(initialMode:RideMode='skate'): SkaterVisual {
   const rearGrabHead=new THREE.Quaternion(),rearHeadAngles=new THREE.Euler(0,0,0,'YXZ');
   let rearHeadHeld=false;
   const kickRotation=new THREE.Quaternion(),kickEuler=new THREE.Euler();
-  let mode=initialMode;
+  let mode=initialMode,character=initialCharacter;
+  function updateAppearance() {
+    const palette=characterPalette(character,mode);
+    skin.color.setHex(palette.skin);shirt.color.setHex(palette.shirt);pants.color.setHex(palette.pants);armSurface.color.setHex(palette.arms);
+    sleeveSurface.color.setHex(palette.sleeves);
+    shoes.color.setHex(palette.shoes);helmet.color.setHex(palette.helmet);hair.color.setHex(palette.hair);
+    characterAccent.color.setHex(palette.accent);gloves.color.setHex(palette.gloves);kneeSurface.color.setHex(palette.knees);
+    applyCharacterSkin(root,character);
+  }
+  function setCharacter(next:CharacterId) {character=next;updateAppearance();}
   function setMode(next:RideMode) {
     mode=next;applyRideSkin(root,mode);
-    const snow=mode==='snowboard';
-    shirt.color.setHex(snow?0xe35e42:0x267a79);armSurface.color.setHex(snow?0xe35e42:0xc48a65);
-    pants.color.setHex(snow?0x233c56:0x293b4a);helmet.color.setHex(snow?0x315e82:0xef7846);
+    updateAppearance();
   }
   setMode(initialMode);
   function setPose(opts: Parameters<SkaterVisual['setPose']>[0]) {
@@ -331,7 +334,7 @@ export function createSkaterVisual(initialMode:RideMode='skate'): SkaterVisual {
       parts.push({ id, center, rotation: reference.getWorldQuaternion(new THREE.Quaternion()), objects, mass, shape });
     };
     part('pelvis', pelvis, pelvis.getWorldPosition(new THREE.Vector3()), [pelvis], 12, { kind: 'capsule', length: 0.3, radius: 0.10 });
-    const torsoObjects = torso.children.filter(o => o instanceof THREE.Mesh && (!o.name || o===chest));
+    const torsoObjects = torso.children.filter(o => o.userData.characterAttachment || o instanceof THREE.Mesh && (!o.name || o===chest));
     part('torso', torso, point(torso,0,0.23), torsoObjects, 24, { kind: 'box', half: new THREE.Vector3(0.15,0.18,0.09) });
     part('head', head, point(head), [head], 5, { kind: 'ball', radius: 0.115 });
     joints.push({ a: 'pelvis', b: 'torso', anchor: point(torso,0,0.08), kind: 'ball' },
@@ -362,7 +365,7 @@ export function createSkaterVisual(initialMode:RideMode='skate'): SkaterVisual {
     }
     return { parts,joints };
   }
-  return { root, board, deck, wheels, setMode, setPose, captureRagdoll, setRagdoll(active: boolean) { rider.visible = !active; if (active) { carve = manual = 0; deck.rotation.z = 0; deck.position.set(0,0,0); } }, resetPose() { motion.reset(); grabBlend = 0; carve = manual = 0; heldGroundGrab = false; rearHeadHeld = false; deck.rotation.z = 0; deck.position.set(0,0,0); heldGrab = null; board.position.set(0,0,0); board.quaternion.identity(); } };
+  return { root, board, deck, wheels, setMode, setCharacter, get character(){return character;}, setPose, captureRagdoll, setRagdoll(active: boolean) { rider.visible = !active; if (active) { carve = manual = 0; deck.rotation.z = 0; deck.position.set(0,0,0); } }, resetPose() { motion.reset(); grabBlend = 0; carve = manual = 0; heldGroundGrab = false; rearHeadHeld = false; deck.rotation.z = 0; deck.position.set(0,0,0); heldGrab = null; board.position.set(0,0,0); board.quaternion.identity(); } };
 }
 
 /** Keep animated joints separate; combine only rigid details within the deck, head, and shoes. */

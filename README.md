@@ -29,6 +29,8 @@ Open the local URL printed by Vite. Click or press Enter to start.
 
 The camera automatically follows the rider and eases around the road’s bends at a fixed follow distance. WASD controls the skater; steering never orbits the camera, and speed never zooms it. There are no manual camera controls.
 
+The Rider selector below the board-mode buttons offers Boy, Girl, Goku, Naruto, and Kick Buttowski. The character looks use the same animated rider proportions and physics, with distinct hair, headgear, clothing palettes, and outfit details. Selection is saved, can change during a run or crash, and works with both skate and snowboard gear. Changing characters keeps the current run and momentum.
+
 Switching tabs or losing window focus pauses the game and clears held keys.
 
 ## Course and rider

@@ -17,6 +17,8 @@ import { courseSlope } from "../world/course.ts";
 import { RAMP, type RampWorld } from "../world/ramp.ts";
 import {applyRideSkin} from '../mode.ts';
 import type {RideMode} from '../mode.ts';
+import {applyCharacterSkin} from '../characters.ts';
+import type {CharacterId} from '../characters.ts';
 
 /** Person-sized inertia so flips take a real moment, not a frisbee twitch. */
 const INERTIA = { x: 14, y: 9, z: 6 };
@@ -69,19 +71,21 @@ export type BoardPlayer = {
   originShift: THREE.Vector3;
   reset: (spawn: THREE.Vector3) => void;
   setMode: (mode:RideMode)=>void;
+  readonly character:CharacterId;
+  setCharacter:(character:CharacterId)=>void;
 };
 
 export function createBoardPlayer(
   scene: THREE.Scene,
   world: RAPIER.World,
   ramp: RampWorld,
-  mode:RideMode='skate'
+  mode:RideMode='skate',character:CharacterId='boy'
 ): BoardPlayer {
   const grind = createGrindSystem();
   const pump = createPumpCycle();
   const air = createAirRotation();
   const slide = createSlide();
-  const visual = createSkaterVisual(mode);
+  const visual = createSkaterVisual(mode,character);
   const ragdoll = createRagdoll(scene, world);
   scene.add(visual.root);
 
@@ -774,5 +778,7 @@ export function createBoardPlayer(
     render,
     reset,
     setMode(next:RideMode) {visual.setMode(next);applyRideSkin(scene,next);render(1,0);},
+    get character(){return visual.character;},
+    setCharacter(next:CharacterId) {visual.setCharacter(next);applyCharacterSkin(scene,next);render(1,0);},
   };
 }

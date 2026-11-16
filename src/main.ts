@@ -19,6 +19,8 @@ import { createParticles, SPARK, DUST, SNOW } from "./render/particles";
 import {loadRideMode} from './mode';
 import {createModeControls} from './ui/modes';
 import {createHudOptions} from './ui/hudOptions';
+import {loadCharacter} from './characters';
+import {createCharacterControls} from './ui/characters';
 
 async function main() {
   await RAPIER.init();
@@ -66,7 +68,8 @@ async function main() {
 
   const ramp = createRamp(scene, world,{mode});
   const chase = createChaseCamera(camera, ramp.forward);
-  const player = createBoardPlayer(scene, world, ramp,mode);
+  const character=loadCharacter();
+  const player = createBoardPlayer(scene, world, ramp,mode,character);
   const courseDirection=ramp.forward.clone();
 
   const sun = scene.getObjectByName("sun") as THREE.DirectionalLight;
@@ -108,6 +111,7 @@ async function main() {
   let pausedSceneDirty = true;
   let hudElapsed = 0;
   createHudOptions();
+  createCharacterControls(character,next=>{input.clear();controller.reset();player.setCharacter(next);pausedSceneDirty=true;});
   createModeControls(mode,next=>{
     mode=next;ramp.setMode!(mode);player.setMode(mode);hud.setMode(mode);
     sky.setMode(mode,(scene.fog as THREE.Fog).color);applySkyEnvironment(renderer,scene,sky.mesh);
@@ -190,9 +194,10 @@ async function main() {
   }
   window.addEventListener("keydown", (e) => {
     if (e.repeat) return;
+    if(e.target instanceof HTMLElement && e.target.closest('select, textarea'))return;
     if (e.code === "KeyM") { e.preventDefault(); toggleMute(); }
     if (e.code === "Escape") { if (running) pause(); else startSession(); }
-    if (e.code === "Enter" && !running && !(e.target instanceof HTMLElement && e.target.closest("button, input"))) startSession();
+    if (e.code === "Enter" && !running && !(e.target instanceof HTMLElement && e.target.closest('button, input'))) startSession();
   });
   window.addEventListener("blur", pause);
   window.addEventListener("pagehide", pause);
