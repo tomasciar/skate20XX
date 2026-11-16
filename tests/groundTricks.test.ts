@@ -7,6 +7,7 @@ import { createTrickSystem, type GroundTrick } from '../src/player/tricks.ts';
 import { createSkaterVisual } from '../src/player/skaterVisual.ts';
 import { GRABS, screenGrabFacing } from '../src/player/grabs.ts';
 import { BOARD, RIDER } from '../src/player/dimensions.ts';
+import {CHARACTERS} from '../src/characters.ts';
 
 const dt=1/120,up=new THREE.Vector3(0,1,0),forward=new THREE.Vector3(0,0,-1);
 const base={dt,speed:25,push:0,verticalSpeed:0,grinding:false,crouch:0,lean:0,airborne:false,bail:false,
@@ -106,6 +107,27 @@ function assertPlanted(visual:ReturnType<typeof createSkaterVisual>) {
     assert.ok(shin.localToWorld(new THREE.Vector3(0,0.5,0)).distanceTo(foot.localToWorld(new THREE.Vector3(0,0.06,0)))<0.001,'ankle detached');
   }
 }
+
+test('manuals and nose manuals retain moving hips and shoulders, counterbalance with their arms, and keep feet planted',()=>{
+  for(const mode of ['skate','snowboard'] as const)for(const {id} of CHARACTERS)for(const manual of [-1,1])for(const travelSide of [-1,1] as const) {
+    const visual=createSkaterVisual(mode,id),groundTrick:GroundTrick={name:manual>0?'Manual':'Nose Manual',manual,grab:null};
+    const torso=visual.root.getObjectByName('chest')!.parent!,hips=torso.parent!;
+    const moving=id==='boy'||id==='kick',samples:{x:number;yaw:number;shoulder:number}[]=[];
+    for(let frame=0;frame<(moving?840:180);frame++) {
+      visual.setPose({...base,groundTrick,travelSide});
+      if(frame%30===0){visual.root.updateMatrixWorld(true);assertPlanted(visual);}
+      if(moving&&frame>180)samples.push({x:hips.position.x,yaw:hips.rotation.y,
+        shoulder:visual.root.getObjectByName('shoulder--1')!.position.y-visual.root.getObjectByName('shoulder-1')!.position.y});
+    }
+    const averageHandX=(visual.root.getObjectByName('hand--1')!.position.x+visual.root.getObjectByName('hand-1')!.position.x)/2;
+    assert.ok(averageHandX*manual*travelSide<-.03,'arms should counterbalance away from the supporting axle');
+    if(moving) {
+      const range=(key:keyof typeof samples[number])=>Math.max(...samples.map(sample=>sample[key]))-Math.min(...samples.map(sample=>sample[key]));
+      assert.ok(range('x')>.015,'holding a manual must retain foot-to-foot weight adjustments');
+      assert.ok(range('yaw')>.025&&range('shoulder')>.008,'hips and shoulders should keep articulating during a manual');
+    }
+  }
+});
 
 test('riding grabs reach the deck without lifting wheels or detaching feet, including while carving',()=>{
   for(const grab of [GRABS.indy,GRABS.melon,GRABS.nosegrab,GRABS.tailgrab]) for(const lean of [-1,0,1]) {

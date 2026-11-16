@@ -9,6 +9,8 @@ import { TUCK, grabTransform, softenGrab } from "./grabPose.ts";
 import type { GrabDef } from "./grabs.ts";
 import type { PumpState } from "./pump.ts";
 import { createRiderMotion, solveArm, solveLimb } from "./pose.ts";
+import {createCruisePose} from './cruisePose.ts';
+import {createAirPose} from './airPose.ts';
 import { sampleTrickFoot } from "./trickFeet.ts";
 import type { TrickFootPose } from "./trickFeet.ts";
 import type { GroundTrick, TrickDef } from "./tricks.ts";
@@ -63,6 +65,8 @@ export type SkaterVisual = {
     lean: number;
     /** Signed carve load, -1..1: rolls the deck and puts the rider's weight over the inside edge. */
     carve?: number;
+    /** Measured ground incline along travel; used for visual knee loading through grade changes. */
+    surfacePitch?:number;
     airborne: boolean;
     bail: boolean;
     wheelRoll: number;
@@ -151,7 +155,8 @@ export function createSkaterVisual(initialMode:RideMode='skate',initialCharacter
     hand.name = `hand-${side}`;
     shoulder.name=`shoulder-${side}`;shoulder.userData.characterBuild='shoulder';
     elbow.name = `elbow-${side}`;
-    return { side, shoulder, upper, sleeve, fore, elbow, hand };
+    return { side, shoulder, upper, sleeve, fore, elbow, hand,restHand:new THREE.Vector3(),restReady:false,
+      airHand:new THREE.Vector3(),airReady:false };
   }
   const arms = [arm(-1), arm(1)];
   function leg(side: number) {
@@ -186,6 +191,8 @@ export function createSkaterVisual(initialMode:RideMode='skate',initialCharacter
     m.quaternion.setFromUnitVectors(axis, direction.normalize());
   }
   const motion = createRiderMotion();
+  const cruisePose=createCruisePose(),restTarget=new THREE.Vector3();
+  const airPose=createAirPose(),airTarget=new THREE.Vector3(),gripReach=new THREE.Vector3();
   let grabBlend = 0, carve = 0, manual = 0, flipPitch = 0, flipRoll = 0;
   const carveTilt = new THREE.Quaternion(), riderX = new THREE.Vector3(1,0,0), gripPivot = new THREE.Vector3(0,BOARD.gripY,0);
   let heldGrab: GrabDef | null = null;
@@ -221,8 +228,12 @@ export function createSkaterVisual(initialMode:RideMode='skate',initialCharacter
     const riding = !opts.airborne && !opts.grinding && !opts.bail;
     const groundGrab = riding ? opts.groundTrick?.grab : null;
     const selectedGrab = groundGrab ?? (opts.airborne && !opts.grinding && !opts.bail ? opts.grab : null);
+    const cruise=cruisePose.update({dt:opts.dt,active:riding&&!groundGrab,
+      speed:opts.speed,turn:opts.carve ?? m.lean*.6,surfacePitch:opts.surfacePitch,travelSide:opts.travelSide ?? 1});
     const footTrick=opts.airborne && !opts.grinding && !opts.bail && !selectedGrab ? opts.trick : null;
     const trickProgress=footTrick ? (opts.trickTime ?? 0)/footTrick.duration : 0;
+    const air=airPose.update({dt:opts.dt,active:opts.airborne&&!opts.grinding&&!opts.bail,verticalSpeed:opts.verticalSpeed,
+      turn:opts.lean,pitch:opts.flipLean?.pitch ?? 0,roll:opts.flipLean?.roll ?? 0,travelSide:cruise.travelSide});
     // Blend out before changing hands or grip targets, avoiding a hand snapping across the board.
     if (selectedGrab && (!heldGrab || heldGrab.id === selectedGrab.id || grabBlend < 0.02)) {
       heldGrab = selectedGrab;heldGroundGrab=!!groundGrab;
@@ -236,6 +247,8 @@ export function createSkaterVisual(initialMode:RideMode='skate',initialCharacter
     if (Math.abs(carve) < 1e-5) carve = 0;
     manual = riding ? THREE.MathUtils.damp(manual,(opts.groundTrick?.manual ?? 0)*(opts.travelSide ?? 1),10,opts.dt) : 0;
     if (Math.abs(manual)<1e-5) manual=0;
+    const cruiseWeight=cruise.weight*(1-grabBlend)*(1-Math.abs(manual)*.25)*(1-m.push)*(1-Math.abs(slide))
+      *(1-THREE.MathUtils.smoothstep(m.crouch,.15,.65));
     // Roll about the grip centerline: the soles stay planted and the wheels stay on the road.
     const tilt = carve ? -carve * CARVE.deckTilt : 0;
     deck.rotation.z = tilt;
@@ -256,13 +269,13 @@ export function createSkaterVisual(initialMode:RideMode='skate',initialCharacter
     // The rear grab arches the back by itself; leaning back with a flip on top would cock the rider too far.
     const baseTweak = heldGroundGrab ? RIDING_GRAB : heldGrab?.tweak ?? TUCK;
     const tweak = heldGrab?.direction==='back' && !heldGroundGrab ? softenGrab(baseTweak,Math.max(0,flipPitch)) : baseTweak;
-    const c = THREE.MathUtils.lerp(THREE.MathUtils.clamp(m.crouch+m.air*0.25+m.kneeLoad+Math.abs(manual)*0.25+Math.abs(slide)*0.5+flipTuck*FLIP_LEAN.tuck,0,1),tweak.crouch,grabBlend);
+    const c = THREE.MathUtils.lerp(THREE.MathUtils.clamp(m.crouch+m.air*0.25+m.kneeLoad+Math.abs(manual)*0.25+Math.abs(slide)*0.5+flipTuck*FLIP_LEAN.tuck
+      +cruiseWeight*(.06+cruise.pace*.035+Math.abs(cruise.turn)*.05+cruise.compression),0,1),tweak.crouch,grabBlend);
     const grabPose = grabTransform(tweak,grabBlend);
     const stance = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),RIDER.stanceY);
     board.position.copy(grabPose.offset).applyQuaternion(stance);
     const rhythm = Math.sin(m.time * 5.2);
-    const breathing = Math.sin(m.time * 2.4) * 0.003;
-    const roadMotion = Math.sin(opts.wheelRoll * 0.025) * Math.min(opts.speed / 80, 1) * 0.003 * (1 - m.air);
+    const breathing = Math.sin(m.time * 1.15) * .0012;
     const pushSwing = Math.sin(m.pushPhase) * m.push;
     for (const w of wheels) w.rotation.x = opts.wheelRoll;
     // Wheel contacts stay fixed. Weight shifts belong to the rider, not a rolling wheel group.
@@ -280,15 +293,23 @@ export function createSkaterVisual(initialMode:RideMode='skate',initialCharacter
     }
     const ridingGrabBlend=heldGroundGrab ? grabBlend : 0;
     const grabHand=heldGrab?.hand ?? 1;
-    const hipY = RIDER.hipHeight - (character==='kick'?.16:0) - c * 0.22 - grabBlend * tweak.hipDrop - m.landing - m.push * (0.035 + Math.abs(m.lean) * 0.025) + breathing + roadMotion;
+    const hipY = RIDER.hipHeight - (character==='kick'?.16:0) - c * 0.22 - grabBlend * tweak.hipDrop - m.landing - m.push * (0.035 + Math.abs(m.lean) * 0.025) + breathing;
     hips.position.set(pushSwing * 0.012 + m.sway * 0.5 + tweak.hipX*grabBlend + manual*0.16 - grabHand*ridingGrabBlend*0.08,
       hipY - Math.abs(carve)*0.03, 0.025 + c * 0.1 - m.lean * 0.065*(1-grabBlend) - carve*0.09 + m.sway + slide*0.07);
     // Hips counter the flip lean so the weight stays over the board.
     hips.position.x+=leanRoll*0.04;hips.position.z-=leanPitch*0.03;
+    hips.position.x+=cruiseWeight*cruise.travelSide*(-.012+cruise.acceleration*.035+cruise.settle*.024);
+    hips.position.z+=cruiseWeight*(cruise.settle*.008-cruise.turn*.018);
+    hips.rotation.set(cruiseWeight*(cruise.settle*.025-cruise.turn*.04),
+      cruiseWeight*(cruise.turn*.09+cruise.settle*.055),
+      cruiseWeight*cruise.travelSide*(cruise.settle*.025+cruise.acceleration*.035));
     // Toeside carves fold the chest over the toes; heelside carves sit back over the heels.
     torso.rotation.set(THREE.MathUtils.lerp(-0.08-c*0.25-m.brake*0.1,tweak.chestPitch,grabBlend) - carve*(carve>0 ? 0.26 : 0.14) - slide*0.15,
       -0.15+pushSwing*0.07+m.sway*2, m.lean*0.13-m.sway*1.2+tweak.chestRoll*grabBlend - manual*0.12 - grabHand*ridingGrabBlend*0.95);
     torso.rotation.x+=leanPitch;torso.rotation.z+=leanRoll;
+    torso.rotation.x+=cruiseWeight*(-.065+(cruise.turn-cruise.chestTurn)*.13-cruise.chestSettle*.025);
+    torso.rotation.y=THREE.MathUtils.lerp(torso.rotation.y,cruise.travelSide*.18+cruise.chestTurn*.14-cruise.chestSettle*.07,cruiseWeight);
+    torso.rotation.z-=cruiseWeight*cruise.travelSide*(cruise.acceleration*.085+cruise.chestSettle*.035);
     for (const l of legs) {
       // Only the pushing foot leaves the grip; all other weight shifts preserve the stance.
       l.foot.position.set(0,FOOT_Y-BOARD.gripY,0).applyQuaternion(carveTilt);
@@ -317,12 +338,12 @@ export function createSkaterVisual(initialMode:RideMode='skate',initialCharacter
     // A shorter rider shifts his hips slightly toward extended feet, keeping both ankles
     // connected through full-size board tweaks instead of stretching the lower legs.
     if(bodyScale<1)for(let pass=0;pass<6;pass++)for(const l of legs) {
-      hipReachDelta.copy(l.ankle).sub(hips.position);hipReachDelta.x-=l.side*.095;
+      hipReachDelta.set(l.side*.095,0,0).applyQuaternion(hips.quaternion).add(hips.position).sub(l.ankle).negate();
       const distance=hipReachDelta.length(),reach=(RIDER.upperLeg+RIDER.lowerLeg)*legScale-.0002;
       if(distance>reach)hips.position.addScaledVector(hipReachDelta,(distance-reach)/distance);
     }
     for(const l of legs) {
-      const hip = new THREE.Vector3(l.side * 0.095, 0, 0).add(hips.position);
+      const hip = new THREE.Vector3(l.side * 0.095, 0, 0).applyQuaternion(hips.quaternion).add(hips.position);
       const ankle=l.ankle;
       // Rear tucks fold the knees down below the hips, rather than up through the waist.
       const pole=tweak.kneePole;
@@ -331,7 +352,14 @@ export function createSkaterVisual(initialMode:RideMode='skate',initialCharacter
       segment(l.thigh, hip, solved.joint); segment(l.shin, solved.joint, solved.end); l.knee.position.copy(solved.joint);
     }
     for (const a of arms) {
+      const leading=(1-a.side*cruise.travelSide)/2,load=Math.abs(cruise.turn),lag=cruise.turn-cruise.armTurn;
+      const airLeading=(1-a.side*air.travelSide)/2;
+      const airWeight=air.weight*(1-cruiseWeight)*(heldGrab&&a.side===heldGrab.hand?1-grabBlend:1);
       const shoulder = new THREE.Vector3(a.side * 0.17, 0.36, 0);
+      shoulder.y+=cruiseWeight*(-.006-leading*.008+a.side*cruise.chestTurn*.012-a.side*cruise.chestSettle*.008+manual*a.side*.012);
+      shoulder.z+=cruiseWeight*(.006-leading*.018+a.side*lag*.008);
+      shoulder.y+=airWeight*(air.lift*.012+air.descent*.008+a.side*air.roll*.012);
+      shoulder.z+=airWeight*(air.pitch*.012+a.side*air.turn*.008);
       const spread = 0.27 + m.air * 0.07 + (opts.grinding ? 0.10 : 0) + Math.abs(manual)*0.1 + Math.abs(slide)*0.1;
       const hand = new THREE.Vector3(a.side * spread + m.lean * 0.04 - m.sway,
         -0.04 + c * 0.14 + m.air * 0.04 + a.side * pushSwing * 0.035,
@@ -340,17 +368,43 @@ export function createSkaterVisual(initialMode:RideMode='skate',initialCharacter
       hand.x+=a.side*flipTuck*0.02-leanRoll*0.1;
       hand.y+=a.side*flipRoll*0.025*flipScale;
       hand.z+=leanPitch*0.1;
+      // A leading arm slightly forward and a quieter trailing arm. Their balance corrections
+      // follow the hips/chest at different rates; they don't swing on a shared idle clock.
+      restTarget.set(a.side*(.28+leading*.03+load*.065)+cruise.settle*.012,
+        .005+leading*.025+c*.10+load*(.05+leading*.03)-a.side*cruise.chestSettle*.018,
+        -.065-leading*.085-c*.09-cruise.armTurn*.055+lag*.10+cruise.acceleration*.025-a.side*cruise.chestSettle*.018);
+      // Arms counter the wheel balance: reach toward the nose in a manual and toward the tail in a nose manual.
+      restTarget.x-=manual*.075;
+      restTarget.y+=Math.abs(manual)*(.09+(1-a.side*Math.sign(manual))*.0225);
+      restTarget.z+=manual*a.side*.035;
+      if(!a.restReady){a.restHand.copy(restTarget);a.restReady=true;}
+      else a.restHand.lerp(restTarget,1-Math.exp(-(4.5+leading*1.5)*opts.dt));
+      hand.lerp(a.restHand,cruiseWeight);
+      const flick=footTrick?Math.sin(Math.PI*THREE.MathUtils.smoothstep(trickProgress,0,.65))
+        *(1-THREE.MathUtils.smoothstep(trickProgress,.5,.85)):0;
+      airTarget.set(a.side*(.32+air.lift*.10+air.descent*.07+air.launch*.04+flick*.03)+air.roll*.07,
+        .015+airLeading*.015+air.lift*.12+air.descent*.055+air.launch*.11+a.side*air.roll*.065+a.side*air.turn*.035+airLeading*flick*.035,
+        -.09-airLeading*.065-air.lift*.035+air.descent*.025+air.pitch*.09+a.side*air.turn*.09+THREE.MathUtils.lerp(.02,-.025,airLeading)*flick);
+      if(!a.airReady){a.airHand.copy(airTarget);a.airReady=true;}
+      else a.airHand.lerp(airTarget,1-Math.exp(-(5+airLeading*1.5)*opts.dt));
+      hand.lerp(a.airHand,airWeight);
       const reach=hand.sub(shoulder);
-      // A soft elbow in the resting stance as well as flips; grip targets below still take priority.
-      reach.setLength(THREE.MathUtils.lerp(0.475,0.48,flipTuck));
+      const restReach=.432+leading*.015+load*.02+Math.abs(manual)*.015;
+      const airReach=Math.min(.478,.445+airLeading*.008+air.descent*.02+Math.abs(air.roll)*.012+air.launch*.008-air.lift*.006);
+      reach.setLength(THREE.MathUtils.lerp(THREE.MathUtils.lerp(THREE.MathUtils.lerp(.475,.48,flipTuck),restReach,cruiseWeight),airReach,airWeight));
       hand.add(shoulder);
       if (heldGrab && a.side === heldGrab.hand) {
         const grip = new THREE.Vector3(heldGrab.grip.x,heldGrab.grip.y,heldGrab.grip.z);
         if (heldGroundGrab) { grip.sub(gripPivot).applyQuaternion(carveTilt).add(gripPivot);grip.y+=edgeLift; }
         grip.applyQuaternion(grabPose.rotation).add(grabPose.offset);
         // Convert the fixed board grip into the leaning torso's coordinate system.
-        grip.divideScalar(bodyScale).sub(hips.position).applyQuaternion(torso.quaternion.clone().invert());
+        grip.divideScalar(bodyScale).sub(hips.position).applyQuaternion(hips.quaternion.clone().invert()).applyQuaternion(torso.quaternion.clone().invert());
         hand.lerp(grip, grabBlend);
+        // Let the shoulder reach a little when a combined flip/board tweak would
+        // otherwise pull the grip beyond the arm, keeping both bone lengths intact.
+        gripReach.copy(hand).sub(shoulder);
+        const distance=gripReach.length();
+        if(distance>.4895)shoulder.addScaledVector(gripReach,Math.min(.045,(distance-.4895)*grabBlend)/distance);
       }
       // Reach around the outside of the tucked leg for the rear grab.
       const solved = heldGrab?.direction==='back' && a.side===heldGrab.hand
@@ -362,6 +416,7 @@ export function createSkaterVisual(initialMode:RideMode='skate',initialCharacter
       segment(a.fore, solved.joint, solved.end);
       a.elbow.position.copy(solved.joint); a.hand.position.copy(solved.end);
       a.hand.quaternion.copy(a.fore.quaternion);
+      a.hand.rotateY(a.side*(.55*cruiseWeight+.35*airWeight));
     }
     // Keep the feet in board space; leaning the whole skeleton used to lift one sole.
     rider.rotation.set(opts.bail ? 1.1 : 0, RIDER.stanceY, opts.bail ? 0.8 : 0);
@@ -409,7 +464,7 @@ export function createSkaterVisual(initialMode:RideMode='skate',initialCharacter
     };
     for (const a of arms) {
       const id = `arm${a.side}`, fore = `fore${a.side}`, handId = `hand${a.side}`;
-      const shoulder = point(torso,a.side*0.17,0.36), elbow = point(a.elbow), wrist = point(a.hand);
+      const shoulder = point(a.shoulder), elbow = point(a.elbow), wrist = point(a.hand);
       part(id, a.upper, a.upper.getWorldPosition(new THREE.Vector3()), [a.upper,a.sleeve,a.shoulder], 2.5, { kind: 'capsule', length: 0.25, radius: 0.04 });
       part(fore, a.fore, a.fore.getWorldPosition(new THREE.Vector3()), [a.fore,a.elbow], 1.5, { kind: 'capsule', length: 0.24, radius: 0.03 });
       part(handId, a.hand, wrist, [a.hand], 0.5, { kind: 'ball', radius: 0.035 });
@@ -427,7 +482,17 @@ export function createSkaterVisual(initialMode:RideMode='skate',initialCharacter
     }
     return { parts,joints,visualScale:bodyScale };
   }
-  return { root, board, deck, wheels, setMode, setBoardStyle, get boardStyle(){return boardStyle;}, setCharacter, get character(){return character;}, setPose, captureRagdoll, setRagdoll(active: boolean) { rider.visible = !active; if (active) { carve = manual = flipPitch = flipRoll = 0; deck.rotation.z = 0; deck.position.set(0,0,0); } }, resetPose() { motion.reset(); grabBlend = 0; carve = manual = flipPitch = flipRoll = 0; heldGroundGrab = false; headYaw=0.65;headAngles.set(0,0.65,0); deck.rotation.z = 0; deck.position.set(0,0,0); heldGrab = null; board.position.set(0,0,0); board.quaternion.identity(); } };
+  function resetCruise() {cruisePose.reset();airPose.reset();for(const arm of arms){arm.restReady=false;arm.airReady=false;}}
+  return { root, board, deck, wheels, setMode, setBoardStyle, get boardStyle(){return boardStyle;}, setCharacter, get character(){return character;}, setPose, captureRagdoll,
+    setRagdoll(active: boolean) {
+      rider.visible = !active;
+      if (active) {resetCruise();carve = manual = flipPitch = flipRoll = 0; deck.rotation.z = 0; deck.position.set(0,0,0);}
+    },
+    resetPose() {
+      motion.reset();resetCruise();grabBlend = 0; carve = manual = flipPitch = flipRoll = 0; heldGroundGrab = false;
+      headYaw=0.65;headAngles.set(0,0.65,0); deck.rotation.z = 0; deck.position.set(0,0,0); heldGrab = null; board.position.set(0,0,0); board.quaternion.identity();
+    },
+  };
 }
 
 /** Keep animated joints separate; combine only rigid details within the deck, head, and shoes. */

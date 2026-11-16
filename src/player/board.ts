@@ -328,6 +328,7 @@ export function createBoardPlayer(
       grab: liveTricks?.grab ?? null,
       groundTrick: slide.state.active ? null : liveTricks?.ground ?? null,
       travelSide,
+      surfacePitch:grounded?Math.asin(THREE.MathUtils.clamp(forward.y*travelSide,-1,1)):undefined,
       slide: slide.state.amount*slide.state.side,
       trick: liveTricks?.active ?? null,
       trickTime: liveTricks?.t ?? 0,

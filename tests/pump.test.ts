@@ -38,12 +38,13 @@ test('repeated low-speed pushes return to the planted pose at every cycle bounda
   pump.reset(); assert.equal(pump.state.starts, 0);
 });
 
-test('fast coasting sways with both feet planted and responds to carving and braking', () => {
+test('fast coasting has quiet weight adjustments with both feet planted and responds to carving and braking', () => {
   const motion = createRiderMotion();
   const samples: number[] = [];
   for (let i = 0; i < 600; i++) { motion.update(1 / 120, 0, 0, false, 0, 0, 70); samples.push(motion.state.sway); }
-  assert.ok(Math.max(...samples) - Math.min(...samples) > 0.01);
-  assert.ok(Math.max(...samples.map(Math.abs)) < 0.02);
+  const range=Math.max(...samples)-Math.min(...samples);
+  assert.ok(range>.001&&range<.006,'passive sway should stay subtle, below a centimeter');
+  assert.ok(Math.max(...samples.map(Math.abs)) < .004);
   const cruiseFlex = motion.state.kneeLoad;
   for (let i = 0; i < 120; i++) motion.update(1 / 120, 0, 1, false, -1, 0, 70);
   assert.ok(motion.state.kneeLoad > cruiseFlex + 0.1);

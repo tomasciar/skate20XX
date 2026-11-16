@@ -167,19 +167,21 @@ test('both animated elbows stay behind the wrist path and connected through ever
 });
 
 
-test('resting arms hang low with soft elbows in both board modes',()=>{
+test('cruising and neutral airborne arms keep relaxed asymmetric elbows in both modes',()=>{
   for(const mode of ['skate','snowboard'] as const) for(const airborne of [false,true]) {
     const visual=createSkaterVisual(mode);
     for(let i=0;i<120;i++)visual.setPose({...base,airborne});
     for(const side of [-1,1]) {
       const hand=visual.root.getObjectByName(`hand-${side}`)!,torso=hand.parent!;
-      const shoulder=new THREE.Vector3(side*0.17,0.36,0),reach=hand.position.distanceTo(shoulder);
-      assert.ok(reach>0.47 && reach<0.48,`resting elbow should be softly extended: ${reach}`);
+      const shoulder=visual.root.getObjectByName(`shoulder-${side}`)!.position,reach=hand.position.distanceTo(shoulder);
+      if(airborne)assert.ok(reach>.435 && reach<.475,`neutral airtime should retain soft elbows: ${reach}`);
+      else assert.ok(reach>.42 && reach<.47,`cruising elbow should have a natural bend: ${reach}`);
       assert.ok(hand.position.y<shoulder.y-0.35,'resting hands should hang below the shoulders');
       const elbow=torso.getObjectByName(`elbow-${side}`)!;
       assert.ok(Math.abs(shoulder.distanceTo(elbow.position)-0.25)<1e-6);
       assert.ok(Math.abs(elbow.position.distanceTo(hand.position)-0.24)<1e-6);
     }
+    if(!airborne)assert.ok(visual.root.getObjectByName('hand--1')!.position.z<visual.root.getObjectByName('hand-1')!.position.z-.04,'the leading arm should rest a little forward of the trailing arm');
   }
 });
 

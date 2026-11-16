@@ -49,11 +49,12 @@ export function createRiderMotion() {
     state.pushPhase = stroke.phase;
     const fast = THREE.MathUtils.smoothstep(speed, 5, 60);
     const grounded = 1 - state.air;
-    const swayTarget = (Math.sin(state.time * 2.1) + 0.35 * Math.sin(state.time * 3.7 + 0.6)) * 0.009 * fast * grounded;
+    // Small, slow weight adjustments under the balance reactions, rather than a rhythmic wobble.
+    const swayTarget = (Math.sin(state.time * .72) + .28 * Math.sin(state.time * 1.17 + .6)) * .0023 * fast * grounded;
     state.sway = THREE.MathUtils.damp(state.sway, swayTarget, 6, dt);
     // A lower stance at speed, more flex under carving/braking loads, then recover smoothly.
     const kneeTarget = grounded * (fast * 0.14 + Math.abs(state.lean) * 0.10 + state.brake * 0.08 + (grinding ? 0.12 : 0))
-      + Math.sin(state.time * 2.1 + 0.7) * 0.015 * fast * grounded;
+      + Math.sin(state.time * .72 + .7) * .0025 * fast * grounded;
     state.kneeLoad = THREE.MathUtils.damp(state.kneeLoad, kneeTarget, 5, dt);
     state.landing = THREE.MathUtils.damp(state.landing, 0, 10, dt);
     return state;
