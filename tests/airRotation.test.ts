@@ -195,13 +195,14 @@ test('landed rotations are named by direction and count; partial turns are not a
   air.reset();assert.equal(air.state.pitch,0);
 });
 
-test('the head tumbles with the body during a flip instead of staying level',async()=>{
+test('the head tumbles with the chest during a flip while retaining a comfortable neck',async()=>{
   const f=await fixture();let inverted=false;
   for(let i=0;i<140;i++) {
     f.tick({...idle,push:1,toggleAirFlip:i===0});
     const head=f.player.mesh.getObjectByName('head')!.getWorldQuaternion(new THREE.Quaternion());
     const headUp=up.clone().applyQuaternion(head),bodyUp=up.clone().applyQuaternion(f.player.mesh.quaternion);
-    assert.ok(headUp.dot(bodyUp)>0.9,`head detached from body at ${i}`);
+    const chestUp=up.clone().applyQuaternion(f.player.mesh.getObjectByName('chest')!.parent!.getWorldQuaternion(new THREE.Quaternion()));
+    assert.ok(headUp.dot(chestUp)>0.94,`neck did not follow the leaning chest at ${i}`);
     if(bodyUp.y<-0.95)inverted=true;
   }
   assert.ok(inverted);f.world.free();

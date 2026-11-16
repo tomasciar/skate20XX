@@ -1,12 +1,13 @@
 import * as THREE from 'three';
 import {BOARD,WHEEL_BOTTOM} from './dimensions.ts';
+import {boardMaterial,boardUVs} from '../boards.ts';
 
 export const SNOWBOARD={halfWidth:0.12,halfLength:0.68,baseY:WHEEL_BOTTOM} as const;
 /** A twin-tip board and raised bindings under the existing stance and animation targets. */
 export function createSnowboardVisual() {
   const root=new THREE.Group();root.name='snowboard';root.userData.rideSkin='snowboard';
   const material=(color:number,metalness=0)=>new THREE.MeshStandardMaterial({color,roughness:0.6,metalness});
-  const base=material(0xf46b48),top=material(0x153f58),steel=material(0xb7d5df,0.6),binding=material(0x1b2937),accent=material(0xf5d56a);
+  const base=boardMaterial('edge'),top=boardMaterial('graphic'),steel=material(0xb7d5df,0.6),binding=boardMaterial('binding'),accent=boardMaterial('accent');
   const outline=new THREE.Shape();
   outline.moveTo(-0.12,-0.44);outline.bezierCurveTo(-0.17,-0.69,0.17,-0.69,0.12,-0.44);
   outline.quadraticCurveTo(0.115,0,0.12,0.44);outline.bezierCurveTo(0.17,0.69,-0.17,0.69,-0.12,0.44);
@@ -20,13 +21,11 @@ export function createSnowboardVisual() {
     const mesh=new THREE.Mesh(geometry,mat);mesh.castShadow=true;root.add(mesh);return mesh;
   }
   const core=new THREE.ExtrudeGeometry(outline,{depth:0.018,bevelEnabled:false,curveSegments:12});
-  core.rotateX(-Math.PI/2);core.translate(0,SNOWBOARD.baseY,0);add(rocker(core),base);
+  core.rotateX(-Math.PI/2);core.translate(0,SNOWBOARD.baseY+0.0006,0);add(rocker(core),base);
   const topsheet=new THREE.ShapeGeometry(outline,12);topsheet.rotateX(-Math.PI/2);topsheet.translate(0,SNOWBOARD.baseY+0.019,0);
-  add(rocker(topsheet),top);
-  for(const z of [-0.49,-0.40,0.40,0.49]) {
-    const stripe=new THREE.PlaneGeometry(0.24,0.035).rotateX(-Math.PI/2).rotateY(-0.35);
-    stripe.translate(0,SNOWBOARD.baseY+0.020,z);add(rocker(stripe),z<0?accent:base);
-  }
+  boardUVs(topsheet,0.145,0.68);add(rocker(topsheet),top);
+  const underside=new THREE.ShapeGeometry(outline,12);underside.rotateX(Math.PI/2);underside.translate(0,SNOWBOARD.baseY,0);
+  boardUVs(underside,0.145,0.68);add(rocker(underside),top);
   const box=(size:number[],mat:THREE.Material,x:number,y:number,z:number)=>{
     const mesh=add(new THREE.BoxGeometry(size[0],size[1],size[2]),mat);mesh.position.set(x,y,z);return mesh;
   };

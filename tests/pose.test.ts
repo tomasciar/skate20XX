@@ -22,40 +22,57 @@ test('regular stance plants the left foot toward the nose and keeps nose/tail tw
   }
 });
 
-test('head stays aimed down the course through spins, crouches and grabs',()=>{
-  const visual=createSkaterVisual();
-  const course=new THREE.Vector3(0,-Math.sin(0.24),-Math.cos(0.24));
-  for(const yaw of [0,Math.PI/2,Math.PI,Math.PI*1.5,Math.PI*2]) {
-    visual.root.rotation.set(-0.24,yaw,0);
-    for(const pose of [base,{...base,crouch:1,lean:1},{...base,airborne:true,grab:GRABS.pushout},
-      {...base,airborne:true,grab:GRABS.nosebone}]) {
-      for(let frame=0;frame<80;frame++)visual.setPose({...pose,headForward:course});
-      const head=visual.root.getObjectByName('head')!;
-      const facing=new THREE.Vector3(0,0,-1).applyQuaternion(head.getWorldQuaternion(new THREE.Quaternion()));
-      assert.ok(facing.dot(course)>0.999999,'face turned back toward the camera');
+test('heads turn with full aerial spins instead of counter-rotating toward the course',()=>{
+  for(const mode of ['skate','snowboard'] as const)for(const grab of [null,GRABS.pushout,GRABS.nosebone,GRABS.tomahawk]) {
+    const visual=createSkaterVisual(mode),head=visual.root.getObjectByName('head')!;
+    const pose={...base,airborne:true,grab,headForward:new THREE.Vector3(0,0,-1)};
+    for(let frame=0;frame<180;frame++)visual.setPose(pose);
+    const neck=head.quaternion.clone(),initial=new THREE.Vector3(0,0,-1).applyQuaternion(head.getWorldQuaternion(new THREE.Quaternion())).setY(0).normalize();
+    for(let frame=0;frame<=240;frame++) {
+      visual.root.rotation.y=frame/240*Math.PI*2;visual.setPose(pose);
+      assert.ok(neck.angleTo(head.quaternion)<0.002,'neck counter-rotated during the spin');
+      if(frame===120) {
+        const facing=new THREE.Vector3(0,0,-1).applyQuaternion(head.getWorldQuaternion(new THREE.Quaternion())).setY(0).normalize();
+        assert.ok(facing.dot(initial)<-0.999,'the head should turn through the 180 with the rider');
+      }
     }
   }
 });
 
-test('backward grab keeps the head comfortable through spins and restores course aim on release',()=>{
+test('riding glances stay comfortable and ease to the opposite shoulder after landing switch',()=>{
+  const visual=createSkaterVisual(),head=visual.root.getObjectByName('head')!,course=new THREE.Vector3(0,0,-1);
+  for(let frame=0;frame<180;frame++)visual.setPose({...base,headForward:course,travelSide:1});
+  const normalYaw=new THREE.Euler().setFromQuaternion(head.quaternion,'YXZ').y;
+  visual.root.rotation.y=Math.PI;
+  for(let frame=0;frame<120;frame++)visual.setPose({...base,airborne:true,headForward:course});
+  assert.ok(Math.abs(new THREE.Euler().setFromQuaternion(head.quaternion,'YXZ').y-normalYaw)<0.00001,'airborne heading should not counter-rotate the neck');
+  for(let frame=0;frame<180;frame++) {
+    const before=head.quaternion.clone();visual.setPose({...base,headForward:course,travelSide:-1});
+    const neck=new THREE.Euler().setFromQuaternion(head.quaternion,'YXZ');
+    assert.ok(Math.abs(neck.y)<=1.05 && Math.abs(neck.x)<=0.22 && Math.abs(neck.z)<=0.13,'head exceeded comfortable neck angles');
+    assert.ok(before.angleTo(head.quaternion)<0.13,'head snapped on landing');
+  }
+  assert.ok(new THREE.Euler().setFromQuaternion(head.quaternion,'YXZ').y<-0.6,'switch riding should glance over the opposite shoulder');
+  const facing=new THREE.Vector3(0,0,-1).applyQuaternion(head.getWorldQuaternion(new THREE.Quaternion()));
+  assert.ok(facing.dot(course)>0.55,'normal riding should retain a gentle look toward travel');
+});
+
+test('backward grabs keep a relaxed neck through spins and release without a 180-degree twist',()=>{
   const visual=createSkaterVisual(),head=visual.root.getObjectByName('head')!;
-  const course=new THREE.Vector3(0,0,-1),pose={...base,airborne:true,grab:GRABS.tomahawk,headForward:course};
+  const pose={...base,airborne:true,grab:GRABS.tomahawk,headForward:new THREE.Vector3(0,0,-1)};
   visual.setPose({...pose,grab:null});
   for(let frame=0;frame<180;frame++) {
-    const previous=head.quaternion.clone();visual.setPose(pose);
-    assert.ok(previous.angleTo(head.quaternion)<0.15,'head snapped into the grab');
+    const before=head.quaternion.clone();visual.setPose(pose);
+    assert.ok(before.angleTo(head.quaternion)<0.05,'head snapped into the grab');
   }
   const held=head.quaternion.clone();
-  const angles=new THREE.Euler().setFromQuaternion(held,'YXZ');
-  assert.ok(Math.abs(angles.y)<Math.PI/2,'neck turned backwards');
   for(let frame=0;frame<120;frame++) {
-    visual.root.rotation.y=(frame+1)/120*Math.PI;
-    visual.setPose(pose);
-    assert.ok(held.angleTo(head.quaternion)<0.00001,'head twisted independently of the held grab');
+    visual.root.rotation.y=(frame+1)/120*Math.PI;visual.setPose(pose);
+    assert.ok(held.angleTo(head.quaternion)<0.00001,'head twisted independently of the grab');
   }
   for(let frame=0;frame<180;frame++)visual.setPose({...pose,grab:null});
-  const forward=new THREE.Vector3(0,0,-1).applyQuaternion(head.getWorldQuaternion(new THREE.Quaternion()));
-  assert.ok(forward.dot(course)>0.99999);
+  const neck=new THREE.Euler().setFromQuaternion(head.quaternion,'YXZ');
+  assert.ok(Math.abs(neck.y-0.65)<0.00001 && Math.abs(neck.x)<0.22,'release must retain a comfortable local neck pose');
 });
 
 test('knees bend forward and elbows back with constant bone lengths and no overextension', () => {

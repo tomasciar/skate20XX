@@ -20,7 +20,11 @@ import {loadRideMode} from './mode';
 import {createModeControls} from './ui/modes';
 import {createHudOptions} from './ui/hudOptions';
 import {loadCharacter} from './characters';
+import {preloadCharacterFace} from './player/faceArtwork';
+import {loadBoardStyle} from './boards';
+import {createBoardControls} from './ui/boards';
 import {createCharacterControls} from './ui/characters';
+import {createRiderPortrait} from './ui/riderPortrait';
 import {createScore} from './player/score';
 import {loadHighScore,saveHighScore} from './highScore';
 
@@ -70,8 +74,9 @@ async function main() {
 
   const ramp = createRamp(scene, world,{mode});
   const chase = createChaseCamera(camera, ramp.forward);
-  const character=loadCharacter();
-  const player = createBoardPlayer(scene, world, ramp,mode,character);
+  const character=loadCharacter(),boardStyle=loadBoardStyle();
+  await preloadCharacterFace(character);
+  const player = createBoardPlayer(scene, world, ramp,mode,character,boardStyle);
   const courseDirection=ramp.forward.clone();
 
   const sun = scene.getObjectByName("sun") as THREE.DirectionalLight;
@@ -112,8 +117,10 @@ async function main() {
   let audioResetCount = player.resetCount;
   let pausedSceneDirty = true;
   let hudElapsed = 0;
+  const riderPortrait=createRiderPortrait(renderer,player.mesh);
   createHudOptions();
-  createCharacterControls(character,next=>{input.clear();controller.reset();player.setCharacter(next);pausedSceneDirty=true;});
+  createCharacterControls(character,next=>{input.clear();controller.reset();player.setCharacter(next);pausedSceneDirty=true;void preloadCharacterFace(next).then(()=>{pausedSceneDirty=true;});});
+  createBoardControls(boardStyle,next=>{input.clear();controller.reset();player.setBoardStyle(next);pausedSceneDirty=true;});
   // Scoring: one run per spawn, and a best per ride mode that is kept in memory in case storage is blocked.
   const score=createScore(),bests={skate:loadHighScore('skate'),snowboard:loadHighScore('snowboard')};
   let toBeat=bests[mode],scoreResetCount=player.resetCount;
@@ -235,7 +242,7 @@ async function main() {
     input.beginFrame();
 
     if (!running) {
-      if (pausedSceneDirty) { renderer.render(scene, camera); pausedSceneDirty = false; }
+      if (pausedSceneDirty) { riderPortrait.refresh(player.character,mode);renderer.render(scene, camera); pausedSceneDirty = false; }
       return;
     }
 

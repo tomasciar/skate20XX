@@ -37,10 +37,19 @@
         <label for="rider-select">Rider</label>
         <select id="rider-select" aria-label="Rider character"></select>
       </div>
+      <div id="board-controls">
+        <label for="board-select">Board</label>
+        <span id="board-swatch" aria-hidden="true"></span>
+        <select id="board-select" aria-label="Board design"></select>
+      </div>
       <div id="hud-options" role="group" aria-label="On-screen help">
         <button type="button" data-option="controls" aria-pressed="true" title="Show or hide the key guide at the bottom of the screen">Show controls</button>
         <button type="button" data-option="tricks" aria-pressed="true" title="Show or hide trick, grind and landing names in the middle of the screen">Show trick names</button>
       </div>
+      <figure id="rider-preview">
+        <img id="rider-portrait" width="192" height="224" alt="Rider face close-up" />
+        <figcaption><span id="rider-portrait-name"></span><span>3D face close-up</span></figcaption>
+      </figure>
       <div id="audio-controls" role="group" aria-label="Game audio">
         <button id="audio-mute" type="button" aria-pressed="false">Sound on · M</button>
         <input id="audio-volume" type="range" min="0" max="100" step="1" value="55" aria-label="Sound volume" />
@@ -48,7 +57,7 @@
       <div id="overlay">
         <div class="overlay-card">
           <h2>SKATE5</h2>
-          <p class="mode-hint">Choose your rider and board mode above. Switch any time during your run.</p>
+          <p class="mode-hint">Choose your rider, board design and mode above. Switch any time during your run.</p>
           <p id="overlay-description">Drop from the floating platform. Green pads beside the landing boost you to 120 mph. Click or press Enter to ride.</p>
           <p id="overlay-best" class="overlay-best" hidden></p>
           <p class="overlay-keys">W push · A / D carve · Hold S to boardslide<br />Release S, then tap A to face left or D to face right<br />Hold & release Space to ollie, including from manuals<br />Ground: hold ↑ nose manual · ↓ manual · ←/→ grabs<br />Air: arrows grab · Shift + arrows board tricks, hold for doubles to quads, chain them<br />Space toggles W/S flips + A/D rolls<br />Esc pause · R restart · M mute</p>

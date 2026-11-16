@@ -19,6 +19,7 @@ import {applyRideSkin} from '../mode.ts';
 import type {RideMode} from '../mode.ts';
 import {applyCharacterSkin} from '../characters.ts';
 import type {CharacterId} from '../characters.ts';
+import type {BoardStyleId} from '../boards.ts';
 
 /** Person-sized inertia so flips take a real moment, not a frisbee twitch. */
 const INERTIA = { x: 14, y: 9, z: 6 };
@@ -71,6 +72,8 @@ export type BoardPlayer = {
   originShift: THREE.Vector3;
   reset: (spawn: THREE.Vector3) => void;
   setMode: (mode:RideMode)=>void;
+  readonly boardStyle:BoardStyleId;
+  setBoardStyle:(style:BoardStyleId)=>void;
   readonly character:CharacterId;
   setCharacter:(character:CharacterId)=>void;
 };
@@ -79,13 +82,13 @@ export function createBoardPlayer(
   scene: THREE.Scene,
   world: RAPIER.World,
   ramp: RampWorld,
-  mode:RideMode='skate',character:CharacterId='boy'
+  mode:RideMode='skate',character:CharacterId='boy',boardStyle:BoardStyleId='classic'
 ): BoardPlayer {
   const grind = createGrindSystem();
   const pump = createPumpCycle();
   const air = createAirRotation();
   const slide = createSlide();
-  const visual = createSkaterVisual(mode,character);
+  const visual = createSkaterVisual(mode,character,boardStyle);
   const ragdoll = createRagdoll(scene, world);
   scene.add(visual.root);
 
@@ -114,9 +117,6 @@ export function createBoardPlayer(
   const renderBodyPosition = new THREE.Vector3();
   const airOffset = new THREE.Vector3(), previousAirOffset = new THREE.Vector3(), renderAirOffset = new THREE.Vector3();
   const pivot = new THREE.Vector3(0,0.5,0), nextAirOffset = new THREE.Vector3(), rotatedPivot = new THREE.Vector3();
-  // Deck orientation before the whole-body flip is applied; the head tumbles with the body relative to it.
-  const baseQuat = new THREE.Quaternion(), previousBaseQuat = new THREE.Quaternion();
-  const renderBaseQuat = new THREE.Quaternion(), headFrame = new THREE.Quaternion();
   const landingProbe = new THREE.Vector3(), landingDown = ramp.surfaceNormal.clone().negate();
   const velocity = new THREE.Vector3();
   const forward = ramp.forward.clone();
@@ -236,7 +236,6 @@ export function createBoardPlayer(
     if (deckPitch) q.multiply(deckTilt.setFromAxisAngle(tiltAxis, deckPitch));
     if (resettle) { settle.copy(q).invert().multiply(quat).normalize(); resettle = false; }
     q.multiply(settle);
-    baseQuat.copy(q);
     if(air.state.engaged && !grounded && !grind.state.active) {
       nextAirOffset.copy(pivot).applyQuaternion(q);
       q.multiply(air.rotation);
@@ -311,7 +310,7 @@ export function createBoardPlayer(
     grounded = true;
     readPose();
     previousPosition.copy(position); renderPosition.copy(position); previousQuat.copy(quat);
-    renderQuat.copy(quat); baseQuat.copy(quat); previousBaseQuat.copy(quat);
+    renderQuat.copy(quat);
     paint(0, { x: 0, y: 0, z: 0 });
   }
 
@@ -324,8 +323,7 @@ export function createBoardPlayer(
     // The suspension body stays stable; its visible wheel bottoms sit on the measured surface.
     visual.root.position.copy(at).addScaledVector(up, visualHeightOffset);
     visual.setPose({
-      headForward: ramp.directionAt?.(at,courseForward) ?? ramp.forward,
-      headFrame: air.state.engaged && !grounded ? headFrame.copy(renderQuat).multiply(renderBaseQuat.invert()) : undefined,
+      headForward: speed>1 ? velocity : ramp.directionAt?.(at,courseForward) ?? ramp.forward,
       flipLean: air.lean,
       grab: liveTricks?.grab ?? null,
       groundTrick: slide.state.active ? null : liveTricks?.ground ?? null,
@@ -435,7 +433,7 @@ export function createBoardPlayer(
     }
     readPose();
     previousPosition.copy(position); previousQuat.copy(quat);
-    previousAirOffset.copy(airOffset); previousBaseQuat.copy(baseQuat);
+    previousAirOffset.copy(airOffset);
     if (Math.abs(settle.w) > 0.9999999) settle.identity();
     else settle.slerp(settled, 1 - Math.exp(-10 * dt));
     if (tricks.bail) { startCrash(tricks, velocity, 'trick'); return; }
@@ -731,7 +729,6 @@ export function createBoardPlayer(
     renderAirOffset.lerpVectors(previousAirOffset,airOffset,THREE.MathUtils.clamp(alpha,0,1));
     renderPosition.copy(renderBodyPosition).sub(renderAirOffset);
     renderQuat.slerpQuaternions(previousQuat, quat, THREE.MathUtils.clamp(alpha, 0, 1));
-    renderBaseQuat.slerpQuaternions(previousBaseQuat, baseQuat, THREE.MathUtils.clamp(alpha, 0, 1));
     if (ragdoll.active) {
       ragdoll.render(THREE.MathUtils.clamp(alpha,0,1));
       const t = body.translation(), q = body.rotation();
@@ -794,6 +791,8 @@ export function createBoardPlayer(
     render,
     reset,
     setMode(next:RideMode) {visual.setMode(next);applyRideSkin(scene,next);render(1,0);},
+    get boardStyle(){return visual.boardStyle;},
+    setBoardStyle(next:BoardStyleId){visual.setBoardStyle(next);render(1,0);},
     get character(){return visual.character;},
     setCharacter(next:CharacterId) {visual.setCharacter(next);applyCharacterSkin(scene,next);render(1,0);},
   };
