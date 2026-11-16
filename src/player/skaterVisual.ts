@@ -37,6 +37,8 @@ export type SkaterVisual = {
   setPose: (opts: {
     grab?: GrabDef | null;
     groundTrick?: GroundTrick | null;
+    /** 1 riding toward the board's nose, -1 riding switch: manuals follow travel, not board yaw. */
+    travelSide?: 1 | -1;
     /** Signed load while skidding sideways along the road. */
     slide?: number;
     headForward?: THREE.Vector3;
@@ -217,7 +219,7 @@ export function createSkaterVisual(initialMode:RideMode='skate',initialCharacter
     if (opts.boardSpin.x || opts.boardSpin.y || opts.boardSpin.z) { grabBlend = 0; heldGrab = null; }
     carve = THREE.MathUtils.damp(carve, opts.airborne || opts.grinding || opts.bail ? 0 : THREE.MathUtils.clamp(opts.carve ?? 0,-1,1), 10, opts.dt);
     if (Math.abs(carve) < 1e-5) carve = 0;
-    manual = riding ? THREE.MathUtils.damp(manual,opts.groundTrick?.manual ?? 0,10,opts.dt) : 0;
+    manual = riding ? THREE.MathUtils.damp(manual,(opts.groundTrick?.manual ?? 0)*(opts.travelSide ?? 1),10,opts.dt) : 0;
     if (Math.abs(manual)<1e-5) manual=0;
     // Roll about the grip centerline: the soles stay planted and the wheels stay on the road.
     const tilt = carve ? -carve * CARVE.deckTilt : 0;

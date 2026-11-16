@@ -329,6 +329,7 @@ export function createBoardPlayer(
       flipLean: air.lean,
       grab: liveTricks?.grab ?? null,
       groundTrick: slide.state.active ? null : liveTricks?.ground ?? null,
+      travelSide,
       slide: slide.state.amount*slide.state.side,
       trick: liveTricks?.active ?? null,
       trickTime: liveTricks?.t ?? 0,
