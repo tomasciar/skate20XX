@@ -31,7 +31,7 @@ export function createHud() {
       : 'STEERING · A/D turn · Space to flip';
 
     if (grind?.active) {
-      trickEl.textContent = `50–50 GRIND · ${Math.floor(grind.meters)} m`;
+      trickEl.textContent = `${/\d$/.test(grind.name) ? `${grind.name} GRIND` : grind.name.toUpperCase()} · ${Math.floor(grind.meters)} m`;
       trickEl.classList.add("show"); trickEl.classList.remove("bail");
       const balance = document.getElementById("grind-balance")!;
       balance.hidden = false;

@@ -167,9 +167,15 @@ export function createBoardPlayer(
   const supportAcross = new THREE.Vector3(), supportAlong = new THREE.Vector3(), supportPlane = new THREE.Vector3();
   const supportForward = new THREE.Vector3(), supportRight = new THREE.Vector3(), supportDelta = new THREE.Vector3();
   const supportBasis = new THREE.Matrix4(), supportRotation = new THREE.Quaternion();
+  // Grinds act on the visible board. Its pitch on the rail, and a fading offset that keeps the deck's
+  // orientation continuous across a catch or exit, are layered onto the yaw-based deck frame.
+  const grindPoint = new THREE.Vector3(), deckTilt = new THREE.Quaternion(), settle = new THREE.Quaternion();
+  const settled = new THREE.Quaternion(), tiltAxis = new THREE.Vector3(1,0,0);
+  let deckPitch = 0, resettle = false;
 
   function sampleVisualSupport(at: THREE.Vector3) {
-    if (grind.state.active) { visualHeightOffset = 0; return; }
+    // A grind keeps the wheel offset it arrived with, so the visible board never hops at a catch or exit.
+    if (grind.state.active) return;
     // Fit the visible wheels through tiny suspension gaps, including on steep grades.
     if ((!grounded && !nearGround) || leaveGround > 0) return;
     // Re-sample after fitting the board plane: pitching around a ramp seam shifts wheel positions.
@@ -227,6 +233,9 @@ export function createBoardPlayer(
     const r = new THREE.Vector3().crossVectors(f, n).normalize();
     const basis = new THREE.Matrix4().makeBasis(r, n, f.clone().negate());
     const q = new THREE.Quaternion().setFromRotationMatrix(basis);
+    if (deckPitch) q.multiply(deckTilt.setFromAxisAngle(tiltAxis, deckPitch));
+    if (resettle) { settle.copy(q).invert().multiply(quat).normalize(); resettle = false; }
+    q.multiply(settle);
     baseQuat.copy(q);
     if(air.state.engaged && !grounded && !grind.state.active) {
       nextAirOffset.copy(pivot).applyQuaternion(q);
@@ -273,7 +282,7 @@ export function createBoardPlayer(
     pump.reset();
     slide.reset();
     air.reset();airOffset.set(0,0,0);previousAirOffset.set(0,0,0);
-    grind.reset();
+    grind.reset(); deckPitch = 0; resettle = false; settle.identity();
     visual.resetPose();
     visualHeightOffset = -0.11;
     poseDt = posePush = 0;
@@ -313,8 +322,7 @@ export function createBoardPlayer(
     visual.root.quaternion.copy(renderQuat);
     const up = new THREE.Vector3(0, 1, 0).applyQuaternion(renderQuat);
     // The suspension body stays stable; its visible wheel bottoms sit on the measured surface.
-    const offset = grind.state.active ? 0 : visualHeightOffset;
-    visual.root.position.copy(at).addScaledVector(up, offset);
+    visual.root.position.copy(at).addScaledVector(up, visualHeightOffset);
     visual.setPose({
       headForward: ramp.directionAt?.(at,courseForward) ?? ramp.forward,
       headFrame: air.state.engaged && !grounded ? headFrame.copy(renderQuat).multiply(renderBaseQuat.invert()) : undefined,
@@ -426,6 +434,8 @@ export function createBoardPlayer(
     readPose();
     previousPosition.copy(position); previousQuat.copy(quat);
     previousAirOffset.copy(airOffset); previousBaseQuat.copy(baseQuat);
+    if (Math.abs(settle.w) > 0.9999999) settle.identity();
+    else settle.slerp(settled, 1 - Math.exp(-10 * dt));
     if (tricks.bail) { startCrash(tricks, velocity, 'trick'); return; }
     if (obstacleAhead(dt)) { startCrash(tricks, velocity, 'obstacle'); return; }
     ramp.directionAt?.(position,courseForward);
@@ -455,20 +465,24 @@ export function createBoardPlayer(
     else yaw = slideYaw - (grounded ? lean * carveTurnRate(speed) * dt : steering * 5 * dt);
     yaw = Math.atan2(Math.sin(yaw), Math.cos(yaw));
 
-    if (grind.update(dt, position, velocity, forward, ramp.surfaceNormal, ramp.grindRails,
+    const wasGrinding = grind.state.active;
+    grindPoint.copy(position).addScaledVector(boardUp, visualHeightOffset);
+    if (grind.update(dt, grindPoint, velocity, forward, ramp.surfaceNormal, ramp.grindRails,
       steering, intent.wantOllie, wantSlide, !tricks.active && leaveGround <= 0 && boardUp.dot(ramp.surfaceNormal)>0.8,aeroTuck)) {
-      if(intent.wantOllie)ollieCount++;
+      if(!grind.state.active && grind.state.message==='Ollie out')ollieCount++;
       slide.reset();
       air.reset();airOffset.set(0,0,0);
-      const facing=forward.dot(grind.tangent)>=0 ? 1 : -1;
-      tmp.copy(grind.tangent).multiplyScalar(facing);
-      yaw = Math.atan2(-tmp.x,tmp.dot(ramp.forward));
-      body.setTranslation(position, true); body.setLinvel(velocity, true);
+      // The board keeps whatever heading it has on the rail, sideways included, into the air.
+      yaw = Math.atan2(-grind.heading.x,grind.heading.dot(ramp.forward));
+      deckPitch = grind.state.active ? grind.pitch : 0;
+      if (!wasGrinding || !grind.state.active) resettle = true;
       grounded = false; followSurface = grind.state.active; wasOnKicker = false;
       ollieGrace = pendingOllie = 0; nearGround = false;
       surfaceUp.copy(grind.normal);
       if (!grind.state.active) leaveGround = 0.25;
-      holdDeck(grind.normal);
+      holdDeck(followSurface ? surfaceUp : ramp.surfaceNormal);
+      position.copy(grindPoint).addScaledVector(boardUp, -visualHeightOffset);
+      body.setTranslation(position, true); body.setLinvel(velocity, true);
       return;
     }
 
