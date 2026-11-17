@@ -1,19 +1,23 @@
 import * as THREE from 'three';
 import type {CharacterId} from '../characters.ts';
 import {headSurface,headHalfWidth} from './modelGeometry.ts';
+import {REFINED_FACE_ARTWORK,isRefinedFace,refinedFaceMaterial,preloadRefinedFace,createRefinedFaceArtwork} from './refinedFaceArtwork.ts';
+import type {RefinedFace} from './refinedFaceArtwork.ts';
 
-export type FaceCharacter='goku'|'naruto'|'kick';
+type LegacyFace='goku'|'naruto'|'kick';
+export type FaceCharacter=LegacyFace|RefinedFace;
 export const FACE_ARTWORK={
   goku:{url:new URL('../assets/faces/goku.png',import.meta.url).href,width:0.176,height:0.175,top:0.070},
   naruto:{url:new URL('../assets/faces/naruto.png',import.meta.url).href,width:0.180,height:0.175,top:0.066},
   kick:{url:new URL('../assets/faces/kick.png',import.meta.url).href,width:0.207,height:0.170,top:0.063},
+  ...REFINED_FACE_ARTWORK,
 } as const;
-export function hasFaceArtwork(id:CharacterId):id is FaceCharacter{return id==='goku'||id==='naruto'||id==='kick';}
+export function hasFaceArtwork(id:CharacterId):id is FaceCharacter{return id==='goku'||id==='naruto'||id==='kick'||isRefinedFace(id);}
 
 type FaceState={material:THREE.MeshBasicMaterial;ready:boolean;loading?:Promise<void>};
-const cache=new Map<FaceCharacter,FaceState>();
+const cache=new Map<LegacyFace,FaceState>();
 /** Recognizable fallback while the local artwork loads, or if images are unavailable offline. */
-function fallbackTexture(id:FaceCharacter) {
+function fallbackTexture(id:LegacyFace) {
   const size=128,data=new Uint8Array(size*size*4),ink=0x121318,white=0xfffdf4;
   function polygon(points:number[][],color:number) {
     for(let y=0;y<size;y++)for(let x=0;x<size;x++) {
@@ -59,6 +63,7 @@ function fallbackTexture(id:FaceCharacter) {
   texture.generateMipmaps=true;texture.minFilter=THREE.LinearMipmapLinearFilter;texture.name=`face-fallback-${id}`;texture.needsUpdate=true;return texture;
 }
 export function faceMaterial(id:FaceCharacter) {
+  if(isRefinedFace(id))return refinedFaceMaterial(id);
   let state=cache.get(id);
   if(!state) {
     const material=new THREE.MeshBasicMaterial({map:fallbackTexture(id),transparent:true,alphaTest:0.12,depthWrite:false,toneMapped:false});
@@ -96,6 +101,7 @@ export function faceMaterial(id:FaceCharacter) {
 }
 /** Load only the selected face, cache it across mode changes/crashes, and limit its GPU size. */
 export function preloadCharacterFace(id:CharacterId):Promise<void> {
+  if(isRefinedFace(id))return preloadRefinedFace(id);
   if(!hasFaceArtwork(id))return Promise.resolve();
   faceMaterial(id);const state=cache.get(id)!;
   if(state.ready)return Promise.resolve();if(state.loading)return state.loading;
@@ -116,6 +122,7 @@ export function preloadCharacterFace(id:CharacterId):Promise<void> {
 
 /** A curved UV face, rather than a flat sticker; the artwork follows cheeks, nose and chin. */
 export function createFaceArtwork(id:FaceCharacter) {
+  if(isRefinedFace(id))return createRefinedFaceArtwork(id);
   const definition=FACE_ARTWORK[id],columns=40,rows=44,positions:number[]=[],uv:number[]=[],indices:number[]=[];
   for(let row=0;row<=rows;row++)for(let column=0;column<=columns;column++) {
     const u=column/columns,v=row/rows,y=definition.top-v*definition.height;

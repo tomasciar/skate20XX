@@ -2,10 +2,16 @@ import * as THREE from 'three';
 import {CHARACTERS,characterPalette,characterProportions} from '../characters.ts';
 import type {CharacterId} from '../characters.ts';
 import {batchCosmetics} from './cosmetics.ts';
-import {headGeometry,headSurface,surfacePatch,sweptLockGeometry,torsoRadius,stuntHelmetGeometry,stuntHelmetRim,ribbonGeometry} from './modelGeometry.ts';
+import {headGeometry,headSurface,surfacePatch,sweptLockGeometry,torsoRadius,torsoCenter,stuntHelmetGeometry,stuntHelmetRim,ribbonGeometry} from './modelGeometry.ts';
 import {addGokuHair,addNarutoHair,addPonytail} from './characterHair.ts';
 import {createFaceArtwork,hasFaceArtwork} from './faceArtwork.ts';
 import {turtleSchoolStrokes,hiddenLeafStrokes,uzumakiWhorl} from './characterInsignia.ts';
+import {addCartoonHead,addCartoonOutfit,addCartoonLimbDetails,addCartoonShorts,addCartoonShoeDetails} from './cartoonCharacters.ts';
+import {addHumanHead,addHumanOutfit,addHumanLimbDetails,addHumanShoeDetails} from './humanCharacters.ts';
+import {addPeterHead,addPeterOutfit,addPeterLimbDetails,addPeterShoeDetails} from './peterCharacter.ts';
+import {addAnimeGuestHead,addAnimeGuestOutfit,addSasukeShorts,addAnimeGuestLimb,addAnimeGuestShoe} from './animeGuests.ts';
+import {addSpiderHead,addSpiderOutfit,addSpiderLimb,addSpiderShoe} from './spiderMan.ts';
+import {addMichaelHead,addMichaelOutfit,addMichaelLimb,addMichaelShoe} from './michaelJackson.ts';
 
 const up=new THREE.Vector3(0,1,0);
 const material=(color:number)=>new THREE.MeshStandardMaterial({color});
@@ -38,8 +44,15 @@ export function addCharacterLooks(head:THREE.Group,torso:THREE.Group) {
     const ink=material(0x18202c),white=material(0xf7f3df),steel=material(0xa6bdc8),shirt=material(p.shirt),dark=material(p.sleeves);
     const group=look(head,id,'head'),outfit=look(costumes,id,'outfit');
     group.userData.profile=id==='goku'?'swept-spikes':id==='naruto'?'layered-spikes':id==='kick'?'full-stunt-helmet':'skate-helmet';
+    const cartoon=id==='finn'||id==='bart';
+    const human=id==='shaggy'||id==='light';
+    const anime=id==='sasuke'||id==='onizuka',guest=anime||id==='spiderman'||id==='mj';
+    if(cartoon)group.userData.profile=id==='finn'?'bear-ear-hood':'serrated-crown';
+    if(human)group.userData.profile=id==='shaggy'?'scruffy-fringe':'swept-fringe';
+    if(id==='peter')group.userData.profile='round-glasses-cleft-chin';
+    if(guest)group.userData.profile=id==='spiderman'?'webbed-mask':id==='sasuke'?'rear-fan-long-bangs':id==='mj'?'fedora-curls':'bleached-crop';
     const {chestWidth:width,chestDepth:depth}=characterProportions(id);
-    const clothSurface=(back:boolean)=>(x:number,y:number)=>{const r=torsoRadius(y);return (back?1:-1)*r*depth*Math.sqrt(Math.max(.015,1-(x/(r*width))**2));};
+    const clothSurface=(back:boolean)=>(x:number,y:number)=>{const r=torsoRadius(y,id);return torsoCenter(y,id)*depth+(back?1:-1)*r*depth*Math.sqrt(Math.max(.015,1-(x/(r*width))**2));};
     const clothMark=(mat:THREE.Material,points:readonly(readonly[number,number])[],back=false,offset=.003,subdivisions=2)=>mesh(outfit,surfacePatch(points,clothSurface(back),back,offset,subdivisions),mat);
     const clothStroke=(mat:THREE.Material,points:readonly(readonly[number,number])[],thickness:number,back=false,offset=.0035,subdivisions=2)=>{
       for(let i=1;i<points.length;i++) {
@@ -56,7 +69,7 @@ export function addCharacterLooks(head:THREE.Group,torso:THREE.Group) {
     mesh(group,headGeometry(id),skin);
     const faceSurface=(x:number,y:number)=>headSurface(x,y,id);
     const faceMark=(mat:THREE.Material,points:readonly(readonly[number,number])[],offset=0.0012)=>mesh(group,surfacePatch(points,faceSurface,false,offset),mat);
-    for(const side of [-1,1]) {
+    if(!cartoon&&!human&&id!=='peter'&&!guest)for(const side of [-1,1]) {
       oval(group,skin,side*0.086,-0.005,0,0.017,0.025,0.015);
       oval(group,material(0xb87863),side*0.098,-0.005,-0.001,0.003,0.013,0.008);
       if(!hasFaceArtwork(id)) {
@@ -74,7 +87,13 @@ export function addCharacterLooks(head:THREE.Group,torso:THREE.Group) {
         faceMark(hair,[[cx-.018,browY-tilt*.018],[cx+.017,browY+tilt*.017],[cx+.017,browY+.005+tilt*.017],[cx-.018,browY+.005-tilt*.018]],.002);
       }
     }
-    if(hasFaceArtwork(id))group.add(createFaceArtwork(id));
+    if(cartoon)addCartoonHead(group,id);
+    else if(human)addHumanHead(group,id);
+    else if(id==='peter')addPeterHead(group);
+    else if(anime)addAnimeGuestHead(group,id);
+    else if(id==='spiderman')addSpiderHead(group);
+    else if(id==='mj')addMichaelHead(group);
+    else if(hasFaceArtwork(id))group.add(createFaceArtwork(id));
     else {
       const noseZ=headSurface(0,-.025,id)-.003;
       oval(group,skin,0,-.025,noseZ,.011,.019,.014);
@@ -171,6 +190,12 @@ export function addCharacterLooks(head:THREE.Group,torso:THREE.Group) {
       mesh(outfit,new THREE.CylinderGeometry(.065,.075,.038,16,1,true),shirt,0,.427,0);
       for(const side of [-1,1])clothMark(accent,[[side*.012,.413],[side*.062,.416],[side*.035,.376]]);
     }
+    if(cartoon)addCartoonOutfit(outfit,id,clothSurface(false));
+    if(human)addHumanOutfit(outfit,id,clothSurface(false));
+    if(id==='peter')addPeterOutfit(outfit,clothSurface(false),width,depth);
+    if(anime)addAnimeGuestOutfit(outfit,id,clothSurface(false),clothSurface(true));
+    if(id==='spiderman')addSpiderOutfit(outfit,clothSurface(false),clothSurface(true));
+    if(id==='mj')addMichaelOutfit(outfit,clothSurface(false),clothSurface(true));
     if(id==='kick')group.scale.setScalar(1.4);
     batchCosmetics(group);batchCosmetics(outfit);
     // Colors are baked into the geometry; these temporary authoring materials never reach the GPU.
@@ -180,9 +205,16 @@ export function addCharacterLooks(head:THREE.Group,torso:THREE.Group) {
 }
 
 /** Cuffs and suit details inherit bone scaling, without adding joints or changing reach. */
-export function addCharacterLimbDetails(parent:THREE.Mesh,kind:'upperarm'|'forearm'|'shin',side=1) {
+export function addCharacterLimbDetails(parent:THREE.Mesh,kind:'upperarm'|'forearm'|'shin'|'thigh',side=1) {
+  if(kind==='thigh'){addCartoonShorts(parent);addSasukeShorts(parent);return;}
   for(const {id} of CHARACTERS) {
     const p=characterPalette(id,'skate'),group=look(parent,id,kind),accent=material(p.accent),ink=material(0x202633),white=material(0xf1ecdc);
+    if(id==='finn'||id==='bart'){addCartoonLimbDetails(group,id,kind);batchCosmetics(group);continue;}
+    if(id==='shaggy'||id==='light'){addHumanLimbDetails(group,id,kind);batchCosmetics(group);continue;}
+    if(id==='peter'){addPeterLimbDetails(group,kind);batchCosmetics(group);continue;}
+    if(id==='sasuke'||id==='onizuka'){addAnimeGuestLimb(group,id,kind,side);batchCosmetics(group);continue;}
+    if(id==='spiderman'){addSpiderLimb(group,kind,side);batchCosmetics(group);continue;}
+    if(id==='mj'){addMichaelLimb(group,kind,side);batchCosmetics(group);continue;}
     if(kind==='upperarm') {
       if(id==='kick')box(group,[0.006,0.9,0.022],accent,side*.045,0,0);
       if(id==='goku') {
@@ -231,6 +263,12 @@ export function addCharacterHipDetails(hips:THREE.Group) {
 export function addCharacterShoeDetails(foot:THREE.Group) {
   for(const {id} of CHARACTERS) {
     const p=characterPalette(id,'skate'),group=look(foot,id,'shoe'),accent=material(p.accent),dark=material(p.shoes),white=material(0xece4cc);
+    if(id==='finn'||id==='bart'){addCartoonShoeDetails(group,id);batchCosmetics(group);continue;}
+    if(id==='shaggy'||id==='light'){addHumanShoeDetails(group,id);batchCosmetics(group);continue;}
+    if(id==='peter'){addPeterShoeDetails(group);batchCosmetics(group);continue;}
+    if(id==='sasuke'||id==='onizuka'){addAnimeGuestShoe(group,id);batchCosmetics(group);continue;}
+    if(id==='spiderman'){addSpiderShoe(group);batchCosmetics(group);continue;}
+    if(id==='mj'){addMichaelShoe(group);batchCosmetics(group);continue;}
     for(const side of [-1,1])box(group,[0.006,0.016,0.11],id==='goku'?accent:white,side*0.054,0.027,-0.015).rotation.x=0.1;
     box(group,[0.07,0.045,0.016],dark,0,0.028,0.081);
     if(id==='kick')box(group,[0.04,0.019,0.18],accent,0,0.06,-0.02);

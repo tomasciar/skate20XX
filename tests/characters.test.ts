@@ -2,16 +2,17 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
-import {CHARACTERS,CHARACTER_STORAGE_KEY,loadCharacter,saveCharacter,characterPalette,applyCharacterSkin} from '../src/characters.ts';
+import {CHARACTERS,CHARACTER_STORAGE_KEY,loadCharacter,saveCharacter,characterPalette,characterProportions,applyCharacterSkin} from '../src/characters.ts';
 import {createCharacterControls} from '../src/ui/characters.ts';
 import {createSkaterVisual} from '../src/player/skaterVisual.ts';
 import {hasFaceArtwork} from '../src/player/faceArtwork.ts';
+import {isRefinedFace} from '../src/player/refinedFaceArtwork.ts';
 import {createBoardPlayer} from '../src/player/board.ts';
 import {createRamp} from '../src/world/ramp.ts';
 import {createTrickSystem} from '../src/player/tricks.ts';
 import {GRABS} from '../src/player/grabs.ts';
 import {BOARD,RIDER} from '../src/player/dimensions.ts';
-import {stuntHelmetGeometry} from '../src/player/modelGeometry.ts';
+import {stuntHelmetGeometry,headContour} from '../src/player/modelGeometry.ts';
 import {createRagdoll} from '../src/player/ragdoll.ts';
 import {createInput} from '../src/input.ts';
 import type {PlayerIntent} from '../src/player/controller.ts';
@@ -81,10 +82,12 @@ test('each character has a distinct active look in both modes with planted feet 
       assert.ok(Math.abs(sole.y-BOARD.gripY)<1e-6);
     }
     const rig=visual.captureRagdoll(),signature=JSON.stringify({parts:rig.parts.map(part=>[part.id,part.mass,part.shape,part.center.toArray()]),joints:rig.joints.map(joint=>[joint.a,joint.b,joint.kind,joint.anchor.toArray()])});
-    if(id!=='kick'){reference ??=signature;assert.equal(signature,reference,'full-height riders retain their shared joint targets');}
+    if(['boy','girl','goku','naruto','light'].includes(id)){reference ??=signature;assert.equal(signature,reference,'original full-height riders retain their shared joint targets');}
     else {
       assert.equal(rig.parts.length,15);assert.equal(rig.joints.length,14);
-      assert.equal(rig.parts.find(part=>part.id==='head')!.shape.radius,.115*.76);
+      const build=characterProportions(id);
+      assert.equal(rig.parts.find(part=>part.id==='head')!.shape.radius,(id==='peter'?.143:.115)*build.bodyScale);
+      assert.equal(rig.parts.find(part=>part.id==='thigh1')!.shape.length,RIDER.upperLeg*build.legScale*build.bodyScale);
     }
     let meshes=0,triangles=0;
     visual.root.traverseVisible(object=>{
@@ -98,7 +101,7 @@ test('each character has a distinct active look in both modes with planted feet 
     assert.ok(meshes<=60,`${id} ${mode} has too many visible meshes: ${meshes}`);
     assert.ok(triangles<=20000,`${id} ${mode} exceeds the rider geometry budget: ${triangles}`);
   }
-  assert.ok(headShapes.size>=5);
+  assert.equal(headShapes.size,CHARACTERS.length);
 });
 
 test('Goku keeps a broad asymmetric fan and Naruto a shorter compact hair silhouette',()=>{
@@ -118,6 +121,158 @@ test('Goku keeps a broad asymmetric fan and Naruto a shorter compact hair silhou
       assert.ok(Math.abs(bounds.min.x)>bounds.max.x,'the fan should retain its asymmetric sweep');
     } else assert.ok(bounds.max.y<0.18 && bounds.max.y>0.12,'Naruto should have short layered spikes');
   }
+});
+
+test('new native faces have complete reverse silhouettes and Finn carries his two-tone backpack on the torso',()=>{
+  const coloredBounds=(root:THREE.Object3D,color:number)=>{
+    const bounds=new THREE.Box3();root.traverseVisible(object=>{
+      if(!(object instanceof THREE.Mesh))return;
+      const p=object.geometry.getAttribute('position'),c=object.geometry.getAttribute('color');
+      if(c)for(let i=0;i<p.count;i++)if(new THREE.Color().fromBufferAttribute(c,i).getHex()===color)
+        bounds.expandByPoint(new THREE.Vector3().fromBufferAttribute(p,i));
+    });return bounds;
+  };
+  const finn=createSkaterVisual('skate','finn'),hat=coloredBounds(finn.root.getObjectByName('character-head-finn')!,0xf9faf0);
+  assert.ok(hat.max.y>.18&&hat.max.z>.09,'Finn needs raised bear ears and a covered rear hood');
+  const pack=finn.root.getObjectByName('character-outfit-finn')!,upper=coloredBounds(pack,0xb4d779),lower=coloredBounds(pack,0x579346);
+  assert.ok(upper.max.y>.42&&lower.min.y<.10&&lower.max.z>.25,'the backpack must have both rounded colored halves');
+  assert.ok(finn.captureRagdoll().parts.find(part=>part.id==='torso')!.objects.some(object=>object.getObjectById(pack.id)),
+    'the backpack must stay attached to the torso in a crash');
+  const bart=createSkaterVisual('skate','bart'),crown=coloredBounds(bart.root.getObjectByName('character-head-bart')!,0xffd62a);
+  assert.ok(crown.max.y>.145&&crown.max.y<.17&&crown.min.z<-.12,'Bart needs a compact serrated crown and a projecting nose');
+  for(const id of ['shaggy','light'] as const) {
+    const visual=createSkaterVisual('skate',id),head=visual.root.getObjectByName(`character-head-${id}`)!.clone();head.updateMatrixWorld(true);
+    for(const angle of [-Math.PI/2,Math.PI/2,Math.PI]) {
+      const direction=new THREE.Vector3(Math.sin(angle),0,-Math.cos(angle)),origin=head.localToWorld(direction.clone().multiplyScalar(.4).add(new THREE.Vector3(0,.030,0)));
+      direction.negate().transformDirection(head.matrixWorld);
+      const hit=new THREE.Raycaster(origin,direction).intersectObject(head,true)[0]!;
+      assert.ok(hit?.face,`${id}: missing scalp`);
+      assert.equal(new THREE.Color().fromBufferAttribute((hit.object as THREE.Mesh).geometry.getAttribute('color'),hit.face.a).getHex(),characterPalette(id,'skate').hair,
+        `${id}: sides and back need hair coverage`);
+    }
+  }
+});
+
+test('shorts, flared trousers, and cartoon hands switch without mutating the other riders or allocating physics',()=>{
+  const visual=createSkaterVisual('skate','boy'),thigh=visual.root.getObjectByName('thigh-1') as THREE.Mesh,
+    shin=visual.root.getObjectByName('shin-1') as THREE.Mesh,hand=visual.root.getObjectByName('hand-1') as THREE.Mesh;
+  const original={thigh:thigh.geometry,shin:shin.geometry,hand:hand.geometry};
+  const positions=Array.from(original.shin.getAttribute('position').array);
+  let bare:THREE.BufferGeometry|undefined,cartoon:THREE.BufferGeometry|undefined;
+  for(const mode of ['skate','snowboard'] as const) {
+    visual.setMode(mode);
+    for(const id of ['finn','bart'] as const) {
+      visual.setCharacter(id);const skin=characterPalette(id,mode).skin;
+      assert.equal(thigh.material.color.getHex(),skin);assert.equal(shin.material.color.getHex(),skin);
+      assert.equal(visual.root.getObjectByName(`character-thigh-${id}`)!.visible,true);
+      assert.ok(hand.geometry.getAttribute('position').count<original.hand.getAttribute('position').count,'cartoon hands use three fingers and a thumb');
+      bare??=shin.geometry;cartoon??=hand.geometry;assert.equal(shin.geometry,bare);assert.equal(hand.geometry,cartoon);
+    }
+    visual.setCharacter('shaggy');shin.geometry.computeBoundingBox();
+    assert.ok(shin.geometry.boundingBox!.max.x>.08,'Shaggy trousers should flare at the ankle');
+    assert.equal(hand.geometry,original.hand);
+    visual.setCharacter('light');assert.notEqual(shin.geometry,original.shin,'Light uses tapered suit trousers');assert.equal(hand.geometry,original.hand);
+    assert.equal(shin.material.color.getHex(),characterPalette('light',mode).pants);
+    visual.setCharacter('boy');
+    assert.equal(thigh.geometry,original.thigh);assert.equal(shin.geometry,original.shin);assert.equal(hand.geometry,original.hand);
+  }
+  assert.deepEqual(Array.from(original.shin.getAttribute('position').array),positions,'shared clothed geometry must stay unchanged');
+});
+
+test('Peter has a rounded belly, fitted sleeves, wider limb roots, and matching crash anatomy',()=>{
+  for(const mode of ['skate','snowboard'] as const) {
+    const visual=createSkaterVisual(mode,'peter'),reference=createSkaterVisual(mode,'boy');
+    for(let frame=0;frame<120;frame++)visual.setPose(pose);
+    visual.root.updateMatrixWorld(true);
+    const build=characterProportions('peter'),chest=visual.root.getObjectByName('chest') as THREE.Mesh,
+      normalChest=reference.root.getObjectByName('chest') as THREE.Mesh;
+    const dimensions=(mesh:THREE.Mesh)=>{mesh.geometry.computeBoundingBox();return mesh.geometry.boundingBox!.getSize(new THREE.Vector3()).multiply(mesh.scale);};
+    assert.ok(dimensions(chest).x>dimensions(normalChest).x*1.6,'Peter needs a broad rounded torso');
+    assert.ok(dimensions(chest).z>dimensions(normalChest).z*1.6,'the belly must also project in profile');
+    const hips=chest.parent!.parent!;
+    for(const side of [-1,1]) {
+      const shoulder=visual.root.getObjectByName(`shoulder-${side}`)!,upper=visual.root.getObjectByName(`upper-arm-${side}`)!,
+        sleeve=visual.root.getObjectByName(`sleeve-${side}`)!,thigh=visual.root.getObjectByName(`thigh-${side}`)!;
+      assert.ok(Math.abs(shoulder.position.x-side*.17*build.shoulderSpan)<1e-6,'shoulders need to sit at the wider shirt edges');
+      assert.ok(sleeve.scale.x*.05>upper.scale.x*.044,'thicker bare arms must not poke through white sleeves');
+      assert.ok(thigh.localToWorld(new THREE.Vector3(0,-.5,0)).distanceTo(hips.localToWorld(new THREE.Vector3(side*.095*build.hipWidth,0,0)))<1e-6);
+    }
+    const rig=visual.captureRagdoll(),torso=rig.parts.find(part=>part.id==='torso')!.shape;
+    assert.equal(torso.kind,'box');if(torso.kind==='box')assert.ok(torso.half.x>.27&&torso.half.z>.20,'crash collider must cover the larger belly');
+    assert.ok(rig.parts.find(part=>part.id==='arm1')!.shape.radius>.05,'crash arms must match the thicker model');
+    const head=visual.root.getObjectByName('character-head-peter')!.clone();head.updateMatrixWorld(true);
+    for(const [angle,y] of [[0,.128],[Math.PI/2,.060],[-Math.PI/2,.060],[Math.PI,.010]] as const) {
+      const outward=new THREE.Vector3(Math.sin(angle),0,-Math.cos(angle));
+      const origin=head.localToWorld(outward.clone().multiplyScalar(.4).setY(y));
+      const hit=new THREE.Raycaster(origin,outward.negate().transformDirection(head.matrixWorld)).intersectObject(head,true)[0]!;
+      assert.ok(hit?.face);
+      assert.equal(new THREE.Color().fromBufferAttribute((hit.object as THREE.Mesh).geometry.getAttribute('color'),hit.face.a).getHex(),characterPalette('peter',mode).hair,
+        'short hair must cover the crown, sides and rear without skin poking through');
+    }
+  }
+});
+
+test('switching away from Peter restores the standard torso, pelvis, sleeves and hands',()=>{
+  const visual=createSkaterVisual('skate','boy'),names=['chest','pelvis','hand-1','sleeve-1','thigh-1','shin-1'];
+  for(let frame=0;frame<120;frame++)visual.setPose(pose);
+  const original=names.map(name=>{const mesh=visual.root.getObjectByName(name) as THREE.Mesh;return {geometry:mesh.geometry,scale:mesh.scale.clone()};});
+  visual.setCharacter('peter');for(let frame=0;frame<120;frame++)visual.setPose(pose);
+  assert.notEqual((visual.root.getObjectByName('chest') as THREE.Mesh).geometry,original[0]!.geometry);
+  visual.setCharacter('boy');for(let frame=0;frame<120;frame++)visual.setPose(pose);
+  names.forEach((name,i)=>{
+    const mesh=visual.root.getObjectByName(name) as THREE.Mesh;
+    assert.equal(mesh.geometry,original[i]!.geometry,`${name}: cached standard geometry was not restored`);
+    assert.ok(Math.abs(mesh.scale.x-original[i]!.scale.x)<1e-6&&Math.abs(mesh.scale.z-original[i]!.scale.z)<1e-6,`${name}: stocky proportions leaked into the original rider`);
+  });
+});
+
+test('Spider-Man has an uninterrupted mask and red boots, plus contrasting spiders on both torso sides',()=>{
+  const visual=createSkaterVisual('skate','spiderman');
+  const rayColor=(root:THREE.Object3D,origin:THREE.Vector3,direction:THREE.Vector3)=>{
+    root.updateMatrixWorld(true);const objects:THREE.Object3D[]=[];root.traverseVisible(o=>{if(o instanceof THREE.Mesh)objects.push(o);});
+    const hit=new THREE.Raycaster(origin,direction).intersectObjects(objects,false)[0]!;assert.ok(hit?.face);
+    const mesh=hit.object as THREE.Mesh,c=mesh.geometry.getAttribute('color');return c?new THREE.Color().fromBufferAttribute(c,hit.face.a).getHex():mesh.material.color.getHex();
+  };
+  const head=visual.root.getObjectByName('character-head-spiderman')!.clone();head.updateMatrixWorld(true);
+  for(const angle of [0,Math.PI/2,Math.PI,-Math.PI/2]) {
+    const outward=new THREE.Vector3(Math.sin(angle),0,-Math.cos(angle));
+    assert.equal(rayColor(head,head.localToWorld(headContour(angle,0,'spiderman',.35)),outward.negate().transformDirection(head.matrixWorld)),0x20242d,
+      'the webbing should wrap around the whole mask');
+  }
+  const outfit=visual.root.getObjectByName('character-outfit-spiderman')!.clone();outfit.updateMatrixWorld(true);
+  assert.equal(rayColor(outfit,new THREE.Vector3(0,.289,-.4),new THREE.Vector3(0,0,1)),0x20242d,'front spider should be black');
+  assert.equal(rayColor(outfit,new THREE.Vector3(0,.289,.4),new THREE.Vector3(0,0,-1)),0xcf303b,'back spider should be red');
+  const shin=visual.root.getObjectByName('shin-1')!.clone();shin.position.set(0,0,0);shin.quaternion.identity();shin.scale.set(1,1,1);shin.updateMatrixWorld(true);
+  const radial=new THREE.Vector3(Math.sin(.35),0,Math.cos(.35));
+  assert.equal(rayColor(shin,radial.clone().multiplyScalar(.2).setY(.45),radial.clone().negate()),0xcf303b,'the blue undersuit must not poke through the lower red boot');
+  assert.equal(visual.root.getObjectByName('sleeve-1')!.visible,false,'the suit should not have a T-shirt sleeve cuff');
+});
+
+test('new human riders keep their faces clear of their clothing and retain individual costume details',()=>{
+  const visibleColor=(root:THREE.Object3D,origin:THREE.Vector3,direction:THREE.Vector3)=>{
+    const objects:THREE.Object3D[]=[];root.traverseVisible(o=>{if(o instanceof THREE.Mesh&&o.material.visible!==false)objects.push(o);});
+    const hit=new THREE.Raycaster(origin,direction).intersectObjects(objects,false)[0]!;assert.ok(hit?.face);
+    const m=hit.object as THREE.Mesh,c=m.geometry.getAttribute('color');return c?new THREE.Color().fromBufferAttribute(c,hit.face.a).getHex():m.material.color.getHex();
+  };
+  for(const id of ['sasuke','mj','onizuka'] as const)for(const mode of ['skate','snowboard'] as const) {
+    const visual=createSkaterVisual(mode,id);for(let i=0;i<120;i++)visual.setPose(pose);visual.root.updateMatrixWorld(true);
+    const face=visual.root.getObjectByName(`character-head-${id}`)!;
+    for(const x of (id==='sasuke'?[-.0363,.03555]:[-.033,.033]))assert.equal(visibleColor(visual.root,face.localToWorld(new THREE.Vector3(x,-.013,-.4)),new THREE.Vector3(0,0,1).transformDirection(face.matrixWorld)),id==='sasuke'?0x171a23:0x28232a,
+      `${id}: eyes should be visible in the actual full rider, including headgear and outfit`);
+    if(id==='sasuke') {
+      assert.equal(visibleColor(visual.root,face.localToWorld(new THREE.Vector3(0,-.0715,-.4)),new THREE.Vector3(0,0,1).transformDirection(face.matrixWorld)),0x28232a,
+        'the raised collar needs a front opening below the mouth');
+      const outfit=visual.root.getObjectByName('character-outfit-sasuke')!.clone();outfit.updateMatrixWorld(true);
+      assert.equal(visibleColor(outfit,new THREE.Vector3(0,.322,.4),new THREE.Vector3(0,0,-1)),0xbb3c43,'Uchiha fan has a red upper half');
+      assert.equal(visibleColor(outfit,new THREE.Vector3(0,.268,.4),new THREE.Vector3(0,0,-1)),0xf4f0e8,'Uchiha fan has a white lower half');
+      const boy=createSkaterVisual(mode,'boy');
+      assert.equal((visual.root.getObjectByName('hand-1') as THREE.Mesh).geometry,(boy.root.getObjectByName('hand-1') as THREE.Mesh).geometry,'Sasuke keeps human fingers despite wearing shorts');
+    }
+  }
+  const mj=createSkaterVisual('skate','mj'),head=mj.root.getObjectByName('character-head-mj')!.clone();head.updateMatrixWorld(true);
+  for(const [origin,direction] of [[new THREE.Vector3(0,.35,0),new THREE.Vector3(0,-1,0)],[new THREE.Vector3(0,.025,-.115),new THREE.Vector3(0,1,0)]])
+    assert.equal(visibleColor(head,head.localToWorld(origin!),direction!.transformDirection(head.matrixWorld)),characterPalette('mj','skate').shirt,
+      'the fedora crown and underside of the brim should both be closed and visible');
 });
 
 test('Goku and Naruto have visible hair coverage on both lower sides and across the nape',()=>{
@@ -171,16 +326,18 @@ test('Kick has an open chin, a low helmet brow, and no nose drawn over the skin'
   assert.equal(new THREE.Color().fromBufferAttribute((hit.object as THREE.Mesh).geometry.getAttribute('color'),hit.face.a).getHex(),characterPalette('kick','skate').skin);
 });
 
-test('shorter Kick keeps full-size shoes planted and every ankle/held grab connected in both modes',()=>{
-  for(const mode of ['skate','snowboard'] as const) {
-    const visual=createSkaterVisual(mode,'kick'),reference=createSkaterVisual(mode,'boy');
+test('shorter riders keep full-size shoes planted and every ankle/held grab connected in both modes',()=>{
+  for(const id of ['kick','bart','peter','sasuke'] as const)for(const mode of ['skate','snowboard'] as const) {
+    const visual=createSkaterVisual(mode,id),reference=createSkaterVisual(mode,'boy');
     for(let frame=0;frame<90;frame++){visual.setPose(pose);reference.setPose(pose);}
     const height=(root:THREE.Object3D)=>{
       const bounds=new THREE.Box3();root.updateMatrixWorld(true);
       root.traverseVisible(object=>{if(object instanceof THREE.Mesh){object.geometry.computeBoundingBox();bounds.union(object.geometry.boundingBox!.clone().applyMatrix4(object.matrixWorld));}});
       return bounds.max.y;
     };
-    assert.ok(height(visual.root)<height(reference.root)*.90,'Kick should be visibly shorter');
+    if(id==='sasuke')assert.ok(visual.root.getObjectByName('head')!.getWorldPosition(new THREE.Vector3()).y<reference.root.getObjectByName('head')!.getWorldPosition(new THREE.Vector3()).y,
+      'Sasuke anatomy should be slightly shorter, independent of the raised rear hair');
+    else assert.ok(height(visual.root)<height(reference.root)*(id==='peter'?1:.95),`${id} should be visibly shorter`);
     const connected=()=>{
       visual.root.updateMatrixWorld(true);
       for(const side of [-1,1]) {
@@ -200,16 +357,20 @@ test('shorter Kick keeps full-size shoes planted and every ankle/held grab conne
   }
 });
 
-test('Kick crash clones keep their captured small anatomy and full-size boots when the look is reapplied',async()=>{
+test('distinct builds keep their captured anatomy and full-size boots when the crash look is reapplied',async()=>{
   await RAPIER.init();const world=new RAPIER.World({x:0,y:-18,z:0}),scene=new THREE.Scene(),ragdoll=createRagdoll(scene,world);
   try {
-    const visual=createSkaterVisual('skate','kick');for(let frame=0;frame<90;frame++)visual.setPose(pose);
-    ragdoll.start(visual.captureRagdoll(),new THREE.Vector3(),new THREE.Vector3(0,1,0));
-    const chest=ragdoll.root.getObjectByName('chest')!,before=chest.scale.clone();
-    applyCharacterSkin(ragdoll.root,'kick');assert.ok(chest.scale.distanceTo(before)<1e-6);
-    for(const side of [-1,1])assert.ok(ragdoll.root.getObjectByName(`foot-${side}`)!.scale.distanceTo(new THREE.Vector3(1,1,1))<1e-6);
-    for(let frame=0;frame<20;frame++){world.step();ragdoll.sync();}ragdoll.render(1);
-    assert.ok(Number.isFinite(ragdoll.focus.x)&&Number.isFinite(ragdoll.focus.y)&&Number.isFinite(ragdoll.focus.z));
+    for(const id of ['kick','finn','bart','shaggy','light','peter','spiderman','sasuke','mj','onizuka'] as const) {
+      const visual=createSkaterVisual('skate',id);for(let frame=0;frame<90;frame++)visual.setPose(pose);
+      ragdoll.start(visual.captureRagdoll(),new THREE.Vector3(),new THREE.Vector3(0,1,0));
+      const names=['chest','pelvis','thigh-1','shin-1','knee-1','hand-1','sleeve-1','elbow-1'];
+      const before=names.map(name=>ragdoll.root.getObjectByName(name)!.scale.clone());
+      applyCharacterSkin(ragdoll.root,id);
+      names.forEach((name,i)=>assert.ok(ragdoll.root.getObjectByName(name)!.scale.distanceTo(before[i]!)<1e-6,`${id}: crash ${name} changed size`));
+      for(const side of [-1,1])assert.ok(ragdoll.root.getObjectByName(`foot-${side}`)!.scale.distanceTo(new THREE.Vector3(1,1,1))<1e-6);
+      for(let frame=0;frame<20;frame++){world.step();ragdoll.sync();}ragdoll.render(1);
+      assert.ok(Number.isFinite(ragdoll.focus.x)&&Number.isFinite(ragdoll.focus.y)&&Number.isFinite(ragdoll.focus.z));
+    }
   } finally {ragdoll.clear();world.free();}
 });
 
@@ -228,8 +389,60 @@ test('eyes and mouths are visible from the front instead of being buried in the 
     if(hasFaceArtwork(id)) {
       const art=face.getObjectByName(`face-artwork-${id}`) as THREE.Mesh;
       assert.ok(art && art.visible);assert.equal((art.material as THREE.Material).userData.faceArtwork,id);
+      if(isRefinedFace(id)) {
+        assert.equal((art.material as THREE.Material).visible,false,'generated decals wait for a successful load');
+        assert.ok(face.getObjectByName(`face-fallback-${id}`),'native facial details remain available while loading');
+        continue;
+      }
       const origin=face.localToWorld(new THREE.Vector3(0.035,-0.002,-0.4)),direction=new THREE.Vector3(0,0,1).transformDirection(face.matrixWorld);
       assert.equal(new THREE.Raycaster(origin,direction,0,1).intersectObjects(meshes,false)[0]?.object,art,`${id}: facial artwork buried behind the skin`);
+      continue;
+    }
+    if(id==='finn') {
+      for(const side of [-1,1])assert.equal(visibleColor(side*.033,.004),0x1b1b18,'Finn dot eyes must be visible through the hat opening');
+      assert.equal(visibleColor(0,-.048),0x1b1b18,'Finn grin must remain visible');
+      assert.equal(visibleColor(0,-.039),0xf9faf0,'Finn teeth must remain visible');
+      continue;
+    }
+    if(id==='bart') {
+      for(const side of [-1,1]) {
+        assert.equal(visibleColor(side*.033,-.008),0x1b1b18,'Bart pupils must sit in front of the eyeballs');
+        assert.equal(visibleColor(side*.052,-.006),0xf9faf0,'Bart must have visible round white eyes');
+      }
+      assert.equal(visibleColor(0,-.034),characterPalette(id,'skate').skin,'Bart has a yellow projecting nose');
+      assert.equal(visibleColor(.004,-.086),0x1b1b18,'Bart smile must sit above the skin');
+      continue;
+    }
+    if(id==='shaggy'||id==='light') {
+      for(const side of [-1,1]) {
+        assert.equal(visibleColor(side*.031,-.017),0x30251f,`${id}: pupil hidden by the fringe`);
+        assert.equal(visibleColor(side*.041,-.015),0xf9f3e5,`${id}: eye white hidden by the fringe`);
+      }
+      assert.equal(visibleColor(0,id==='shaggy'?-.085:-.071),0x30251f,`${id}: mouth hidden beneath the skin`);
+      continue;
+    }
+    if(id==='peter') {
+      for(const side of [-1,1]) {
+        assert.equal(visibleColor(side*.034,.003),0x30271f,'Peter pupils must be visible inside the glasses');
+        assert.equal(visibleColor(side*.047,.007),0xfffdf0,'glasses must leave the white eyes visible');
+        assert.equal(visibleColor(side*.068,.007),0x30271f,'the round wire frames should remain visible');
+      }
+      assert.equal(visibleColor(0,-.026),characterPalette(id,'skate').skin,'Peter has a projecting nose');
+      assert.equal(visibleColor(.010,-.078),0x30271f,'the smile must sit above the skin');
+      assert.equal(visibleColor(0,-.137),0x30271f,'the cleft must remain visible on the lower chin');
+      continue;
+    }
+    if(id==='spiderman') {
+      for(const side of [-1,1])assert.equal(visibleColor(side*.039,-.004),0xf6f8ee,'Spider-Man needs unobscured white lenses');
+      continue;
+    }
+    if(id==='sasuke'||id==='mj'||id==='onizuka') {
+      for(const side of [-1,1]) {
+        assert.equal(visibleColor(side*.033,-.013),0x28232a,`${id}: pupils must be visible beneath hair or headgear`);
+        assert.equal(visibleColor(side*.044,-.013),id==='mj'?0xe7e1d5:0xf7f4ed,`${id}: white eye interiors must remain visible`);
+      }
+      assert.equal(visibleColor(0,id==='mj'?-.073:id==='sasuke'?-.072:-.078),id==='mj'?0x432c2a:0x28232a,`${id}: mouth must sit above the skin`);
+      if(id==='onizuka')assert.equal(visibleColor(0,-.067),0xf7f4ed,'Onizuka should have a visible toothy grin');
       continue;
     }
     const eyeY=-0.002;
@@ -289,9 +502,10 @@ test('switching riders and board modes preserves actual momentum, collision coun
   try {
     const bodies=subject.world.bodies.len(),colliders=subject.world.colliders.len(),resets=subject.player.resetCount;
     for(const f of [reference,subject])f.player.body.setLinvel(f.ramp.forward.clone().multiplyScalar(30),true);
-    for(let frame=0;frame<180;frame++) {
-      if(frame%30===0)subject.player.setCharacter(CHARACTERS[Math.floor(frame/30)%CHARACTERS.length]!.id);
-      if(frame===90)for(const f of [reference,subject]){f.player.setMode('snowboard');f.ramp.setMode!('snowboard');}
+    const framesPerCharacter=Math.max(1,Math.floor(180/CHARACTERS.length));
+    for(let frame=0;frame<CHARACTERS.length*framesPerCharacter;frame++) {
+      if(frame%framesPerCharacter===0)subject.player.setCharacter(CHARACTERS[Math.floor(frame/framesPerCharacter)]!.id);
+      if(frame===Math.floor(CHARACTERS.length/2)*framesPerCharacter)for(const f of [reference,subject]){f.player.setMode('snowboard');f.ramp.setMode!('snowboard');}
       reference.tick();subject.tick();
       assert.ok(reference.player.position.distanceTo(subject.player.position)<1e-6);
       assert.ok(reference.player.velocity.distanceTo(subject.player.velocity)<1e-6);
@@ -315,6 +529,13 @@ test('costumes and head details survive crashes and can be switched on the activ
     assert.equal((crash.getObjectByName('chest') as THREE.Mesh).material.color.getHex(),characterPalette('kick','skate').shirt);
     assert.equal(crash.getObjectByName('chest')!.scale.x,1.18,'the crash model must also adopt the selected character build');
     f.player.setCharacter('goku');assert.equal(crash.getObjectByName('chest')!.scale.x,1.22);
+    for(const id of ['finn','bart','shaggy','light','peter','spiderman','sasuke','mj','onizuka'] as const) {
+      f.player.setCharacter(id);
+      assert.equal(crash.getObjectByName(`character-head-${id}`)!.visible,true);
+      assert.equal(crash.getObjectByName(`character-outfit-${id}`)!.visible,true);
+      const expected=id==='finn'||id==='bart'||id==='sasuke'?characterPalette(id,'skate').skin:characterPalette(id,'skate').pants;
+      assert.equal((crash.getObjectByName('shin-1') as THREE.Mesh).material.color.getHex(),expected);
+    }
     f.player.setCharacter('kick');
     const clone=crash.clone(true);applyCharacterSkin(clone,'girl');assert.equal(clone.getObjectByName('character-head-girl')!.visible,true);
     f.tick({...idle,reset:true});assert.equal(f.player.crashed,false);assert.equal(f.player.character,'kick');

@@ -5,6 +5,7 @@ import {createAirPose} from '../src/player/airPose.ts';
 import {createSkaterVisual} from '../src/player/skaterVisual.ts';
 import {GRABS} from '../src/player/grabs.ts';
 import {BOARD,RIDER} from '../src/player/dimensions.ts';
+import {CHARACTERS} from '../src/characters.ts';
 
 const input={dt:1/120,active:true,verticalSpeed:8,turn:0,pitch:0,roll:0,travelSide:1};
 const pose={dt:1/120,speed:25,push:0,verticalSpeed:0,grinding:false,crouch:0,lean:0,airborne:true,bail:false,
@@ -111,7 +112,7 @@ test('a grabbed hand remains locked while the free hand reacts to changing fligh
 });
 
 test('combined spin and flip poses keep grabs and planted feet connected through all riders and modes',()=>{
-  for(const mode of ['skate','snowboard'] as const)for(const character of ['boy','girl','goku','naruto','kick'] as const)
+  for(const mode of ['skate','snowboard'] as const)for(const {id:character} of CHARACTERS)
     for(const grab of [undefined,GRABS.tomahawk,GRABS.nosebone,GRABS.tailbone]) {
       const visual=createSkaterVisual(mode,character);
       for(let frame=0;frame<120;frame++) {

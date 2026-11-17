@@ -19,8 +19,8 @@ export function solveLimb(start: THREE.Vector3, target: THREE.Vector3, pole: THR
 /** The elbow points back (+Z); the forearm folds toward the front (-Z).
  * Knees use the opposite pole. Mirror the small outward component for each arm.
  */
-export function solveArm(shoulder: THREE.Vector3, wrist: THREE.Vector3, side: number) {
-  return solveLimb(shoulder, wrist, new THREE.Vector3(side * 0.25, -0.1, 1), 0.25, 0.24);
+export function solveArm(shoulder: THREE.Vector3, wrist: THREE.Vector3, side: number, scale=1) {
+  return solveLimb(shoulder, wrist, new THREE.Vector3(side * 0.25, -0.1, 1), 0.25*scale, 0.24*scale);
 }
 
 export function createRiderMotion() {

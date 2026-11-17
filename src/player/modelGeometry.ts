@@ -43,26 +43,71 @@ const HEADS={
   goku:[[-.106,.019,.02,-.022],[-.09,.041,.036,-.014],[-.064,.065,.053,-.008],[-.025,.081,.07,-.002],[.016,.087,.078,0],[.057,.084,.078,.003],[.09,.069,.063,.006],[.116,.001,.001,.003]],
   naruto:[[-.103,.025,.024,-.014],[-.084,.052,.044,-.006],[-.048,.078,.064,-.001],[-.024,.086,.075,0],[.012,.089,.08,0],[.057,.088,.08,.003],[.09,.07,.065,.006],[.116,.001,.001,.003]],
   kick:[[-.102,.016,.017,-.008],[-.094,.047,.032,-.010],[-.073,.086,.047,-.007],[-.04,.102,.061,-.002],[-.018,.108,.070,0],[.016,.108,.073,0],[.06,.102,.074,.003],[.097,.073,.057,.005],[.119,.001,.001,.003]],
+  bart:[[-.109,.043,.040,-.014],[-.100,.071,.066,-.014],[-.075,.086,.086,-.012],[-.04,.086,.071,-.002],[.015,.089,.069,.003],[.075,.09,.068,.006],[.098,.09,.065,.008],[.112,.086,.060,.008],[.118,.001,.001,.008]],
+  shaggy:[[-.136,.031,.029,-.019],[-.126,.043,.038,-.018],[-.105,.051,.045,-.014],[-.067,.063,.055,-.006],[-.027,.077,.067,0],[.017,.081,.074,.003],[.065,.078,.073,.007],[.102,.055,.050,.008],[.120,.001,.001,.007]],
+  light:[[-.110,.016,.020,-.018],[-.095,.036,.034,-.012],[-.065,.061,.049,-.006],[-.026,.079,.068,0],[.016,.085,.077,.003],[.058,.080,.075,.006],[.092,.063,.058,.007],[.116,.001,.001,.005]],
+  peter:[[-.146,.034,.035,-.024],[-.132,.070,.054,-.023],[-.108,.095,.073,-.014],[-.065,.114,.089,-.003],[-.020,.118,.095,.004],[.025,.115,.092,.009],[.065,.103,.087,.010],[.100,.083,.074,.012],[.125,.048,.045,.012],[.137,.001,.001,.012]],
+  spiderman:[[-.106,.020,.024,-.014],[-.087,.047,.043,-.010],[-.052,.071,.062,-.003],[-.005,.086,.080,.002],[.045,.088,.082,.006],[.083,.073,.068,.008],[.108,.040,.037,.007],[.118,.001,.001,.005]],
+  sasuke:[[-.108,.018,.021,-.018],[-.091,.038,.034,-.013],[-.057,.064,.051,-.005],[-.020,.080,.071,0],[.020,.086,.078,.003],[.060,.083,.076,.005],[.095,.064,.060,.006],[.119,.001,.001,.005]],
+  mj:[[-.110,.025,.025,-.018],[-.095,.045,.037,-.014],[-.068,.062,.047,-.008],[-.037,.078,.061,-.003],[.002,.087,.075,.002],[.043,.083,.075,.005],[.083,.067,.061,.007],[.117,.001,.001,.006]],
+  onizuka:[[-.109,.030,.027,-.013],[-.093,.055,.039,-.008],[-.060,.081,.057,-.003],[-.022,.093,.075,0],[.021,.093,.079,.002],[.062,.087,.075,.004],[.100,.073,.061,.006],[.121,.054,.048,.006],[.127,.001,.001,.005]],
 } as const;
-function headProfile(id:CharacterId){return id==='goku'?HEADS.goku:id==='naruto'?HEADS.naruto:id==='kick'?HEADS.kick:HEAD;}
+function headProfile(id:CharacterId){return id in HEADS?HEADS[id as keyof typeof HEADS]:HEAD;}
 function headSection(y:number,id:CharacterId) {
   const profile=headProfile(id);let i=1;while(i<profile.length-1&&y>profile[i]![0])i++;
   const a=profile[i-1]!,b=profile[i]!,t=THREE.MathUtils.clamp((y-a[0])/(b[0]-a[0]),0,1);
   return {x:THREE.MathUtils.lerp(a[1],b[1],t),z:THREE.MathUtils.lerp(a[2],b[2],t),center:THREE.MathUtils.lerp(a[3],b[3],t)};
 }
-export function headHalfWidth(y:number,id:CharacterId){return headSection(y,id).x*(id==='girl'?.95:1);}
+export function headHalfWidth(y:number,id:CharacterId){return id==='finn'?.093*Math.sqrt(Math.max(.01,1-((y+.007)/.064)**2)):headSection(y,id).x*(id==='girl'?.95:1);}
+export function headContour(angle:number,y:number,id:CharacterId,offset=0) {
+  const s=headSection(y,id);return new THREE.Vector3(Math.sin(angle)*(headHalfWidth(y,id)+offset),y,s.center-Math.cos(angle)*(s.z+offset));
+}
 function noseProjection(x:number,y:number,id:CharacterId) {
+  if(id==='mj') {
+    const bridge=(x/.013)**2+((y+.023)/.039)**2,tip=(x/.011)**2+((y+.044)/.013)**2;
+    return (bridge<1?.022*(1-bridge)**2:0)+(tip<1?.013*(1-tip)**2:0);
+  }
   if(id!=='goku'&&id!=='naruto')return 0;
   const width=.014,height=id==='goku'?.027:.023,strength=id==='goku'?.018:.012;
   return Math.max(0,1-Math.abs(x)/width)*Math.max(0,1-Math.abs(y+.025)/height)*strength;
 }
+function cartoonFaceProjection(x:number,y:number,id:CharacterId) {
+  if(id!=='bart'&&id!=='peter')return 0;
+  const bump=(cx:number,cy:number,rx:number,ry:number,depth:number,power=2)=>{
+    const q=((x-cx)/rx)**2+((y-cy)/ry)**2;return q<1?depth*(1-q)**power:0;
+  };
+  let result=0;
+  for(const side of [-1,1])result+=id==='bart'?bump(side*.035,-.006,.042,.044,.035):bump(side*.037,.007,.036,.036,.028);
+  return result+(id==='bart'?bump(0,-.034,.021,.026,.055,1.15):bump(0,-.034,.024,.037,.055,1.15));
+}
 export function headSurface(x:number,y:number,id:CharacterId) {
+  if(id==='finn')return -.066-.028*Math.sqrt(Math.max(.01,1-(x/.093)**2-((y+.007)/.064)**2));
   const section=headSection(y,id);
-  return section.center-section.z*Math.sqrt(Math.max(.02,1-(x/headHalfWidth(y,id))**2))-noseProjection(x,y,id);
+  const surface=section.center-section.z*Math.sqrt(Math.max(.02,1-(x/headHalfWidth(y,id))**2))-noseProjection(x,y,id);
+  return id==='bart'||id==='peter'?surface-cartoonFaceProjection(x,y,id):surface;
 }
 export function headGeometry(id:CharacterId) {
+  if(id==='finn')return new THREE.SphereGeometry(1,32,20).scale(.093,.064,.028).translate(0,-.007,-.066);
   const width=id==='girl'?.95:1,profile=headProfile(id);
-  const geometry=new THREE.LatheGeometry(profile.map(([y,x])=>new THREE.Vector2(x,y)),32),p=geometry.getAttribute('position');
+  const rings=profile.map(([y,x])=>new THREE.Vector2(x,y));
+  if(id==='bart'||id==='peter'||id==='mj')for(let i=rings.length-2;i>=0;i--) {
+    const a=rings[i]!,b=rings[i+1]!;rings.splice(i+1,0,a.clone().lerp(b,1/3),a.clone().lerp(b,2/3));
+  }
+  if(id==='bart'||id==='peter'||id==='mj') {
+    for(const y of (id==='mj'?[-.050,-.044,-.031,-.023,-.013,.020]:[-.034,-.006,.007,.033]))if(!rings.some(p=>Math.abs(p.y-y)<1e-6))rings.push(new THREE.Vector2(headSection(y,id).x,y));
+    rings.sort((a,b)=>a.y-b.y);
+    const angles=Array.from({length:32},(_,i)=>i/32*Math.PI*2);
+    for(const angle of [.04,.08,.12,.18,.26,.34])angles.push(Math.PI-angle,Math.PI+angle);
+    angles.sort((a,b)=>a-b);angles.push(Math.PI*2);
+    const positions:number[]=[],indices:number[]=[],count=angles.length;
+    for(let row=0;row<rings.length;row++)for(let column=0;column<count;column++) {
+      const y=rings[row]!.y,s=headSection(y,id),angle=angles[column]!,x=Math.sin(angle)*s.x,z=Math.cos(angle)*s.z+s.center;
+      positions.push(x,y,z-(Math.cos(angle)<0?cartoonFaceProjection(x,y,id)+noseProjection(x,y,id):0));
+      if(row<rings.length-1&&column<count-1){const a=row*count+column,b=a+1,c=a+count;indices.push(a,b,c,b,c+1,c);}
+    }
+    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));g.setIndex(indices);g.computeVertexNormals();return g;
+  }
+  const geometry=new THREE.LatheGeometry(rings,32),p=geometry.getAttribute('position');
   for(let i=0;i<p.count;i++) {
     const section=headSection(p.getY(i),id),front=p.getZ(i)<0,x=p.getX(i)*width;
     p.setX(i,x);p.setZ(i,p.getZ(i)*section.z/section.x+section.center-(front?noseProjection(x,p.getY(i),id):0));
@@ -71,20 +116,44 @@ export function headGeometry(id:CharacterId) {
 }
 
 /** A thin scalp following the actual jaw/temple profile, with ear clearance and a jagged nape. */
-export function croppedHairGeometry(id:'goku'|'naruto') {
-  const positions:number[]=[],indices:number[]=[],segments=40,rings=8;
+export function croppedHairGeometry(id:'goku'|'naruto'|'peter'|'sasuke'|'mj'|'onizuka'|'shaggy'|'light') {
+  const guest=id==='sasuke'||id==='mj'||id==='onizuka'||id==='shaggy'||id==='light';
+  const positions:number[]=[],indices:number[]=[],segments=40,rings=id==='peter'||guest?16:8;
   for(let ring=0;ring<=rings;ring++)for(let segment=0;segment<=segments;segment++) {
     const angle=segment/segments*Math.PI*2,front=Math.cos(angle);
     const forehead=THREE.MathUtils.smoothstep(front,-.3,.65);
-    const sideburn=Math.exp(-(((Math.acos(front)-1.12)/(id==='goku'?.21:.24))**2))*(id==='goku'?.081:.10);
-    const edge=-.062+forehead*.132-sideburn+Math.sin(angle*11)*.003*(1-forehead);
-    const y=THREE.MathUtils.lerp(edge,.115,ring/rings),section=headSection(y,id);
-    positions.push(Math.sin(angle)*(section.x+.004),y,-Math.cos(angle)*(section.z+.004)+section.center);
+    const sideburn=Math.exp(-(((Math.acos(front)-1.12)/(id==='goku'?.21:.24))**2))*(id==='goku'?.081:id==='peter'?.034:.10);
+    const edge=(id==='peter'?-.040+forehead*.119:guest?(id==='mj'?-.074:id==='onizuka'?-.030:id==='shaggy'?-.068:-.053)+forehead*(id==='mj'?.15:id==='onizuka'?.105:id==='shaggy'?.115:.128):-.062+forehead*.132)
+      -(guest?sideburn*(id==='onizuka'?.20:.60):sideburn)+Math.sin(angle*11)*.003*(1-forehead);
+    const top=id==='peter'?.137:id==='sasuke'?.119:id==='mj'?.117:id==='onizuka'?.127:id==='shaggy'?.120:id==='light'?.116:.115;
+    const y=THREE.MathUtils.lerp(edge,top,ring/rings),section=headSection(y,id);
+    const padding=id==='peter'||guest?.008:.004;
+    positions.push(Math.sin(angle)*(section.x+padding),y,-Math.cos(angle)*(section.z+padding)+section.center);
     if(ring<rings&&segment<segments) {
       const a=ring*(segments+1)+segment,b=a+1,c=a+segments+1;indices.push(a,c,b,b,c,c+1);
     }
   }
+  if(id==='peter'||guest) {
+    const height=id==='peter'?.137:id==='sasuke'?.119:id==='mj'?.117:id==='onizuka'?.127:id==='shaggy'?.120:.116;
+    const top=positions.length/3;positions.push(0,height,headSection(height,id).center);
+    for(let segment=0;segment<segments;segment++)indices.push(rings*(segments+1)+segment,top,rings*(segments+1)+segment+1);
+  }
   const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geometry.setIndex(indices);geometry.computeVertexNormals();return geometry;
+}
+
+/** Light's groomed silhouette is one closed shell; strand detail never opens gaps in the nape. */
+export function groomedHairGeometry() {
+  const positions:number[]=[],indices:number[]=[],segments=48,rings=16;
+  for(let ring=0;ring<=rings;ring++)for(let segment=0;segment<=segments;segment++) {
+    const a=segment/segments*Math.PI*2,front=THREE.MathUtils.smoothstep(Math.cos(a),-.20,.80);
+    const edge=-.052+.106*front-.008*Math.exp(-(((Math.abs(Math.sin(a))-.96)/.12)**2));
+    const latitude=Math.acos(THREE.MathUtils.clamp((edge-.022)/.116,-1,1))*(1-ring/rings);
+    const strand=1+.008*Math.sin(a*15+ring*.13)*Math.sin(latitude);
+    positions.push(Math.sin(a)*.095*Math.sin(latitude)*strand,.022+.116*Math.cos(latitude),
+      .007-Math.cos(a)*.088*Math.sin(latitude)*strand);
+    if(ring<rings&&segment<segments){const i=ring*(segments+1)+segment,j=i+segments+1;indices.push(i,j,i+1,i+1,j,j+1);}
+  }
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));g.setIndex(indices);g.computeVertexNormals();return g;
 }
 
 /** Paint patches on the curved surface rather than suspending flat boxes in front of it. */
@@ -100,25 +169,42 @@ export function surfacePatch(points:readonly(readonly[number,number])[],surface:
 }
 
 const TORSO=[[-0.18,0.13],[-0.16,0.14],[-0.11,0.138],[-0.01,0.15],[0.08,0.16],[0.145,0.163],[0.18,0.145],[0.185,0.11],[0.192,0.06]] as const;
-export function torsoRadius(y:number) {
-  const local=y-0.23;let i=1;while(i<TORSO.length-1 && local>TORSO[i]![0])i++;
-  const a=TORSO[i-1]!,b=TORSO[i]!;return THREE.MathUtils.lerp(a[1],b[1],THREE.MathUtils.clamp((local-a[0])/(b[0]-a[0]),0,1));
+const PETER_TORSO=[[-.235,.09],[-.22,.15],[-.19,.181],[-.125,.197],[-.04,.193],[.055,.17],[.115,.139],[.175,.104],[.211,.058],[.218,.018]] as const;
+export function torsoCenter(y:number,id?:CharacterId) {
+  return id==='peter'?-.035*Math.sin(THREE.MathUtils.clamp((y+.005)/.455,0,1)*Math.PI):0;
 }
-export function torsoGeometry() {
-  const geometry=new THREE.LatheGeometry(TORSO.map(([y,r])=>new THREE.Vector2(r,y)),24),p=geometry.getAttribute('position');
+export function torsoRadius(y:number,id?:CharacterId) {
+  const profile=id==='peter'?PETER_TORSO:TORSO,local=y-0.23;let i=1;while(i<profile.length-1 && local>profile[i]![0])i++;
+  const a=profile[i-1]!,b=profile[i]!;return THREE.MathUtils.lerp(a[1],b[1],THREE.MathUtils.clamp((local-a[0])/(b[0]-a[0]),0,1));
+}
+export function torsoGeometry(id?:CharacterId) {
+  const profile=id==='peter'?PETER_TORSO:TORSO;
+  const geometry=new THREE.LatheGeometry(profile.map(([y,r])=>new THREE.Vector2(r,y)),24),p=geometry.getAttribute('position');
   for(let i=0;i<p.count;i++) {
     const y=p.getY(i),angle=Math.atan2(p.getX(i),p.getZ(i)),fold=1+Math.sin(angle*6+y*27)*0.012*Math.sin((y+0.18)/0.36*Math.PI);
-    p.setX(i,p.getX(i)*fold);p.setZ(i,p.getZ(i)*fold);
+    p.setX(i,p.getX(i)*fold);p.setZ(i,p.getZ(i)*fold+torsoCenter(y+.23,id));
   }
   geometry.computeVertexNormals();return geometry;
 }
-export type LimbKind='upperarm'|'forearm'|'thigh'|'shin'|'sleeve';
+const torsoGeometries=new Map<string,THREE.BufferGeometry>();
+export function characterTorsoGeometry(id:CharacterId) {
+  const key=id==='peter'?'peter':'standard';let geometry=torsoGeometries.get(key);
+  if(!geometry){geometry=torsoGeometry(id);torsoGeometries.set(key,geometry);}return geometry;
+}
+export type LimbKind='upperarm'|'forearm'|'thigh'|'shin'|'sleeve'|'barethigh'|'bareshin'|'flaredshin'|'stockythigh'|'stockyshin'|'tailoredthigh'|'tailoredshin';
 const LIMBS:Record<LimbKind,readonly(readonly[number,number])[]>={
   upperarm:[[-0.5,0.04],[-0.3,0.044],[-0.04,0.042],[0.25,0.034],[0.5,0.032]],
   forearm:[[-0.5,0.03],[-0.26,0.033],[0,0.029],[0.32,0.025],[0.5,0.025]],
   thigh:[[-0.5,0.073],[-0.3,0.079],[-0.04,0.075],[0.25,0.065],[0.5,0.056]],
   shin:[[-0.5,0.038],[-0.24,0.044],[0,0.048],[0.25,0.051],[0.5,0.052]],
   sleeve:[[-0.5,0.054],[-0.32,0.058],[0.16,0.053],[0.4,0.05],[0.5,0.05]],
+  barethigh:[[-.5,.05],[-.25,.052],[0,.049],[.3,.044],[.5,.04]],
+  bareshin:[[-.5,.038],[-.25,.042],[0,.037],[.3,.029],[.5,.025]],
+  flaredshin:[[-.5,.040],[-.25,.045],[0,.052],[.25,.066],[.5,.083]],
+  stockythigh:[[-.5,.070],[-.3,.080],[0,.075],[.3,.066],[.5,.058]],
+  stockyshin:[[-.5,.054],[-.25,.057],[0,.054],[.3,.049],[.5,.043]],
+  tailoredthigh:[[-.5,.064],[-.25,.067],[0,.063],[.3,.055],[.5,.048]],
+  tailoredshin:[[-.5,.045],[-.25,.046],[0,.044],[.3,.040],[.5,.038]],
 };
 export function limbGeometry(kind:LimbKind) {
   const profile=LIMBS[kind],geometry=new THREE.LatheGeometry(profile.map(([y,r])=>new THREE.Vector2(r,y)),12);
@@ -132,6 +218,12 @@ export function limbGeometry(kind:LimbKind) {
     geometry.computeVertexNormals();
   }
   geometry.userData.radiusTop=profile[profile.length-1]![1];geometry.userData.radiusBottom=profile[0]![1];return geometry;
+}
+const legGeometries=new Map<string,THREE.BufferGeometry>();
+export function characterLegGeometry(kind:'thigh'|'shin',style:'standard'|'bare'|'flared'|'stocky'|'tailored'='standard') {
+  const key: LimbKind=style==='bare'?(kind==='thigh'?'barethigh':'bareshin'):style==='stocky'?(kind==='thigh'?'stockythigh':'stockyshin')
+    :style==='tailored'?(kind==='thigh'?'tailoredthigh':'tailoredshin'):style==='flared'&&kind==='shin'?'flaredshin':kind;
+  let geometry=legGeometries.get(key);if(!geometry){geometry=limbGeometry(key);legGeometries.set(key,geometry);}return geometry;
 }
 
 /** Open-face shell: a low brow, ear coverage and an open chin/neck, with no spherical chin bar. */
@@ -176,7 +268,7 @@ export function ribbonGeometry(root:Point3,bend:Point3,tip:Point3,width:number) 
 }
 
 /** One merged palm, four relaxed fingers and a thumb; wrist/grab targets are unchanged. */
-export function handGeometry(side:number) {
+export function handGeometry(side:number,fingers=4) {
   // The wrist is the origin. A tapered palm leads into staggered, slightly curled fingers,
   // instead of a large palm centered over the wrist with fingertips peeking out of it.
   const palm=new RoundedBoxGeometry(.054,.042,.025,1,.008);palm.translate(0,.017,0);
@@ -187,14 +279,19 @@ export function handGeometry(side:number) {
     part.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),direction.normalize()));
     part.translate(...start.add(end).multiplyScalar(.5).toArray());parts.push(part);
   };
-  for(let i=0;i<4;i++) {
-    const x=-.0195+i*.013,length=[.022,.028,.026,.019][i]!;
-    digit([x,.034,0],[x,.034+length*.65,.002],.0054);
-    digit([x,.034+length*.65,.002],[x,.034+length,.009],.0049);
+  for(let i=0;i<fingers;i++) {
+    const x=fingers===3?-.017+i*.017:-.0195+i*.013,length=(fingers===3?[.023,.029,.022]:[.022,.028,.026,.019])[i]!;
+    digit([x,.034,0],[x,.034+length*.65,.002],fingers===3?.0065:.0054);
+    digit([x,.034+length*.65,.002],[x,.034+length,.009],fingers===3?.006:.0049);
   }
   digit([-side*.022,.011,.001],[-side*.033,.025,.004],.0075);
   digit([-side*.033,.025,.004],[-side*.031,.037,.012],.006);
   const flat=parts.map(part=>part.index?part.toNonIndexed():part.clone()),geometry=mergeGeometries(flat)!;
   geometry.scale(1.1,1.1,1.1);
   parts.forEach(part=>part.dispose());flat.forEach(part=>part.dispose());return geometry;
+}
+const handGeometries=new Map<string,THREE.BufferGeometry>();
+export function characterHandGeometry(side:number,cartoon:boolean) {
+  const key=`${side}:${cartoon}`;let geometry=handGeometries.get(key);
+  if(!geometry){geometry=handGeometry(side,cartoon?3:4);handGeometries.set(key,geometry);}return geometry;
 }

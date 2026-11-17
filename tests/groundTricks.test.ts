@@ -130,8 +130,8 @@ test('manuals and nose manuals retain moving hips and shoulders, counterbalance 
 });
 
 test('riding grabs reach the deck without lifting wheels or detaching feet, including while carving',()=>{
-  for(const grab of [GRABS.indy,GRABS.melon,GRABS.nosegrab,GRABS.tailgrab]) for(const lean of [-1,0,1]) {
-    const visual=createSkaterVisual();
+  for(const character of ['boy','peter','sasuke'] as const)for(const grab of [GRABS.indy,GRABS.melon,GRABS.nosegrab,GRABS.tailgrab]) for(const lean of [-1,0,1]) {
+    const visual=createSkaterVisual('skate',character);
     const groundTrick:GroundTrick={name:grab.name,manual:0,grab};
     for(let i=0;i<180;i++)visual.setPose({...base,lean,carve:lean,groundTrick});
     visual.root.updateMatrixWorld(true);
