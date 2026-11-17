@@ -26,8 +26,9 @@ Open the local URL printed by Vite. Click or press Enter to start.
 | **R** | Restart the run |
 | **Esc** | Pause / resume |
 | **M** | Mute / unmute sound |
+| **V** | Toggle first-person / chase camera |
 
-The camera automatically follows the rider and eases around the road’s bends at a fixed follow distance. WASD controls the skater; steering never orbits the camera, and speed never zooms it. There are no manual camera controls.
+The default camera automatically follows the rider and eases around the road’s bends at a fixed follow distance. Press V or use First person in the start/pause menu for a raw eye-level view. It follows the animated head position and board-facing orientation, including full spins and flips, with a wider field of view. The head is hidden only during the first-person render; the body and board remain visible. Crashes temporarily use the chase camera, and restarting restores the selected view. WASD controls the skater; there is no manual camera aiming.
 
 The Rider selector below the board-mode buttons offers Boy, Girl, Goku, Naruto, Kick Buttowski, Finn, Bart Simpson, Shaggy Rogers, Light Yagami, Peter Griffin, Spider-Man, Sasuke Uchiha, Michael Jackson, Eikichi Onizuka, and Triple T. Selection is saved independently of the riding mode, can change during a run or crash, and works with both skate and snowboard gear. Changing characters keeps the current run and momentum. The start/pause menu includes an actual 3D head close-up on larger screens, using the game renderer only when the paused view changes.
 

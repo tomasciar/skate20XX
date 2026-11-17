@@ -2,6 +2,39 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { createChaseCamera } from '../src/camera/chase.ts';
+import { createFirstPersonCamera } from '../src/camera/firstPerson.ts';
+
+test('raw first-person view tracks animated eye height, full rotations and world rebases',()=>{
+  const camera=new THREE.PerspectiveCamera(),rider=new THREE.Group(),torso=new THREE.Group(),head=new THREE.Group();
+  rider.add(torso);torso.add(head);head.name='head';
+  torso.position.y=.6;head.position.y=.53;
+  const first=createFirstPersonCamera(camera,rider),direction=new THREE.Vector3();
+  for(const scale of [.7,1,1.15]) {
+    rider.scale.setScalar(scale);
+    for(const pitch of [0,Math.PI/2,Math.PI,Math.PI*2]) {
+      rider.rotation.set(pitch,.8,.4);rider.position.set(4,12,-30);
+      torso.position.y=.4+scale*.2;first.update();
+      const expected=head.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0,.035,-.06).applyQuaternion(rider.quaternion));
+      assert.ok(camera.position.distanceTo(expected)<1e-9);
+      camera.getWorldDirection(direction);
+      assert.ok(direction.distanceTo(new THREE.Vector3(0,0,-1).applyQuaternion(rider.quaternion))<1e-9);
+      const before=camera.position.clone(),shift=new THREE.Vector3(35,17,68);
+      rider.position.add(shift);first.update();
+      assert.ok(camera.position.distanceTo(before.add(shift))<1e-9);
+    }
+  }
+});
+
+test('first-person rendering hides the head only for that draw and restores it after errors',()=>{
+  const rider=new THREE.Group(),head=new THREE.Group(),hands=new THREE.Group();
+  head.name='head';rider.add(head,hands);
+  const first=createFirstPersonCamera(new THREE.PerspectiveCamera(),rider);
+  first.render(()=>{assert.equal(head.visible,false);assert.equal(hands.visible,true);});
+  assert.equal(head.visible,true);
+  assert.throws(()=>first.render(()=>{throw Error('draw failed');}),/draw failed/);
+  assert.equal(head.visible,true);
+  head.visible=false;first.render(()=>{});assert.equal(head.visible,false);
+});
 
 test('follow direction is fixed to the course and follows position without orbiting', () => {
   const camera = new THREE.PerspectiveCamera();

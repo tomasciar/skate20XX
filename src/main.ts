@@ -9,6 +9,7 @@ import { createController } from "./player/controller";
 import { createTrickSystem } from "./player/tricks/tricks";
 import { screenGrabFacing } from "./player/tricks/grabs";
 import { createChaseCamera } from "./camera/chase";
+import { createFirstPersonCamera } from "./camera/firstPerson";
 import { createGameAudio } from "./audio/sound";
 import type { RideAudioState } from "./audio/events";
 import { createHud } from "./ui/hud";
@@ -79,6 +80,8 @@ async function main() {
   const character=loadCharacter(),boardStyle=loadBoardStyle();
   await preloadCharacterFace(character);
   const player = createBoardPlayer(scene, world, ramp,mode,character,boardStyle);
+  const firstPersonCamera=createFirstPersonCamera(camera,player.mesh);
+  let firstPerson=false;
   const courseDirection=ramp.forward.clone();
 
   const sun = scene.getObjectByName("sun") as THREE.DirectionalLight;
@@ -119,6 +122,28 @@ async function main() {
   let audioResetCount = player.resetCount;
   let pausedSceneDirty = true;
   let hudElapsed = 0;
+  const cameraToggle=document.getElementById('camera-toggle') as HTMLButtonElement;
+  function updateCamera(dt:number,snap=false) {
+    const direction=ramp.directionAt?.(player.renderPosition,courseDirection,20);
+    if(snap)chase.snap(player.renderPosition,direction);
+    else chase.update(dt,player.renderPosition,direction);
+    const useFirstPerson=firstPerson&&!player.crashed;
+    const fov=useFirstPerson?80:62,near=useFirstPerson ? .025 : .1;
+    if(camera.fov!==fov || camera.near!==near) {
+      camera.fov=fov;camera.near=near;camera.updateProjectionMatrix();
+    }
+    if(useFirstPerson)firstPersonCamera.update();
+  }
+  function renderScene() {
+    if(firstPerson&&!player.crashed)firstPersonCamera.render(()=>renderer.render(scene,camera));
+    else renderer.render(scene,camera);
+  }
+  function toggleCamera() {
+    firstPerson=!firstPerson;
+    cameraToggle.setAttribute('aria-pressed',String(firstPerson));
+    updateCamera(0,true);pausedSceneDirty=true;
+  }
+  cameraToggle.addEventListener('click',()=>{toggleCamera();cameraToggle.blur();});
   const riderPortrait=createRiderPortrait(renderer,player.mesh);
   createHudOptions();
   createWeaponControls(shown=>{applyWeaponVisibility(scene,shown);pausedSceneDirty=true;});
@@ -221,6 +246,7 @@ async function main() {
   window.addEventListener("keydown", (e) => {
     if (e.repeat) return;
     if(e.target instanceof HTMLElement && e.target.closest('select, textarea'))return;
+    if(e.code==='KeyV' && !(e.target instanceof HTMLElement && e.target.closest('button, input'))) {e.preventDefault();toggleCamera();}
     if (e.code === "KeyM") { e.preventDefault(); toggleMute(); }
     if (e.code === "Escape") { if (running) pause(); else startSession(); }
     if (e.code === "Enter" && !running && !(e.target instanceof HTMLElement && e.target.closest('button, input'))) startSession();
@@ -245,7 +271,7 @@ async function main() {
     input.beginFrame();
 
     if (!running) {
-      if (pausedSceneDirty) { riderPortrait.refresh(player.character,mode);renderer.render(scene, camera); pausedSceneDirty = false; }
+      if (pausedSceneDirty) { riderPortrait.refresh(player.character,mode);updateCamera(0,true);renderScene(); pausedSceneDirty = false; }
       return;
     }
 
@@ -297,7 +323,7 @@ async function main() {
 
     player.render(acc / fixedDt, raw);
     audio.mix(audioState());
-    chase.update(raw, player.renderPosition,ramp.directionAt?.(player.renderPosition,courseDirection,20));
+    updateCamera(raw);
     sunRig.update(player.renderPosition);
     sky.update(raw);
     emitEffects(raw);
@@ -309,7 +335,7 @@ async function main() {
       hudElapsed = 0;
     }
     if (quality.update(frameDt)) applyRenderSize();
-    renderer.render(scene, camera);
+    renderScene();
     prepareCourse();
   }
 
