@@ -83,7 +83,7 @@ test('two minutes of downhill physics stream continuously with bounded scene and
   const idle = { grabModifier: false, grabDX: 0, grabDY: 0, push: 0, steer: 0, crouch: false, crouchHold: 0, wantOllie: false, olliePower: 0, reset: false, flickDX: 0, flickDY: 0, flickReady: false };
   const dt = 1 / 120;
   world.timestep = dt;
-  let previous = 0, jumps = 0, maxColliders = 0, contactChecks = 0;
+  let previous = 0, jumps = 0, maxStaticColliders = 0, maxColliders = 0, contactChecks = 0;
   function verifyWheelContacts() {
     if (!player.grounded) return;
     player.mesh.updateMatrixWorld(true);
@@ -109,12 +109,15 @@ test('two minutes of downhill physics stream continuously with bounded scene and
     assert.ok(distance >= previous - 0.05, `unexpected reset at frame ${i}, ${previous} -> ${distance}`);
     previous = distance;
     if (!player.grounded) jumps++;
+    let staticColliders=0;world.colliders.forEach(c=>{if(c.parent()?.isFixed())staticColliders++;});
+    maxStaticColliders=Math.max(maxStaticColliders,staticColliders);
     maxColliders = Math.max(maxColliders, world.colliders.len());
   }
   assert.ok(previous > 1000, `only traveled ${previous}`); assert.ok(jumps > 20);
   assert.ok(player.ollieCount>0,'successful ollies must be reported to audio');
   const live = RAMP.chunksBehind + 1 + RAMP.chunksAhead, full = live + RAMP.prepareLead;
-  assert.ok(maxColliders <= full + 4, `unbounded colliders: ${maxColliders}`);
+  assert.ok(maxStaticColliders <= full + 3, `unbounded static colliders: ${maxStaticColliders}`);
+  assert.ok(maxColliders <= (full+3)*7+1, `unbounded colliders including movable cones: ${maxColliders}`);
   assert.ok(ramp.mesh.children.length <= full + 3);
   player.reset(ramp.spawn);
   assert.equal(ramp.distance, 0); assert.ok(player.forward.dot(ramp.forward) > 0.999);

@@ -20,6 +20,7 @@ import type {RideMode} from '../mode.ts';
 import {applyCharacterSkin} from './characters/skin.ts';
 import type {CharacterId} from './characters/catalog.ts';
 import type {BoardStyleId} from '../boards.ts';
+import {isLooseProp,isSolidObstacle,strikeLooseProp} from '../world/looseProps.ts';
 
 /** Person-sized inertia so flips take a real moment, not a frisbee twitch. */
 const INERTIA = { x: 14, y: 9, z: 6 };
@@ -191,7 +192,7 @@ export function createBoardPlayer(
       const candidate = supportCandidate.copy(at).addScaledVector(currentUp, visualHeightOffset);
       for (const m of MOUNTS) {
         const origin = supportOrigin.set(m.x,0.1,m.z).applyQuaternion(renderQuat).add(candidate);
-        const hit = world.castRayAndGetNormal(new RAPIER.Ray(origin, down), 0.5, true, undefined, undefined, undefined, body);
+        const hit = world.castRayAndGetNormal(new RAPIER.Ray(origin, down), 0.5, true, undefined, undefined, undefined, body,isSolidObstacle);
         if (!hit || supportDelta.set(hit.normal.x,hit.normal.y,hit.normal.z).dot(ramp.surfaceNormal)<0.4) continue;
         supportPoints[contactCount++]!.copy(origin).addScaledVector(down,hit.timeOfImpact);
       }
@@ -403,7 +404,12 @@ export function createBoardPlayer(
   function obstacleAhead(dt: number) {
     if (velocity.length() < 4.5) return false;
     const direction = velocity.clone().normalize();
-    const hit = world.castRayAndGetNormal(new RAPIER.Ray(position, direction), 0.4 + speed * dt, true, undefined, undefined, undefined, body);
+    const ray=new RAPIER.Ray(position,direction),length=.4+speed*dt;
+    let hit = world.castRayAndGetNormal(ray,length,true,undefined,undefined,undefined,body);
+    if(hit && isLooseProp(hit.collider)) {
+      strikeLooseProp(hit.collider,velocity,ramp.surfaceNormal);
+      hit=world.castRayAndGetNormal(ray,length,true,undefined,undefined,undefined,body,isSolidObstacle);
+    }
     if (!hit) return false;
     const n = new THREE.Vector3(hit.normal.x,hit.normal.y,hit.normal.z);
     return Math.abs(n.dot(ramp.surfaceNormal)) < 0.55 && Math.abs(n.dot(velocity)) > 4.5;
@@ -412,6 +418,7 @@ export function createBoardPlayer(
   function impactFromContacts() {
     let hit = false;
     world.contactPairsWith(boardCollider, collider => {
+      if(isLooseProp(collider)) {strikeLooseProp(collider,impactVelocity,ramp.surfaceNormal);return;}
       world.contactPair(boardCollider, collider, manifold => {
         const n = manifold.normal();
         if (Math.abs(n.x*ramp.surfaceNormal.x + n.y*ramp.surfaceNormal.y + n.z*ramp.surfaceNormal.z) > 0.55) return;
@@ -428,7 +435,7 @@ export function createBoardPlayer(
     // The wheel rays face away from the road when inverted; probe the rider too.
     for(const height of [0,0.55,1.05]) {
       landingProbe.set(0,height,0).applyQuaternion(quat).add(position).addScaledVector(ramp.surfaceNormal,0.15);
-      const hit=world.castRayAndGetNormal(new RAPIER.Ray(landingProbe,landingDown),0.32,true,undefined,undefined,undefined,body);
+      const hit=world.castRayAndGetNormal(new RAPIER.Ray(landingProbe,landingDown),0.32,true,undefined,undefined,undefined,body,isSolidObstacle);
       if(!hit)continue;
       const normal=tmp.set(hit.normal.x,hit.normal.y,hit.normal.z);
       if(normal.dot(ramp.surfaceNormal)>0.4 && velocity.dot(normal)<-0.1 && boardUp.dot(normal)<0.75) return true;
@@ -530,7 +537,7 @@ export function createBoardPlayer(
         { x: mount.x, y: mount.y, z: mount.z },
         { x: rayDir.x, y: rayDir.y, z: rayDir.z }
       );
-      const hit = world.castRayAndGetNormal(ray, RAY_LEN, true, undefined, undefined, undefined, body);
+      const hit = world.castRayAndGetNormal(ray, RAY_LEN, true, undefined, undefined, undefined, body,isSolidObstacle);
       if (!hit) continue;
       const compressed = REST - (hit.timeOfImpact - WHEEL_R);
       let nx = hit.normal.x;
@@ -722,6 +729,7 @@ export function createBoardPlayer(
   }
 
   function sync(paintFrame = true) {
+    ramp.syncProps?.();
     originShift.set(0, 0, 0);
     if (!ragdoll.active) holdDeck(followSurface ? surfaceUp : ramp.surfaceNormal);
     readPose();
@@ -755,6 +763,7 @@ export function createBoardPlayer(
   }
 
   function render(alpha: number, dt: number) {
+    ramp.renderProps?.(THREE.MathUtils.clamp(alpha,0,1));
     poseDt = dt;
     renderBodyPosition.lerpVectors(previousPosition, position, THREE.MathUtils.clamp(alpha, 0, 1));
     renderAirOffset.lerpVectors(previousAirOffset,airOffset,THREE.MathUtils.clamp(alpha,0,1));

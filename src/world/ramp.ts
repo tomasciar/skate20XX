@@ -17,6 +17,7 @@ import type {RideMode} from '../mode.ts';
 import {makeRampShape} from './rampShapes.ts';
 import {seasonForRideMode,type WorldSeason} from './season.ts';
 import {applySceneryTint} from './variety.ts';
+import {createLooseCone,type LooseCone} from './looseProps.ts';
 
 /** Endless rolling downhill: road and scenery share the streamed height profile. */
 export const RAMP = {
@@ -57,6 +58,8 @@ export type RampWorld = {
   reset: () => void;
   prepareNextChunk: (budgetMs?: number) => boolean;
   flushDeferredDestroy: (budgetMs?: number) => void;
+  syncProps?:()=>void;
+  renderProps?:(alpha:number)=>void;
 };
 
 type PhysPart = {
@@ -70,6 +73,7 @@ type Chunk = {
   index: number;
   root: THREE.Group;
   parts: PhysPart[];
+  cones: LooseCone[];
   rails: { id: string; start: THREE.Vector3; end: THREE.Vector3; normal?: THREE.Vector3 }[];
 };
 
@@ -115,6 +119,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
   function destroyChunk(index: number) {
     const chunk = chunks.get(index);
     if (!chunk) return;
+    for(const cone of chunk.cones)cone.dispose();
     for (const part of chunk.parts) {
       world.removeCollider(part.collider, true);
       world.removeRigidBody(part.body);
@@ -147,7 +152,8 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
     root.position.set(baseX-courseX(cursor*RAMP.chunkLength),baseHeight-courseHeight(cursor*RAMP.chunkLength),zBase);
     hill.add(root);
 
-    const chunk: Chunk = { index, root, parts: [], rails: [] };
+    const chunk: Chunk = { index, root, parts: [], cones:[], rails: [] };
+    const coneMeshes:THREE.Group[]=[];
     chunks.set(index, chunk);
 
     function warpCourse(mesh: THREE.Mesh) {
@@ -276,9 +282,11 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
       if (kind === 'cones') {
         for (let i = 0; i < 3; i++) {
           const cone = makeCone();
+          cone.userData.collision=false;cone.userData.looseProp=true;cone.name='loose-cone';
           const s=index*RAMP.chunkLength+along-(i-1)*1.5;
           cone.position.set(x+courseX(s)-baseX,y+courseHeight(s)-baseHeight,-along+(i-1)*1.5); cone.rotation.x=Math.atan(courseSlope(s));
           root.add(cone);
+          coneMeshes.push(cone);
         }
         continue;
       }
@@ -311,6 +319,15 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
     }
     yield;
     yield* batchChunk(root,appearance);
+    for(const cone of coneMeshes) {
+      root.add(cone);
+      cone.traverse(object=>{
+        if(object instanceof THREE.Mesh && !Array.isArray(object.material)) {
+          object.castShadow=false;appearance.bind(object,object.material);
+        }
+      });
+      chunk.cones.push(createLooseCone(world,cone));
+    }
     const shade = shadows.build();
     if (shade) { root.add(shade); root.userData.shadowTriangles = shadows.triangles; }
     root.traverse(obj => { obj.matrixAutoUpdate = false; obj.updateMatrix(); });
@@ -368,6 +385,8 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
       part.local.x += deltaX;
       syncPart(part);
     }
+    const shift=new THREE.Vector3(deltaX,deltaY,delta).applyQuaternion(q);
+    for(const cone of chunk.cones)cone.shift(shift);
   }
 
   function refreshRails() { grindRails = [...chunks.values()].flatMap(chunk => chunk.rails.map(rail => ({
@@ -447,7 +466,10 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
 
   const reset = () => {
     if (preparation) { preparation.steps.return(undefined); destroyChunk(preparation.index); preparation = null; }
-    if (cursor === 0 && distance === 0) return;
+    if (cursor === 0 && distance === 0) {
+      for(const chunk of chunks.values())for(const cone of chunk.cones)cone.reset();
+      return;
+    }
     distance = 0;
     cursor = 0;
     for (const idx of [...chunks.keys()]) destroyChunk(idx);
@@ -496,6 +518,8 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
     get grindRails() { return grindRails; },
     prepareNextChunk,
     flushDeferredDestroy,
+    syncProps(){for(const chunk of chunks.values())for(const cone of chunk.cones)cone.sync();},
+    renderProps(alpha){for(const chunk of chunks.values())for(const cone of chunk.cones)cone.render(alpha);},
     get distance() {
       return distance;
     },
@@ -653,7 +677,12 @@ function* batchChunk(root: THREE.Group,appearance:ReturnType<typeof createWorldA
   const inverse = root.matrixWorld.clone().invert();
   const batches = new Map<THREE.Material, THREE.BufferGeometry[]>();
   const meshes: THREE.Mesh[] = [];
-  root.traverse(obj => { if (obj instanceof THREE.Mesh && !Array.isArray(obj.material)) meshes.push(obj); });
+  const movable=root.children.filter(object=>object.userData.looseProp);
+  root.traverse(obj => {
+    if(!(obj instanceof THREE.Mesh) || Array.isArray(obj.material))return;
+    for(let ancestor:THREE.Object3D|null=obj;ancestor && ancestor!==root;ancestor=ancestor.parent)if(ancestor.userData.looseProp)return;
+    meshes.push(obj);
+  });
   let processed = 0;
   for (const obj of meshes) {
     const geometry = obj.geometry.clone();
@@ -669,6 +698,7 @@ function* batchChunk(root: THREE.Group,appearance:ReturnType<typeof createWorldA
     if (++processed % 8 === 0) yield;
   }
   root.clear();
+  if(movable.length)root.add(...movable);
   for (const [material, geometries] of batches) {
     const merged = mergeGeometries(geometries);
     for (const geometry of geometries) geometry.dispose();

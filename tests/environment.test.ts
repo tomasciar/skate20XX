@@ -78,9 +78,10 @@ test('generated trees stop physical objects and rich scenery keeps a bounded phy
   await RAPIER.init();
   const scene = new THREE.Scene(), world = new RAPIER.World({x:0,y:-18,z:0});world.timestep=1/120;
   const ramp = createRamp(scene,world);world.step();scene.updateMatrixWorld(true);
-  // One combined terrain/road/scenery collider per chunk: the live window plus the chunks prepared ahead of it.
+  // One static collider per chunk, plus one lightweight collider per movable cone.
   const live=RAMP.chunksBehind+1+RAMP.chunksAhead, full=live+RAMP.prepareLead;
-  assert.equal(world.colliders.len(),full);
+  const staticColliders=()=>{let count=0;world.colliders.forEach(c=>{if(c.parent()?.isFixed())count++;});return count;};
+  assert.equal(staticColliders(),full);
   assert.ok(ramp.mesh.children.every(chunk=>chunk.userData.solidMeshes>100));
   const chunk = ramp.mesh.children.find(c=>c.position.z===0)!;
   const trunks = chunk.children.find(o=>o instanceof THREE.Mesh && (o.material as THREE.MeshStandardMaterial).color.getHex()===0x5a4030) as THREE.Mesh;
@@ -98,8 +99,11 @@ test('generated trees stop physical objects and rich scenery keeps a bounded phy
   // Complete an incremental preparation across an origin change, then keep streaming.
   ramp.prepareNextChunk(0);ramp.scroll(70);world.step();
   assert.ok(ramp.mesh.children.every(chunk=>chunk.visible));
-  for(let i=0;i<20;i++){ramp.prepareNextChunk();ramp.scroll(70);world.step();assert.ok(world.colliders.len()<=full+3);}
-  ramp.reset();world.step();assert.equal(world.colliders.len(),live);
+  for(let i=0;i<20;i++){
+    ramp.prepareNextChunk();ramp.scroll(70);world.step();
+    assert.ok(staticColliders()<=full+3);assert.ok(world.colliders.len()<=(full+3)*7);
+  }
+  ramp.reset();world.step();assert.equal(staticColliders(),live);
   const player=createBoardPlayer(scene,world,ramp),tricks=createTrickSystem();
   const along=20,x=150;
   const ground=ramp.anchor.clone().addScaledVector(ramp.forward,along).add(new THREE.Vector3(x,0,0)).addScaledVector(ramp.surfaceNormal,landscapeHeight(x,along)-RAMP.thickness/2);
