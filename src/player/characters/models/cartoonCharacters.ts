@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {headSurface,surfacePatch} from '../geometry.ts';
 import {batchCosmetics} from '../cosmetics.ts';
-import {characterPalette} from '../../../characters.ts';
+import {characterPalette} from '../catalog.ts';
 import {nativeFaceDetails,finishNativeFaceDetails,createRefinedFaceArtwork} from '../faces/refinedFaceArtwork.ts';
 
 export type CartoonRider='finn'|'bart';
@@ -162,11 +162,9 @@ export function addCartoonLimbDetails(parent:THREE.Group,id:CartoonRider,kind:'u
   }
 }
 
-export function addCartoonShorts(parent:THREE.Mesh) {
-  for(const id of ['finn','bart'] as const) {
-    const group=new THREE.Group();group.userData.characterSkin=id;group.name=`character-thigh-${id}`;parent.add(group);
-    addCartoonLimbDetails(group,id,'thigh');batchCosmetics(group);
-  }
+export function addCartoonShorts(parent:THREE.Mesh,id:CartoonRider) {
+  const group=new THREE.Group();group.userData.characterSkin=id;group.name=`character-thigh-${id}`;parent.add(group);
+  addCartoonLimbDetails(group,id,'thigh');batchCosmetics(group);
 }
 
 export function addCartoonShoeDetails(parent:THREE.Group,id:CartoonRider) {

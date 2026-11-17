@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {headSurface,surfacePatch,sweptLockGeometry,croppedHairGeometry,groomedHairGeometry} from '../geometry.ts';
-import {characterPalette} from '../../../characters.ts';
+import {characterPalette} from '../catalog.ts';
 import {nativeFaceDetails,finishNativeFaceDetails,createRefinedFaceArtwork} from '../faces/refinedFaceArtwork.ts';
 
 export type HumanRider='shaggy'|'light';

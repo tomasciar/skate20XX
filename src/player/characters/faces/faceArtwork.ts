@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type {CharacterId} from '../../../characters.ts';
+import type {CharacterId} from '../catalog.ts';
 import {headSurface,headHalfWidth} from '../geometry.ts';
 import {REFINED_FACE_ARTWORK,isRefinedFace,refinedFaceMaterial,preloadRefinedFace,createRefinedFaceArtwork} from './refinedFaceArtwork.ts';
 import type {RefinedFace} from './refinedFaceArtwork.ts';

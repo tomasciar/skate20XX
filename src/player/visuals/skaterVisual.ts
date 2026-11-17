@@ -1,7 +1,6 @@
 import * as THREE from "three";
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {characterTorsoGeometry,limbGeometry,characterLegGeometry,characterHandGeometry} from '../characters/geometry.ts';
-import {addFinnSword} from '../characters/models/cartoonCharacters.ts';
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { BOARD, FOOT_Y, RIDER } from "../dimensions.ts";
 import { CARVE } from "../movement/carve.ts";
@@ -18,11 +17,12 @@ import type { GroundTrick, TrickDef } from "../tricks/tricks.ts";
 import {applyRideSkin} from '../../mode.ts';
 import type {RideMode} from '../../mode.ts';
 import {createSnowboardVisual,SNOWBOARD} from './snowboardVisual.ts';
-import {applyCharacterSkin,characterPalette,characterProportions,characterHasShorts} from '../../characters.ts';
-import type {CharacterId} from '../../characters.ts';
+import {characterPalette,characterProportions,characterHasShorts} from '../characters/catalog.ts';
+import {applyCharacterSkin} from '../characters/skin.ts';
+import type {CharacterId} from '../characters/catalog.ts';
 import {applyBoardStyle,boardMaterial,boardUVs} from '../../boards.ts';
 import type {BoardStyleId} from '../../boards.ts';
-import {addCharacterLooks,addCharacterLimbDetails,addCharacterShoeDetails,addCharacterHipDetails} from '../characters/visuals.ts';
+import {addCharacterLooks,addCharacterLimbDetails,addCharacterShoeDetails,addCharacterHipDetails,addCharacterHandDetails} from '../characters/visuals.ts';
 
 const RIDING_GRAB = {...TUCK,offset:{x:0,y:0,z:0},rotation:{x:0,y:0,z:0},
   crouch:0.95,hipDrop:0.14,chestPitch:-0.4};
@@ -159,7 +159,7 @@ export function createSkaterVisual(initialMode:RideMode='skate',initialCharacter
     fore.name = `forearm-${side}`;fore.userData.characterBuild='forearm';
     hand.name = `hand-${side}`;
     hand.userData.characterBuild='hand';hand.userData.handSide=side;
-    if(side===1)addFinnSword(hand);
+    addCharacterHandDetails(hand,side);
     shoulder.name=`shoulder-${side}`;shoulder.userData.characterBuild='shoulder';
     elbow.name = `elbow-${side}`;
     elbow.userData.characterBuild='elbow';

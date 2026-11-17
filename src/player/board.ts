@@ -17,8 +17,8 @@ import { courseSlope } from "../world/course.ts";
 import { RAMP, type RampWorld } from "../world/ramp.ts";
 import {applyRideSkin} from '../mode.ts';
 import type {RideMode} from '../mode.ts';
-import {applyCharacterSkin} from '../characters.ts';
-import type {CharacterId} from '../characters.ts';
+import {applyCharacterSkin} from './characters/skin.ts';
+import type {CharacterId} from './characters/catalog.ts';
 import type {BoardStyleId} from '../boards.ts';
 
 /** Person-sized inertia so flips take a real moment, not a frisbee twitch. */
