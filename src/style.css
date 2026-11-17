@@ -334,7 +334,7 @@ html[data-hud-tricks="off"] #trick { display: none; }
 }
 
 #rider-preview {
-  position: absolute; z-index: 4; top: 282px; left: 24px; margin: 0; width: 192px;
+  position: absolute; z-index: 4; top: 312px; left: 24px; margin: 0; width: 192px;
   border: 1px solid rgba(232,240,244,0.24); border-radius: 12px; overflow: hidden;
   background: #263a46; box-shadow: 0 10px 28px rgba(0,0,0,0.2); pointer-events: none;
 }

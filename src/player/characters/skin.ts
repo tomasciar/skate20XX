@@ -5,6 +5,7 @@ import type {CharacterId} from './catalog.ts';
 import {characterLegGeometry,characterHandGeometry,characterTorsoGeometry,limbGeometry} from './geometry.ts';
 import {CHARACTER_MODELS} from './registry.ts';
 import type {CharacterBodyPart} from './registry.ts';
+import {selectHeldWeapon} from './weapons.ts';
 
 const originalGeometry=new WeakMap<Mesh,BufferGeometry>();
 const restoredParts=new Map<string,BufferGeometry>();
@@ -17,7 +18,11 @@ export function applyCharacterSkin(root:Object3D,character:CharacterId) {
   const build=characterProportions(character);
   const model=CHARACTER_MODELS[character];
   root.traverse(object=>{
-    if(isCharacterId(object.userData.characterSkin))object.visible=object.userData.characterSkin===character;
+    if(isCharacterId(object.userData.characterSkin)) {
+      const selected=object.userData.characterSkin===character;
+      if(object.userData.heldWeapon)selectHeldWeapon(object,selected);
+      else object.visible=selected;
+    }
     const capturedScale=object.userData.ragdollBodyScale ?? 1;
     switch(object.userData.characterBuild) {
       case 'rider':object.scale.setScalar(build.bodyScale);break;

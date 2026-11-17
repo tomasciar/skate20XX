@@ -33,3 +33,7 @@ Shared geometry, head profiles, hands and cached limb alternatives live in `char
 Movement and scoring modules should not import individual character builders. Pose modules describe motion; model builders describe appearance. Folder organization itself does not change simulation timing or rendering performance.
 
 `models/sahur.ts` is an example of a non-human rider: overlapping cylindrical body/head sections, cached slender limb meshes, baked wood/end grain, sculpted eyes, barefoot geometry and a wrist-mounted bat. The skin applicator restores standard geometry, vertex-colour flags and footwear when switching away, including in crash clones. Cosmetic batching preserves authored vertex colours while applying the authoring material tint.
+
+## Held weapon visibility
+
+Weapon roots carry `userData.heldWeapon` and their normal character-selection tag. `characters/weapons.ts` combines the saved shown/hidden preference with character selection, so selecting a rider or cloning a crash cannot resurrect a hidden prop. The menu control is in `src/ui/weapons.ts`; it applies the preference to live riders and crash clones when the option changes. Weapon meshes do not create collider shapes or additional physics bodies.

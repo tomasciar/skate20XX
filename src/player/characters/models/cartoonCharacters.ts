@@ -103,6 +103,7 @@ export function addCartoonHead(parent:THREE.Group,id:CartoonRider) {
 /** Finn's original golden sword, Scarlet. Everything is rigidly attached to the right wrist. */
 export function addFinnSword(hand:THREE.Mesh) {
   const sword=new THREE.Group();sword.name='character-sword-finn';sword.userData.characterSkin='finn';
+  sword.userData.heldWeapon=true;
   sword.userData.characterAttachment=true;hand.add(sword);
   // The blade exits on the thumb side of the grip, rather than pointing down past the fingers.
   sword.position.set(-.022,.033,.006);sword.rotation.set(.10,0,Math.PI-.80);

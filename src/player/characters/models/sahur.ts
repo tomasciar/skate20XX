@@ -141,6 +141,7 @@ export function addSahurFoot(parent:THREE.Group) {
 
 export function addSahurBat(hand:THREE.Mesh) {
   const bat=new THREE.Group();bat.name='character-bat-sahur';bat.userData.characterSkin='sahur';
+  bat.userData.heldWeapon=true;
   bat.userData.characterAttachment=true;hand.add(bat);
   bat.position.set(-.022,.034,.007);bat.rotation.set(.10,0,Math.PI-.95);
   mesh(bat,grain(lathe([[-.042,.001],[-.040,.016],[-.030,.017],[-.020,.012],

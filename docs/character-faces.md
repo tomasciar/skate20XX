@@ -69,3 +69,7 @@ Character builders are dispatched through `src/player/characters/registry.ts`; s
 Thin wooden limbs, five-finger hands and bare feet use the existing bone and deck-contact targets. The bat is registered on the right wrist and follows the captured hand during crashes. The registry supplies cached body-part geometry, hidden sleeves/pelvis/default shoes, and fitted log/limb crash shapes. Switching characters restores the previous rig geometry and material flags without modifying shared geometry buffers.
 
 The menu and portrait title use **Triple T**; the catalog and model metadata retain **Tung Tung Tung Sahur**. The face has carved hooded eyelids, large dark irises, a defined nose bridge/nostrils, subtle cheek volumes and sculpted lips. The bat is angled outward from the unchanged wrist grip. A recessed wooden hip connector and shoulder collars close movement gaps without changing joint targets.
+
+## Held weapons
+
+The saved **Show held weapons** display toggle applies to Finn’s sword and Triple T’s bat in both riding modes and in crashes. The prop roots retain character-selection and visibility metadata through cloning. The props remain visual-only, with no weapon collider or melee physics.
