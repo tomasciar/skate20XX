@@ -94,7 +94,7 @@ A touchdown is judged by how hard the wheels hit the surface and how well the bo
 
 ## Scoring
 
-Every run has a score, shown under the distance with the best score for the current board. It restarts from zero with the run (R, or the automatic restart after a crash) and is made of:
+Every run has a score, shown under the distance with the best score for the current board. It restarts from zero with the run (R, or local recovery after a crash) and is made of:
 
 - **Distance**: 1 point per metre down the course.
 - **Board tricks**: Pop Shove-It and FS 180 150, Kickflip and Heelflip 200, Varial Flip 350, Hardflip 400. A double is worth 2.5 times the single, a triple 4.5 times and a quadruple 7 times.
@@ -124,7 +124,7 @@ The ground uses the same deterministic height triangles for rendering, physics, 
 
 Hard obstacle impacts, severe landings, inverted or sideways touchdowns after a flip, failed flip tricks, and leaving the generated landscape trigger a ragdoll crash. The rider separates from the board with their incoming momentum; the existing character mesh is driven by 11 rigid bodies and 10 joints; hands and shoes share compound bodies with their forearms and shins. Knees and elbows use limited hinges, while shoulders, hips, neck, and waist remain flexible. The board tumbles independently and the course-following camera follows the rider.
 
-Ride controls are disabled during the tumble. The run restarts after about 3.2 seconds, or press R to restart immediately. Pausing freezes the crash as well. Ragdoll bodies are created only on a crash and completely removed on recovery, including their joints; extra collision substeps are restored afterward.
+Ride controls are disabled during the tumble. After about 3.2 seconds, the rider recovers in the clear center lane at the crash's downhill location, with speed and score reset. The course stays at its current progress; the ragdoll rolling away does not move the recovery point. Press R to restart the course from the launch platform, or refresh for a fresh start. Pausing freezes the crash as well. Ragdoll bodies are created only on a crash and completely removed on recovery, including their joints; extra collision substeps are restored afterward.
 
 ## Rendering
 

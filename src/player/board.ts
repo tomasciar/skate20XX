@@ -71,6 +71,8 @@ export type BoardPlayer = {
   renderPosition: THREE.Vector3;
   originShift: THREE.Vector3;
   reset: (spawn: THREE.Vector3) => void;
+  /** Recover locally without rewinding the streamed course. */
+  respawn: () => void;
   setMode: (mode:RideMode)=>void;
   readonly boardStyle:BoardStyleId;
   setBoardStyle:(style:BoardStyleId)=>void;
@@ -149,6 +151,7 @@ export function createBoardPlayer(
   const nearbyNormal = new THREE.Vector3();
   let crashElapsed = 0;
   let crashCause: CrashCause | null = null;
+  const recoveryPosition=new THREE.Vector3(),recoverySpawn=new THREE.Vector3();
   let landingBoost = 0;
   const landingHeading = new THREE.Vector3();
   const impactVelocity = new THREE.Vector3();
@@ -268,7 +271,7 @@ export function createBoardPlayer(
     uprightDot = boardUp.dot(ramp.surfaceNormal);
   }
 
-  function reset(to: THREE.Vector3) {
+  function reset(to: THREE.Vector3,restartCourse=true) {
     ragdoll.clear(); visual.setRagdoll(false);
     boardCollider.setMassProperties(MASS, {x:0,y:0,z:0}, INERTIA, {x:0,y:0,z:0,w:1});
     boardCollider.setFriction(0.05); boardCollider.setCollisionGroups(0xffffffff);
@@ -288,10 +291,14 @@ export function createBoardPlayer(
     visualHeightOffset = -0.11;
     poseDt = posePush = 0;
     aeroTuck=0;
-    ramp.reset();
-    introLanding = !!ramp.startPlatform && to.distanceToSquared(ramp.spawn)<1e-8;
+    if(restartCourse)ramp.reset();
+    introLanding = restartCourse && !!ramp.startPlatform && to.distanceToSquared(ramp.spawn)<1e-8;
     boostEntered = false;
     yaw = 0;
+    if(!restartCourse && ramp.directionAt) {
+      ramp.directionAt(to,courseForward);
+      yaw=Math.atan2(-courseForward.x,courseForward.dot(ramp.forward));
+    }
     yawVelocity=0;
     const q = facingQuat();
     const p = to.clone().addScaledVector(ramp.surfaceNormal, 0.22);
@@ -308,13 +315,23 @@ export function createBoardPlayer(
     wasOnKicker = false;
     followSurface = false;
     lean = 0;
-    yaw = 0;
     wheelRoll = 0;
     grounded = true;
     readPose();
     previousPosition.copy(position); renderPosition.copy(position); previousQuat.copy(quat);
     renderQuat.copy(quat);
     paint(0, { x: 0, y: 0, z: 0 });
+  }
+
+  function respawn() {
+    const at=ragdoll.active?recoveryPosition:position;
+    if(ramp.recoveryAt)ramp.recoveryAt(at,recoverySpawn);
+    else {
+      // Simple test/custom courses can fall back to their base road plane.
+      recoverySpawn.copy(at).addScaledVector(ramp.surfaceNormal,-tmp.copy(at).sub(ramp.anchor).dot(ramp.surfaceNormal));
+      recoverySpawn.x-=ramp.roadOffset?.(at) ?? at.x-ramp.anchor.x;
+    }
+    reset(recoverySpawn,false);
   }
 
   function paint(crouch: number, boardSpin: { x: number; y: number; z: number }, at = position) {
@@ -359,6 +376,7 @@ export function createBoardPlayer(
   function startCrash(tricks: TrickState, momentum: THREE.Vector3, cause: CrashCause) {
     crashCause = cause;
     if (ragdoll.active) return;
+    recoveryPosition.copy(position);
     // Capture the current articulated pose rather than spawning a different crash model.
     render(1, 0);
     const rig = visual.captureRagdoll();
@@ -432,7 +450,7 @@ export function createBoardPlayer(
     if (ragdoll.active) {
       crashElapsed += dt;
       if (crashElapsed >= 3.2) {
-        reset(ramp.spawn); tricks.bail = false; tricks.message = null; tricks.lastLanded = null; return;
+        respawn(); tricks.bail = false; tricks.message = null; tricks.lastLanded = null; return;
       }
       previousPosition.copy(position); previousQuat.copy(quat); ragdoll.beginStep();
       const t = body.translation(), q = body.rotation();
@@ -710,7 +728,8 @@ export function createBoardPlayer(
     if (!ragdoll.active && liveTricks && impactFromContacts()) startCrash(liveTricks, impactVelocity, 'impact');
     if (ragdoll.active) { ragdoll.sync(); position.copy(ragdoll.focus); velocity.copy(ragdoll.velocity); speed = velocity.length(); }
     // When you've ridden a full chunk downhill, snap origin and stream the next seeded stretch.
-    const along = position.clone().sub(ramp.anchor).dot(ramp.forward);
+    // Keep the crash site streamed in while the ragdoll tumbles further downhill.
+    const along = (ragdoll.active?recoveryPosition:position).clone().sub(ramp.anchor).dot(ramp.forward);
     if (along > RAMP.chunkLength) {
       const steps = Math.floor(along / RAMP.chunkLength);
       const shift = steps * RAMP.chunkLength;
@@ -720,6 +739,7 @@ export function createBoardPlayer(
         z: velocity.z,
       };
       originShift.copy(ramp.scroll(shift));
+      recoveryPosition.add(originShift);
       position.add(originShift);
       previousPosition.add(originShift);
       if (ragdoll.active) {
@@ -772,6 +792,7 @@ export function createBoardPlayer(
   reset(spawn);
 
   return {
+    respawn,
     get crashed() { return ragdoll.active; },
     get crashCause() { return crashCause; },
     get resetCount() { return resetCount; },

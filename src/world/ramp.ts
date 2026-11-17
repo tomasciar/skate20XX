@@ -49,6 +49,8 @@ export type RampWorld = {
   /** Local road direction for presentation/controls; `forward` remains the stable streaming axis. */
   directionAt?: (position: THREE.Vector3, out: THREE.Vector3, lookAhead?: number)=>THREE.Vector3;
   roadOffset?: (position: THREE.Vector3)=>number;
+  /** Clear road center at the same course progress, in the current streamed frame. */
+  recoveryAt?: (position: THREE.Vector3,out:THREE.Vector3)=>THREE.Vector3;
   get distance(): number;
   get grindRails(): readonly GrindRail[];
   scroll: (meters: number) => THREE.Vector3;
@@ -483,6 +485,13 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
     roadOffset(position) {
       const along=distance+(position.x*forward.x+(position.y-anchor.y)*forward.y+(position.z-anchor.z)*forward.z);
       return position.x-(courseX(along)-courseX(distance));
+    },
+    recoveryAt(position,out) {
+      const along=Math.max(0,distance+out.copy(position).sub(anchor).dot(forward));
+      out.copy(anchor).addScaledVector(forward,along-distance)
+        .addScaledVector(surfaceNormal,courseHeight(along)-courseHeight(distance));
+      out.x+=courseX(along)-courseX(distance);
+      return out;
     },
     get grindRails() { return grindRails; },
     prepareNextChunk,

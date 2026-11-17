@@ -301,7 +301,10 @@ async function main() {
 
       world.step();
       player.sync(false);
-      if (audioResetCount !== player.resetCount) { audio.reset(); controller.reset(); tricks.reset(); particles.clear(); effect.wasAirborne = false; audioResetCount = player.resetCount; }
+      if (audioResetCount !== player.resetCount) {
+        audio.reset(); controller.reset(); tricks.reset(); particles.clear(); effect.wasAirborne = false; audioResetCount = player.resetCount;
+        chase.snap(player.position,ramp.directionAt?.(player.position,courseDirection));
+      }
       audio.step(fixedDt, audioState());
       if (scoreResetCount !== player.resetCount) { newScoreRun(); hud.newRun(); scoreResetCount = player.resetCount; }
       score.step(tricks.state,{
@@ -310,12 +313,11 @@ async function main() {
       });
       chase.shift(player.originShift);
       particles.shift(player.originShift);
-      if (intent.reset) chase.snap(player.position,ramp.directionAt?.(player.position,courseDirection));
       acc -= fixedDt;
     }
 
     if (alongCourse.copy(player.position).sub(ramp.anchor).dot(ramp.surfaceNormal) < -55 && !player.crashed) {
-      player.reset(ramp.spawn);
+      player.respawn();
       audio.reset(); audioResetCount = player.resetCount;
       particles.clear(); effect.wasAirborne = false;
       chase.snap(player.position,ramp.directionAt?.(player.position,courseDirection));
