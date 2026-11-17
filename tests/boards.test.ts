@@ -51,7 +51,7 @@ test('board selector saves valid changes once, updates its swatch and gives keyb
   }
 });
 
-test('the eight graphics are distinct, bounded in size, opaque and reused across updates',()=>{
+test('every design graphic is distinct, bounded in size, opaque and reused across updates',()=>{
   const graphics=new Set<string>(),grips=new Set<string>();let bytes=0;
   for(const {id} of BOARD_STYLES)for(const grip of [false,true]) {
     const texture=boardTexture(id,grip),image=texture.image;
@@ -61,7 +61,7 @@ test('the eight graphics are distinct, bounded in size, opaque and reused across
     for(let i=3;i<image.data.length;i+=4)assert.equal(image.data[i],255);
     const signature=Buffer.from(image.data).toString('base64');(grip?grips:graphics).add(signature);bytes+=image.data.byteLength;
   }
-  assert.equal(graphics.size,BOARD_STYLES.length);assert.equal(grips.size,BOARD_STYLES.length);assert.ok(bytes<=4*1024*1024);
+  assert.equal(graphics.size,BOARD_STYLES.length);assert.equal(grips.size,BOARD_STYLES.length);assert.ok(bytes<=BOARD_STYLES.length*512*1024);
 });
 
 test('design swaps reuse meshes and materials and preserve every rider, mode, grab and planted sole',()=>{
@@ -90,6 +90,24 @@ test('design swaps reuse meshes and materials and preserve every rider, mode, gr
     const clone=visual.board.clone(true);applyBoardStyle(clone,'classic');
     clone.traverse(object=>{if(object instanceof THREE.Mesh && object.material.userData.boardSurface)assert.equal(object.material.userData.boardStyle,'classic');});
   }
+});
+
+test('Nimbus swaps the deck, trucks and wheels for a cloud in both modes, and other designs bring them back',()=>{
+  const visual=createSkaterVisual('skate','goku'),visible=(name:'nimbus'|'hardware')=>{
+    const found:boolean[]=[];visual.root.traverse(object=>{if(object.userData.boardShape===name){let shown=true;for(let o:THREE.Object3D|null=object;o;o=o.parent)shown&&=o.visible;found.push(shown);}});
+    assert.ok(found.length>0);return found.every(Boolean)?true:found.some(Boolean)?'mixed':false;
+  };
+  assert.equal(visible('nimbus'),false);assert.equal(visible('hardware'),true);
+  for(const mode of ['skate','snowboard','skate'] as const) {
+    visual.setBoardStyle('nimbus');visual.setMode(mode);
+    assert.equal(visible('nimbus'),true);assert.equal(visible('hardware'),false);
+    visual.setBoardStyle('dragon');assert.equal(visible('nimbus'),false);assert.equal(visible('hardware'),true);
+  }
+  visual.setBoardStyle('nimbus');const cloud=visual.root.getObjectByName('nimbus')!,box=new THREE.Box3();
+  for(const speed of [0,80])for(const travelSide of [1,-1])for(let i=0;i<240;i++)visual.setPose({...pose,speed,travelSide});
+  visual.resetPose();visual.root.updateMatrixWorld(true);box.setFromObject(cloud);visual.board.worldToLocal(box.min);visual.board.worldToLocal(box.max);
+  // The rider stands in the cloud and its belly rests where the wheels touch the ground.
+  assert.ok(box.max.y>BOARD.gripY && box.max.y<BOARD.gripY+0.05);assert.ok(Math.abs(Math.min(box.min.y,box.max.y)-(BOARD.wheelY-BOARD.wheelRadius))<0.01);
 });
 
 async function fixture() {

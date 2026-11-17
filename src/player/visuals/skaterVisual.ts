@@ -17,6 +17,7 @@ import type { GroundTrick, TrickDef } from "../tricks/tricks.ts";
 import {applyRideSkin} from '../../mode.ts';
 import type {RideMode} from '../../mode.ts';
 import {createSnowboardVisual,SNOWBOARD} from './snowboardVisual.ts';
+import {createNimbusVisual} from './nimbusVisual.ts';
 import {characterPalette,characterProportions,characterHasShorts} from '../characters/catalog.ts';
 import {applyCharacterSkin} from '../characters/skin.ts';
 import type {CharacterId} from '../characters/catalog.ts';
@@ -84,7 +85,11 @@ export function createSkaterVisual(initialMode:RideMode='skate',initialCharacter
   root.add(board, rider); board.add(deck);
   const skateDeck=new THREE.Group(),skateGear=new THREE.Group();
   skateDeck.userData.rideSkin=skateGear.userData.rideSkin='skate';
-  deck.add(skateDeck);board.add(skateGear);
+  // Board hardware sits in its own groups so a cloud-shaped design can hide it without touching ride-mode visibility.
+  const deckHardware=new THREE.Group(),gearHardware=new THREE.Group();
+  deckHardware.userData.boardShape=gearHardware.userData.boardShape='hardware';
+  deck.add(deckHardware);board.add(gearHardware);deckHardware.add(skateDeck);gearHardware.add(skateGear);
+  const nimbus=createNimbusVisual();deck.add(nimbus.root);
   const mat = (color: number, roughness = 0.8, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness });
   const grip=boardMaterial('grip'),maple=boardMaterial('edge'),orange=boardMaterial('accent'),graphic=boardMaterial('graphic');
   const steel = mat(0xaab9bf, 0.3, 0.8), rubber = boardMaterial('wheel');
@@ -132,7 +137,7 @@ export function createSkaterVisual(initialMode:RideMode='skate',initialCharacter
     }
   }
   batchStaticMeshes(skateDeck); batchStaticMeshes(skateGear);
-  const snowboard=createSnowboardVisual();batchStaticMeshes(snowboard);deck.add(snowboard);
+  const snowboard=createSnowboardVisual();batchStaticMeshes(snowboard);deckHardware.add(snowboard);
   rider.rotation.y = RIDER.stanceY;
   const hips = new THREE.Group(); rider.add(hips);
   const pelvis = mesh(hips, new THREE.CapsuleGeometry(0.11, 0.1, 4, 10), pants); pelvis.rotation.z = Math.PI / 2;
@@ -234,7 +239,7 @@ export function createSkaterVisual(initialMode:RideMode='skate',initialCharacter
     mode=next;applyRideSkin(root,mode);
     updateAppearance();
   }
-  function setBoardStyle(next:BoardStyleId){boardStyle=next;applyBoardStyle(root,next);}
+  function setBoardStyle(next:BoardStyleId){if(next!==boardStyle)nimbus.reset();boardStyle=next;applyBoardStyle(root,next);}
   setMode(initialMode);setBoardStyle(initialBoardStyle);
   function setPose(opts: Parameters<SkaterVisual['setPose']>[0]) {
     const slide=opts.airborne || opts.grinding || opts.bail ? 0 : THREE.MathUtils.clamp(opts.slide ?? 0,-1,1);
@@ -297,6 +302,7 @@ export function createSkaterVisual(initialMode:RideMode='skate',initialCharacter
     const breathing = Math.sin(m.time * 1.15) * .0012;
     const pushSwing = Math.sin(m.pushPhase) * m.push;
     for (const w of wheels) w.rotation.x = opts.wheelRoll;
+    if (boardStyle==='nimbus') nimbus.update(opts.dt,opts.speed,opts.airborne || opts.grinding ? undefined : opts.travelSide ?? 1);
     // Wheel contacts stay fixed. Weight shifts belong to the rider, not a rolling wheel group.
     board.rotation.set(opts.boardSpin.x, opts.boardSpin.y, opts.boardSpin.z);
     if (grabBlend > 0) board.quaternion.premultiply(stance.clone().multiply(grabPose.rotation).multiply(stance.clone().invert()));
@@ -530,7 +536,7 @@ export function createSkaterVisual(initialMode:RideMode='skate',initialCharacter
     },
     resetPose() {
       motion.reset();resetCruise();grabBlend = 0; carve = manual = flipPitch = flipRoll = 0; heldGroundGrab = false;
-      headYaw=0.65;headAngles.set(0,0.65,0); deck.rotation.z = 0; deck.position.set(0,0,0); heldGrab = null; board.position.set(0,0,0); board.quaternion.identity();
+      headYaw=0.65;headAngles.set(0,0.65,0); deck.rotation.z = 0; deck.position.set(0,0,0); nimbus.reset(); heldGrab = null; board.position.set(0,0,0); board.quaternion.identity();
     },
   };
 }

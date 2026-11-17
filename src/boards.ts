@@ -9,6 +9,7 @@ export const BOARD_STYLES=[
   {id:'stunt',name:'Stunt Team',description:'Red racing stripes, stars and golden wheels',deck:0xf4f0df,accent:0xdc3c36,ink:0x26333b,wheels:0xf1c448},
   {id:'alpine',name:'Alpine',description:'Layered mountains, glacier blue and a warm sun',deck:0xcbe5e8,accent:0x287d95,ink:0xf3ae61,wheels:0xe8f1e2},
   {id:'midnight',name:'Midnight',description:'Bone-white geometry on charcoal with red wheels',deck:0x20252c,accent:0xe5dcc5,ink:0xb94e50,wheels:0xc96b67},
+  {id:'nimbus',name:'Nimbus',description:'The golden flying cloud from Dragon Ball, in place of the deck and wheels',deck:0x8fd3f4,accent:0xf5b21f,ink:0xe0782a,wheels:0xffd34d},
 ] as const;
 export type BoardStyleId=(typeof BOARD_STYLES)[number]['id'];
 export const BOARD_STYLE_STORAGE_KEY='skate5.boardStyle';
@@ -113,6 +114,10 @@ export function boardTexture(id:BoardStyleId,grip=false):THREE.DataTexture {
       }
       rect(.1,0,.025,1,p.ink);rect(.875,0,.025,1,p.ink);
     }
+    if(id==='nimbus') {
+      // Hidden by the cloud itself, but every design keeps its own graphic: golden puffs on sky blue.
+      for(const [x,y,r] of [[.3,.2,.16],[.55,.24,.2],[.75,.19,.13],[.4,.62,.18],[.65,.66,.15],[.25,.68,.12]] as const){disk(x,y+.02,r,p.ink);disk(x,y,r,p.accent);}
+    }
     // Small maker bars unify the collection without depending on fonts or image downloads.
     rect(.3,.93,.4,.008,p.ink);for(let i=0;i<5;i++)rect(.34+i*.065,.948,.032,.008,p.accent);
   }
@@ -134,6 +139,8 @@ export function boardUVs(geometry:THREE.BufferGeometry,halfWidth:number,halfLeng
 export function applyBoardStyle(root:THREE.Object3D,id:BoardStyleId) {
   const palette=boardStyle(id);
   root.traverse(object=>{
+    // Shaped designs replace the deck, trucks and wheels; everything else keeps the board hardware.
+    const shape=object.userData.boardShape as string|undefined;if(shape)object.visible=(shape==='hardware')===(id!=='nimbus');
     if(!(object instanceof THREE.Mesh))return;
     for(const source of Array.isArray(object.material)?object.material:[object.material]) {
       const mat=source as THREE.MeshStandardMaterial,surface=mat.userData.boardSurface as BoardSurface|undefined;
