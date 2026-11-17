@@ -7,7 +7,7 @@ const direction=new THREE.Vector3();
 const projected=new THREE.Vector3();
 /** Simple driver for headless tests/benchmarks. The game always uses the player's steering input. */
 export function steerAlongCourse(player: BoardPlayer, ramp: RampWorld) {
-  if(!player.grounded || player.crashed || player.grind.active || !ramp.directionAt || !ramp.roadOffset)return 0;
+  if(player.airborne || player.crashed || player.grind.active || !ramp.directionAt || !ramp.roadOffset)return 0;
   const lookAhead=Math.max(25,player.speed*0.5);
   ramp.directionAt(player.position,direction,lookAhead);
   const target=Math.atan2(-direction.x,direction.dot(ramp.forward))+Math.atan2(ramp.roadOffset(player.position),lookAhead);

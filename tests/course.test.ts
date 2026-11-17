@@ -11,17 +11,57 @@ import { createRamp, RAMP } from '../src/world/ramp.ts';
 import { createBoardPlayer } from '../src/player/board.ts';
 import { createTrickSystem } from '../src/player/tricks/tricks.ts';
 import { steerAlongCourse } from '../scripts/driveCourse.ts';
+import {BOARD} from '../src/player/dimensions.ts';
 
 const angle=RAMP.angleDeg*Math.PI/180;
 const hillRotation=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),-angle);
 const context=new Proxy({},{get:()=>()=>{}});
 Object.assign(globalThis,{document:{createElement:()=>({getContext:()=>context})}});
 
+test('riding across the uphill roller keeps road controls, quiet touchdowns and visible wheel clearance',async()=>{
+  await RAPIER.init();
+  const idle={grabModifier:false,grabDX:0,grabDY:0,push:0,steer:0,crouch:false,crouchHold:0,
+    wantOllie:false,olliePower:0,reset:false,flickDX:0,flickDY:0,flickReady:false};
+  for(const mode of ['skate','snowboard'] as const) {
+    const world=new RAPIER.World({x:0,y:-18,z:0});world.timestep=1/120;
+    const scene=new THREE.Scene(),ramp=createRamp(scene,world,{startPlatform:false,mode});
+    const player=createBoardPlayer(scene,world,ramp,mode),tricks=createTrickSystem();
+    try {
+      ramp.scroll(1050);world.step();
+      const at=ramp.recoveryAt!(ramp.anchor.clone().addScaledVector(ramp.forward,15),new THREE.Vector3()).addScaledVector(ramp.surfaceNormal,.22);
+      player.body.setTranslation(at,true);
+      const tick=()=>{player.update(1/120,{...idle,steer:steerAlongCourse(player,ramp)},tricks.state);world.step();player.sync(false);};
+      for(let i=0;i<90;i++)tick();
+      player.body.setLinvel(ramp.directionAt!(player.position,new THREE.Vector3()).multiplyScalar(85),true);
+      let flightFrames=0,progress=0;
+      for(let i=0;i<600;i++) {
+        tick();assert.equal(player.crashed,false,`${mode}: cresting the roller should not crash`);
+        if(player.airborne)flightFrames++;
+        if(i%8===0 && !player.airborne) {
+          player.render(.5,1/60);player.mesh.updateMatrixWorld(true);
+          const up=new THREE.Vector3(0,1,0).applyQuaternion(player.mesh.quaternion);
+          for(const x of [-BOARD.wheelX,BOARD.wheelX])for(const z of [-BOARD.truckZ,BOARD.truckZ]) {
+            const center=player.mesh.localToWorld(new THREE.Vector3(x,BOARD.wheelY,z));
+            const hit=world.castRay(new RAPIER.Ray(center.clone().addScaledVector(up,.1),up.clone().negate()),.3,true,undefined,undefined,undefined,player.body);
+            assert.ok(hit,`${mode}: missing visual wheel support`);
+            assert.ok(hit.timeOfImpact-.1-BOARD.wheelRadius>=-.002,`${mode}: board clips into the road`);
+          }
+        }
+        progress=ramp.distance+player.position.clone().sub(ramp.anchor).dot(ramp.forward);
+        if(progress>1400)break;
+      }
+      assert.ok(progress>1400,'test must cross the uphill and its exit');
+      assert.ok(flightFrames<5,`${mode}: ${flightFrames} unwanted air-control frames`);
+      assert.equal(player.landingCount,0,'coasting over a roller should not spray landing dust or play landing audio');
+    } finally {world.free();}
+  }
+});
+
 test('course is mostly downhill, with genuinely flat sections, small rises and continuous seams',()=>{
   const grade=(s:number)=>Math.atan(courseSlope(s))-angle;
   assert.ok(Math.abs(grade(20)+angle)<1e-10);
   assert.ok(Math.abs(grade(525))<1e-10);
-  assert.ok(grade(1295)>0 && grade(1295)<2*Math.PI/180);
+  assert.ok(grade(1295)>0 && grade(1295)<.4*Math.PI/180,'uphill sections should be gentle rollers');
   let descending=0;
   for(let s=0;s<2240;s+=5) { if(grade(s)<-0.01)descending++;assert.ok(grade(s)>=-38*Math.PI/180-1e-10); }
   assert.ok(descending/(2240/5)>0.7);
@@ -143,7 +183,10 @@ test('streamed road and rail collision matches rendered grades through vertical 
       assert.ok(top && drawn);assert.ok(Math.abs(top.timeOfImpact-drawn.distance)<0.002,`rail surface mismatch ${rail.id}, toi ${top.timeOfImpact}, drawn ${drawn.distance}`);
       assert.ok(Math.abs(drawn.distance-1)<0.002);
     }
-    assert.ok(world.colliders.len()<=RAMP.chunksBehind+1+RAMP.chunksAhead+RAMP.prepareLead+3,`unbounded colliders: ${world.colliders.len()}`);
+    const maxChunks=RAMP.chunksBehind+1+RAMP.chunksAhead+RAMP.prepareLead+3;
+    let staticColliders=0;world.colliders.forEach(c=>{if(c.parent()?.isFixed())staticColliders++;});
+    assert.ok(staticColliders<=maxChunks,`unbounded static colliders: ${staticColliders}`);
+    assert.ok(world.colliders.len()<=maxChunks*7,`unbounded colliders including loose cones: ${world.colliders.len()}`);
   }
   world.free();
 });
@@ -166,7 +209,7 @@ test('a fast rider can coast through moderate and very steep drops without crash
         player.update(1/120,{...idle,steer:steerAlongCourse(player,ramp)},tricks.state);world.step();player.sync(false);
         assert.equal(player.crashed,false,`crash in drop ${cycle}, frame ${i}`);
         assert.ok(Math.abs(ramp.roadOffset!(player.position))<4,`drop ${cycle}, frame ${i}, offset ${ramp.roadOffset!(player.position)}, grounded ${player.grounded}, speed ${player.speed}, distance ${ramp.distance}, air ${airFrames}, longest ${longestAir}`);
-        if(!player.grounded){airFrames++;airRun++;longestAir=Math.max(longestAir,airRun);}else airRun=0;
+        if(player.airborne){airFrames++;airRun++;longestAir=Math.max(longestAir,airRun);}else airRun=0;
         furthest=ramp.distance+player.position.clone().sub(ramp.anchor).dot(ramp.forward);
         if(furthest>start+1100)break;
       }

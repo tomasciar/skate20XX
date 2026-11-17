@@ -14,6 +14,45 @@ const idle:PlayerIntent={grabModifier:false,grabDX:0,grabDY:0,push:0,steer:0,cro
   wantOllie:false,olliePower:0,reset:false,flickDX:0,flickDY:0,flickReady:false};
 const pop={...idle,wantOllie:true,olliePower:0.5};
 
+test('a real ollie emits one surface-impact event, and a tiny settle emits no second event',async()=>{
+  const f=await fixture();
+  try {
+    f.tick(pop);assert.equal(f.player.airborne,true);
+    for(let i=0;i<240 && f.player.landingCount===0;i++)f.tick();
+    assert.equal(f.player.landingCount,1);assert.ok(f.player.landingImpact>=4.5);
+    for(let i=0;i<60;i++)f.tick();
+    f.gap(.025);
+    for(let i=0;i<60;i++)f.tick();
+    assert.equal(f.player.landingCount,1,'suspension settling must not produce dust/audio touchdown events');
+  } finally {f.world.free();}
+});
+
+test('shallow uphill wheel gaps retain carving, fitted wheel height and the support plane',async()=>{
+  for(const pitch of [0,.08]) {
+    const f=await fixture(pitch);
+    try {
+      f.gap(.025);
+      const direction=new THREE.Vector3(0,0,-1).applyAxisAngle(new THREE.Vector3(1,0,0),pitch);
+      f.player.body.setLinvel(direction.multiplyScalar(25),true);
+      for(let i=0;i<12;i++) {
+        const before=f.player.forward.clone();
+        f.update({...idle,steer:1});
+        assert.equal(f.player.grounded,false,'tolerance must not fake physical wheel grip');
+        assert.equal(f.player.airborne,false,'tiny road gaps must retain riding controls');
+        assert.ok(f.player.forward.angleTo(before)<.025,'carving must not jump to fast aerial rotation');
+        f.player.render(1,dt);
+        for(const z of [-BOARD.truckZ,BOARD.truckZ])for(const x of [-BOARD.wheelX,BOARD.wheelX]) {
+          const center=f.player.mesh.localToWorld(new THREE.Vector3(x,BOARD.wheelY,z));
+          assert.ok(Math.abs(center.dot(f.normal)-BOARD.wheelRadius)<.002,'visible wheels must not clip the support plane');
+        }
+        assert.equal(f.player.landingCount,0);
+      }
+      f.tick({...idle,wantOllie:true,olliePower:.5});
+      assert.equal(f.player.airborne,true,'intentional ollies must enable flight immediately');
+    } finally {f.world.free();}
+  }
+});
+
 async function fixture(pitch=0) {
   await RAPIER.init();
   const world=new RAPIER.World({x:0,y:-18,z:0});world.timestep=dt;

@@ -5,6 +5,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { createBoardPlayer } from '../src/player/board.ts';
 import { createTrickSystem } from '../src/player/tricks/tricks.ts';
 import { judgeLanding, LANDING } from '../src/player/movement/landing.ts';
+import {AIR_YAW_SPEED} from '../src/player/movement/airRotation.ts';
 import type { PlayerIntent } from '../src/player/controller.ts';
 import type { RampWorld } from '../src/world/ramp.ts';
 
@@ -55,7 +56,7 @@ async function drop(forwardSpeed:number,impact:number,yawDegrees=0) {
   for(let i=0;i<90;i++)tick();
   // Turn the board in the air, then throw it at the road so it touches down at the requested speeds.
   hold({x:0,y:0,z:0});tick();
-  for(let i=Math.round(Math.abs(yawDegrees)*deg/5/dt);i>0;i--) { hold({x:0,y:0,z:0});tick({...idle,steer:Math.sign(yawDegrees)}); }
+  for(let i=Math.round(Math.abs(yawDegrees)*deg/AIR_YAW_SPEED/dt);i>0;i--) { hold({x:0,y:0,z:0});tick({...idle,steer:Math.sign(yawDegrees)}); }
   hold({x:0,y:-Math.sqrt(Math.max(0,impact*impact-2*18*2.7)),z:-forwardSpeed});
   let landedSpeed=0;
   for(let i=0;i<240 && !player.crashed;i++) { tick();if(player.grounded && !landedSpeed)landedSpeed=player.speed; }

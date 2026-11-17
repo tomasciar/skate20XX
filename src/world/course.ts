@@ -1,7 +1,7 @@
 /** Height relative to the original 14-degree hill plane. Most of the route still descends. */
 export const COURSE_STEP = 5;
 const PERIOD = 2240;
-const FLAT = Math.tan(14*Math.PI/180), RISE = Math.tan(15.5*Math.PI/180), DESCENT = 0;
+const FLAT = Math.tan(14*Math.PI/180), RISE = Math.tan(14.35*Math.PI/180), DESCENT = 0;
 const KNOTS = [0,280,490,560,770,1050,1260,1330,1540,1820,2030,2240];
 const SLOPES = [0,0,FLAT,FLAT,DESCENT,DESCENT,RISE,RISE,DESCENT,DESCENT,0,0];
 const HEIGHTS = [0];

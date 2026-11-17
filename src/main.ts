@@ -13,7 +13,6 @@ import { createFirstPersonCamera } from "./camera/firstPerson";
 import { createGameAudio } from "./audio/sound";
 import type { RideAudioState } from "./audio/events";
 import { createHud } from "./ui/hud";
-import { LANDING_SPEED } from "./player/movement/speed";
 import { createSky } from "./render/sky";
 import { createSunRig, applySkyEnvironment } from "./render/lighting";
 import { createParticles, SPARK, DUST, SNOW } from "./render/particles";
@@ -169,16 +168,14 @@ async function main() {
   });
   const alongCourse = new THREE.Vector3();
   // Sparks and dust follow what the board is doing; rates are per second so they look the same at any refresh rate.
-  const effect = { owed: 0, wasAirborne: false, fallSpeed: 0, at: new THREE.Vector3(), behind: new THREE.Vector3(), motion: new THREE.Vector3() };
+  const effect = { owed: 0, landings: player.landingCount, at: new THREE.Vector3(), behind: new THREE.Vector3(), motion: new THREE.Vector3() };
   function emitEffects(dt: number) {
     const spray=mode==='snowboard'?SNOW:DUST;
-    const airborne = !player.grounded && !player.grind.active;
-    if (player.crashed) { effect.wasAirborne = false; effect.owed = 0; return; }
-    const vertical = player.velocity.dot(ramp.surfaceNormal);
+    if (player.crashed) { effect.landings=player.landingCount; effect.owed = 0; return; }
     effect.at.copy(player.renderPosition).addScaledVector(ramp.surfaceNormal, -0.06);
-    if (effect.wasAirborne && player.grounded && effect.fallSpeed <= -LANDING_SPEED) {
+    if (player.landingCount>effect.landings) {
       // Touchdown: a ring of dust sized by how hard the wheels came down.
-      const puffs = Math.round(THREE.MathUtils.clamp(-effect.fallSpeed * 1.6, 4, 20));
+      const puffs = Math.round(THREE.MathUtils.clamp(player.landingImpact * 1.6, 4, 20));
       for (let i = 0; i < puffs; i++) {
         const angle = Math.random() * Math.PI * 2;
         effect.motion.copy(player.velocity).multiplyScalar(0.3).addScaledVector(ramp.surfaceNormal, 0.5 + Math.random());
@@ -186,8 +183,7 @@ async function main() {
         particles.emit(spray, effect.at, effect.motion, 0.6);
       }
     }
-    if (airborne) effect.fallSpeed = vertical;
-    effect.wasAirborne = airborne;
+    effect.landings=player.landingCount;
     const grinding = player.grind.active && player.speed > 2;
     const braking = player.grounded && player.slide.active && player.slide.amount > 0.12 && player.speed > 3;
     const carving = player.grounded && lastSteer !== 0 && player.speed > 16;
@@ -211,8 +207,9 @@ async function main() {
   }
   function audioState(): RideAudioState {
     return {
-      speed: player.speed, grounded: player.grounded, grinding: player.grind.active,
-      verticalSpeed: player.velocity.dot(ramp.surfaceNormal), braking: player.slide.active && player.slide.amount > 0.12, steer: lastSteer,
+      speed: player.speed, grounded: !player.airborne, grinding: player.grind.active,
+      verticalSpeed: player.surfaceVerticalSpeed, braking: player.slide.active && player.slide.amount > 0.12, steer: lastSteer,
+      landings:player.landingCount,landingImpact:player.landingImpact,
       pumpPhase: player.pump.phase, pumpStarts: player.pump.starts,
       trick: tricks.state.active ? `${tricks.state.active.id}:${tricks.state.started}` : null, bail: player.crashed || tricks.state.bail, resetCount: player.resetCount,
       ollieCount: player.ollieCount,
@@ -277,16 +274,16 @@ async function main() {
 
     acc += raw;
     while (acc >= fixedDt) {
-      const intent = controller.update(input.state, fixedDt, !player.grounded && !player.grind.active && !player.crashed,
+      const intent = controller.update(input.state, fixedDt, player.airborne && !player.grind.active && !player.crashed,
         player.canOllie || player.grind.active);
       lastSteer = player.aerial.active ? 0 : intent.steer;
 
       const grabFacing=screenGrabFacing(player.forward,ramp.directionAt?.(player.position,courseDirection) ?? ramp.forward,ramp.surfaceNormal);
-      tricks.setGround(intent.groundDX ?? 0,intent.groundDY ?? 0,player.grounded && !player.grind.active && !player.crashed && !player.slide.active && !intent.wantSlide,
+      tricks.setGround(intent.groundDX ?? 0,intent.groundDY ?? 0,!player.airborne && !player.grind.active && !player.crashed && !player.slide.active && !intent.wantSlide,
         grabFacing,intent.grabPress);
-      tricks.setGrab(intent.grabDX, intent.grabDY, intent.grabModifier, !player.grounded && !player.grind.active && !player.crashed,
+      tricks.setGrab(intent.grabDX, intent.grabDY, intent.grabModifier, player.airborne && !player.grind.active && !player.crashed,
         grabFacing,intent.grabPress);
-      if (intent.flickReady && !player.grounded && !player.grind.active && !player.crashed) {
+      if (intent.flickReady && player.airborne && !player.grind.active && !player.crashed) {
         tricks.tryFlick(intent.flickDX, intent.flickDY, true);
       }
       tricks.holdFlick(intent.flickHoldDX ?? 0, intent.flickHoldDY ?? 0);
@@ -297,19 +294,19 @@ async function main() {
       if (tricks.state.bail) tricks.clearBail();
 
       const landingGrade=tricks.state.landing ?? null;
-      if (!player.crashed) tricks.update(fixedDt, player.grounded || player.grind.active, player.uprightDot, player.speed);
+      if (!player.crashed) tricks.update(fixedDt, !player.airborne || player.grind.active, player.uprightDot, player.speed);
 
       world.step();
       player.sync(false);
       if (audioResetCount !== player.resetCount) {
-        audio.reset(); controller.reset(); tricks.reset(); particles.clear(); effect.wasAirborne = false; audioResetCount = player.resetCount;
+        audio.reset(); controller.reset(); tricks.reset(); particles.clear(); effect.landings=player.landingCount; audioResetCount = player.resetCount;
         chase.snap(player.position,ramp.directionAt?.(player.position,courseDirection));
       }
       audio.step(fixedDt, audioState());
       if (scoreResetCount !== player.resetCount) { newScoreRun(); hud.newRun(); scoreResetCount = player.resetCount; }
       score.step(tricks.state,{
         distance:ramp.distance + Math.max(0, alongCourse.copy(player.position).sub(ramp.anchor).dot(ramp.forward)),
-        grounded:player.grounded,crashed:player.crashed,landing:landingGrade,grind:player.grind,pitch:player.aerial.pitch,roll:player.aerial.roll,
+        grounded:!player.airborne,crashed:player.crashed,landing:landingGrade,grind:player.grind,pitch:player.aerial.pitch,roll:player.aerial.roll,
       });
       chase.shift(player.originShift);
       particles.shift(player.originShift);
@@ -319,7 +316,7 @@ async function main() {
     if (alongCourse.copy(player.position).sub(ramp.anchor).dot(ramp.surfaceNormal) < -55 && !player.crashed) {
       player.respawn();
       audio.reset(); audioResetCount = player.resetCount;
-      particles.clear(); effect.wasAirborne = false;
+      particles.clear(); effect.landings=player.landingCount;
       chase.snap(player.position,ramp.directionAt?.(player.position,courseDirection));
     }
 

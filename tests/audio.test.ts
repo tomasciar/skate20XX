@@ -11,6 +11,17 @@ const base: RideAudioState = { speed: 12, grounded: true, grinding: false, verti
   braking: false, steer: 0, pumpPhase: 0, pumpStarts: 0, trick: null, bail: false, resetCount: 1, ollieCount: 0 };
 const dt = 1 / 120;
 
+test('authoritative touchdowns silence grade-induced apparent falls and play once for real impacts',()=>{
+  const events=createSoundEvents(),ride={...base,landings:0,landingImpact:0};
+  events.step(dt,ride);
+  for(let i=0;i<30;i++)events.step(dt,{...ride,grounded:false,verticalSpeed:-20});
+  assert.deepEqual(events.step(dt,ride),[]);
+  const landed={...ride,landings:1,landingImpact:8};
+  assert.deepEqual(events.step(dt,landed).map(event=>event.kind),['land']);
+  assert.deepEqual(events.step(dt,landed),[]);
+  assert.deepEqual(events.step(dt,{...ride,resetCount:2}),[]);
+});
+
 test('sound events follow actual jumps and impacts without retriggering on held states', () => {
   const events = createSoundEvents();
   assert.deepEqual(events.step(dt, base), []);

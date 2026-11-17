@@ -13,6 +13,9 @@ export type RideAudioState = {
   bail: boolean;
   resetCount: number;
   ollieCount: number;
+  /** Authoritative physics touchdowns, when available; excludes suspension chatter. */
+  landings?:number;
+  landingImpact?:number;
 };
 export type RideSound = 'push' | 'ollie' | 'land' | 'grindOn' | 'grindOff' | 'trick' | 'bail';
 export type SoundEvent = { kind: RideSound; strength: number };
@@ -32,11 +35,14 @@ export function createSoundEvents() {
     if (state.grinding && !old.grinding) sounds.push({ kind: 'grindOn', strength: 0.6 });
     if (!state.grinding && old.grinding) sounds.push({ kind: 'grindOff', strength: 0.35 });
     const supported = state.grounded || state.grinding, wasSupported = old.grounded || old.grinding;
+    if(state.landings!==undefined && state.landings>(old.landings??state.landings) && !state.bail) {
+      sounds.push({kind:'land',strength:Math.min(1,.2+(state.landingImpact??0)/14)});
+    }
     if (!supported) {
       airTime += dt; fallSpeed = Math.min(fallSpeed, state.verticalSpeed);
     } else {
       // Reject suspension contact chatter, tiny rail corrections, and skims that drop less than the smallest jump.
-      if (!wasSupported && !state.grinding && airTime > 0.08 && fallSpeed <= -LANDING_SPEED && !state.bail) {
+      if (state.landings===undefined && !wasSupported && !state.grinding && airTime > 0.08 && fallSpeed <= -LANDING_SPEED && !state.bail) {
         sounds.push({ kind: 'land', strength: Math.min(1, 0.2 + Math.abs(fallSpeed) / 14) });
       }
       fallSpeed = 0; airTime = 0;
