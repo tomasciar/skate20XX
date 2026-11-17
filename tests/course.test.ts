@@ -9,7 +9,7 @@ import { makeScenery, makePicnic } from '../src/world/scenery.ts';
 import { seededRandom } from '../src/world/generation.ts';
 import { createRamp, RAMP } from '../src/world/ramp.ts';
 import { createBoardPlayer } from '../src/player/board.ts';
-import { createTrickSystem } from '../src/player/tricks.ts';
+import { createTrickSystem } from '../src/player/tricks/tricks.ts';
 import { steerAlongCourse } from '../scripts/driveCourse.ts';
 
 const angle=RAMP.angleDeg*Math.PI/180;

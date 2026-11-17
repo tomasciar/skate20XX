@@ -1,15 +1,15 @@
 import * as THREE from 'three';
-import type {CharacterId} from '../characters.ts';
-import {headSurface,headHalfWidth} from './modelGeometry.ts';
+import type {CharacterId} from '../../../characters.ts';
+import {headSurface,headHalfWidth} from '../geometry.ts';
 import {REFINED_FACE_ARTWORK,isRefinedFace,refinedFaceMaterial,preloadRefinedFace,createRefinedFaceArtwork} from './refinedFaceArtwork.ts';
 import type {RefinedFace} from './refinedFaceArtwork.ts';
 
 type LegacyFace='goku'|'naruto'|'kick';
 export type FaceCharacter=LegacyFace|RefinedFace;
 export const FACE_ARTWORK={
-  goku:{url:new URL('../assets/faces/goku.png',import.meta.url).href,width:0.176,height:0.175,top:0.070},
-  naruto:{url:new URL('../assets/faces/naruto.png',import.meta.url).href,width:0.180,height:0.175,top:0.066},
-  kick:{url:new URL('../assets/faces/kick.png',import.meta.url).href,width:0.207,height:0.170,top:0.063},
+  goku:{url:new URL('../../../assets/faces/goku.png',import.meta.url).href,width:0.176,height:0.175,top:0.070},
+  naruto:{url:new URL('../../../assets/faces/naruto.png',import.meta.url).href,width:0.180,height:0.175,top:0.066},
+  kick:{url:new URL('../../../assets/faces/kick.png',import.meta.url).href,width:0.207,height:0.170,top:0.063},
   ...REFINED_FACE_ARTWORK,
 } as const;
 export function hasFaceArtwork(id:CharacterId):id is FaceCharacter{return id==='goku'||id==='naruto'||id==='kick'||isRefinedFace(id);}

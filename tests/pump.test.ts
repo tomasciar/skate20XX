@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createPumpCycle, PUSH_DURATION, PUSH_SPEED_LIMIT } from '../src/player/pump.ts';
-import { createRiderMotion } from '../src/player/pose.ts';
-import { createSkaterVisual } from '../src/player/skaterVisual.ts';
+import { createPumpCycle, PUSH_DURATION, PUSH_SPEED_LIMIT } from '../src/player/movement/pump.ts';
+import { createRiderMotion } from '../src/player/animation/pose.ts';
+import { createSkaterVisual } from '../src/player/visuals/skaterVisual.ts';
 import { FOOT_Y } from '../src/player/dimensions.ts';
 
 test('W never starts a new pump above 20 mph, even when held', () => {

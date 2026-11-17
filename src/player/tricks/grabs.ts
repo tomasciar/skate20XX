@@ -1,5 +1,5 @@
-import { TUCK, TOMAHAWK, PUSH_OUT, NOSEBONE, TAILBONE } from './grabPose.ts';
-import type { GrabTweak } from './grabPose.ts';
+import { TUCK, TOMAHAWK, PUSH_OUT, NOSEBONE, TAILBONE } from '../animation/grabPose.ts';
+import type { GrabTweak } from '../animation/grabPose.ts';
 import * as THREE from 'three';
 export type GrabId = 'nosegrab' | 'tailgrab' | 'melon' | 'indy' | 'tomahawk' | 'pushout' | 'nosebone' | 'tailbone';
 type Direction = 'nose' | 'tail' | 'front' | 'back';

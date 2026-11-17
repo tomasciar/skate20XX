@@ -2,9 +2,9 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as THREE from 'three';
-import {createSkaterVisual} from '../src/player/skaterVisual.ts';
-import {REFINED_FACE_ARTWORK,createRefinedFaceArtwork,refinedFaceSurface} from '../src/player/refinedFaceArtwork.ts';
-import {preloadCharacterFace,hasFaceArtwork} from '../src/player/faceArtwork.ts';
+import {createSkaterVisual} from '../src/player/visuals/skaterVisual.ts';
+import {REFINED_FACE_ARTWORK,createRefinedFaceArtwork,refinedFaceSurface} from '../src/player/characters/faces/refinedFaceArtwork.ts';
+import {preloadCharacterFace,hasFaceArtwork} from '../src/player/characters/faces/faceArtwork.ts';
 
 test('the seven generated decals ship RGBA originals and recorded references, without changing the two native-only guests',()=>{
   const record=JSON.parse(readFileSync(new URL('../src/assets/faces/refinement-generation.json',import.meta.url),'utf8'));

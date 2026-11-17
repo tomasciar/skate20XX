@@ -8,7 +8,7 @@ import {makeCityBuilding,makeCityHydrant,makeCityBin,makeParkingMeter} from '../
 import {bakeSceneryCollision} from '../src/world/collision.ts';
 import {createRamp} from '../src/world/ramp.ts';
 import {createBoardPlayer} from '../src/player/board.ts';
-import {createTrickSystem} from '../src/player/tricks.ts';
+import {createTrickSystem} from '../src/player/tricks/tricks.ts';
 import {steerAlongCourse} from '../scripts/driveCourse.ts';
 import type {PlayerIntent} from '../src/player/controller.ts';
 import {createWorldAppearance} from '../src/world/appearance.ts';

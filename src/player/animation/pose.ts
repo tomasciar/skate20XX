@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { createPumpCycle } from './pump.ts';
-import type { PumpState } from './pump.ts';
+import { createPumpCycle } from '../movement/pump.ts';
+import type { PumpState } from '../movement/pump.ts';
 
 /** A pole selects which side of the shoulder/wrist or hip/ankle line the joint occupies. */
 export function solveLimb(start: THREE.Vector3, target: THREE.Vector3, pole: THREE.Vector3, upper: number, lower: number) {

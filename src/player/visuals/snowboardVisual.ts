@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import {BOARD,WHEEL_BOTTOM} from './dimensions.ts';
-import {boardMaterial,boardUVs} from '../boards.ts';
+import {BOARD,WHEEL_BOTTOM} from '../dimensions.ts';
+import {boardMaterial,boardUVs} from '../../boards.ts';
 
 export const SNOWBOARD={halfWidth:0.12,halfLength:0.68,baseY:WHEEL_BOTTOM} as const;
 /** A twin-tip board and raised bindings under the existing stance and animation targets. */

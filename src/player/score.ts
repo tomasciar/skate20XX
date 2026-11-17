@@ -1,5 +1,5 @@
-import type { LandingGrade } from "./landing.ts";
-import type { TrickId, TrickState } from "./tricks.ts";
+import type { LandingGrade } from "./movement/landing.ts";
+import type { TrickId, TrickState } from "./tricks/tricks.ts";
 
 /** Scoring rules. Everything a run can earn is tuned here. */
 export const SCORE = {

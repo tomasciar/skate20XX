@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
-import {headSurface,surfacePatch,sweptLockGeometry,croppedHairGeometry,groomedHairGeometry} from './modelGeometry.ts';
-import {characterPalette} from '../characters.ts';
-import {nativeFaceDetails,finishNativeFaceDetails,createRefinedFaceArtwork} from './refinedFaceArtwork.ts';
+import {headSurface,surfacePatch,sweptLockGeometry,croppedHairGeometry,groomedHairGeometry} from '../geometry.ts';
+import {characterPalette} from '../../../characters.ts';
+import {nativeFaceDetails,finishNativeFaceDetails,createRefinedFaceArtwork} from '../faces/refinedFaceArtwork.ts';
 
 export type HumanRider='shaggy'|'light';
 type Point=readonly[number,number,number];

@@ -1,6 +1,6 @@
 import { synthesizeLoop } from './textures.ts';
 import type { RideTexture } from './textures.ts';
-import { MPH_PER_MPS } from '../player/speed.ts';
+import { MPH_PER_MPS } from '../player/movement/speed.ts';
 import { createSoundEvents } from './events.ts';
 import type { RideAudioState, SoundEvent, RideSound } from './events.ts';
 

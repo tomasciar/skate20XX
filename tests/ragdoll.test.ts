@@ -2,12 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
-import { createSkaterVisual } from '../src/player/skaterVisual.ts';
-import { createRagdoll } from '../src/player/ragdoll.ts';
+import { createSkaterVisual } from '../src/player/visuals/skaterVisual.ts';
+import { createRagdoll } from '../src/player/movement/ragdoll.ts';
 import { createBoardPlayer } from '../src/player/board.ts';
 import { createRamp } from '../src/world/ramp.ts';
-import { GRABS } from '../src/player/grabs.ts';
-import { createTrickSystem } from '../src/player/tricks.ts';
+import { GRABS } from '../src/player/tricks/grabs.ts';
+import { createTrickSystem } from '../src/player/tricks/tricks.ts';
 
 const context = new Proxy({}, { get: () => () => {} });
 Object.assign(globalThis, { document: { createElement: () => ({ width: 0, height: 0, getContext: () => context }) } });

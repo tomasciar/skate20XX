@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
-import {croppedHairGeometry} from './modelGeometry.ts';
-import {cosmeticMesh as mesh,cosmeticLine as line,projectedPatch as patch,projectedLine as stroke,addGuestFace} from './characterPrimitives.ts';
+import {croppedHairGeometry} from '../geometry.ts';
+import {cosmeticMesh as mesh,cosmeticLine as line,projectedPatch as patch,projectedLine as stroke,addGuestFace} from '../primitives.ts';
 
 const WHITE=0xf0e9d8,BLUE=0x5c87aa,DARK=0x1b2029,HAIR=0x211d24;
 

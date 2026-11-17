@@ -1,4 +1,4 @@
-import { LANDING_SPEED } from '../player/speed.ts';
+import { LANDING_SPEED } from '../player/movement/speed.ts';
 
 export type RideAudioState = {
   speed: number;

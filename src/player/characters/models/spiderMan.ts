@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
-import {headContour,headSurface,headHalfWidth} from './modelGeometry.ts';
-import {cosmeticMesh as mesh,projectedPatch as patch,projectedLine as stroke} from './characterPrimitives.ts';
-import type {Point2} from './characterPrimitives.ts';
+import {headContour,headSurface,headHalfWidth} from '../geometry.ts';
+import {cosmeticMesh as mesh,projectedPatch as patch,projectedLine as stroke} from '../primitives.ts';
+import type {Point2} from '../primitives.ts';
 
 const RED=0xcf303b,INK=0x20242d;
 /** Surface ribbons keep the webbing thin without hundreds of little tubes or extra draw calls. */

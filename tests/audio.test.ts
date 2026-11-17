@@ -1,4 +1,4 @@
-import { LANDING_SPEED } from '../src/player/speed.ts';
+import { LANDING_SPEED } from '../src/player/movement/speed.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { synthesizeLoop } from '../src/audio/textures.ts';

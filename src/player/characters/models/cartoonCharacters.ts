@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
-import {headSurface,surfacePatch} from './modelGeometry.ts';
-import {batchCosmetics} from './cosmetics.ts';
-import {characterPalette} from '../characters.ts';
-import {nativeFaceDetails,finishNativeFaceDetails,createRefinedFaceArtwork} from './refinedFaceArtwork.ts';
+import {headSurface,surfacePatch} from '../geometry.ts';
+import {batchCosmetics} from '../cosmetics.ts';
+import {characterPalette} from '../../../characters.ts';
+import {nativeFaceDetails,finishNativeFaceDetails,createRefinedFaceArtwork} from '../faces/refinedFaceArtwork.ts';
 
 export type CartoonRider='finn'|'bart';
 const COLORS={finn:{skin:0xf6cc95,shirt:0x40bce9,shorts:0x1e76c5,shoe:0x19232a},

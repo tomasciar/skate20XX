@@ -10,7 +10,7 @@ import { courseHeight, courseSlope, courseX, courseCurveSlope, COURSE_STEP } fro
 import { placeScenery } from "./placement.ts";
 import { makeLandscape } from "./landscape.ts";
 import { makeStartPlatform, makeStartBoostPad, START_PLATFORM, START_BOOST } from "./startPlatform.ts";
-import type { GrindRail } from "../player/grind.ts";
+import type { GrindRail } from "../player/movement/grind.ts";
 import RAPIER from "@dimforge/rapier3d-compat";
 import {createWorldAppearance,surface} from './appearance.ts';
 import type {RideMode} from '../mode.ts';

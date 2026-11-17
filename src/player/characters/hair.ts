@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {croppedHairGeometry,sweptLockGeometry} from './modelGeometry.ts';
+import {croppedHairGeometry,sweptLockGeometry} from './geometry.ts';
 
 type Point=readonly[number,number,number];
 function tuft(parent:THREE.Group,material:THREE.Material,root:Point,bend:Point,tip:Point,width:number,depth:number,rings=9,sides=10) {

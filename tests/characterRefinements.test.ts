@@ -1,9 +1,9 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import {createSkaterVisual} from '../src/player/skaterVisual.ts';
+import {createSkaterVisual} from '../src/player/visuals/skaterVisual.ts';
 import {applyCharacterSkin} from '../src/characters.ts';
-import {GRABS} from '../src/player/grabs.ts';
+import {GRABS} from '../src/player/tricks/grabs.ts';
 
 Object.assign(globalThis,{document:{createElement:()=>({getContext:()=>new Proxy({},{get:()=>()=>{}})})}});
 const pose={dt:1/60,speed:25,push:0,verticalSpeed:0,grinding:false,crouch:0,lean:0,airborne:false,bail:false,wheelRoll:0,boardSpin:{x:0,y:0,z:0}};

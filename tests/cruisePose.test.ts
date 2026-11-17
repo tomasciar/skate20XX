@@ -1,8 +1,8 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import {createCruisePose} from '../src/player/cruisePose.ts';
-import {createSkaterVisual} from '../src/player/skaterVisual.ts';
+import {createCruisePose} from '../src/player/animation/cruisePose.ts';
+import {createSkaterVisual} from '../src/player/visuals/skaterVisual.ts';
 import {CHARACTERS} from '../src/characters.ts';
 import {BOARD} from '../src/player/dimensions.ts';
 

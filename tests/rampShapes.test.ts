@@ -6,7 +6,7 @@ import {createRampShapeGeometry,makeRampShape,rampShapeHeight} from '../src/worl
 import type {RampShape} from '../src/world/rampShapes.ts';
 import {bakeSceneryCollision} from '../src/world/collision.ts';
 import {createBoardPlayer} from '../src/player/board.ts';
-import {createTrickSystem} from '../src/player/tricks.ts';
+import {createTrickSystem} from '../src/player/tricks/tricks.ts';
 import {createRamp,RAMP,type RampWorld} from '../src/world/ramp.ts';
 import type {PlayerIntent} from '../src/player/controller.ts';
 import {planChunk} from '../src/world/generation.ts';

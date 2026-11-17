@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import {headSurface,surfacePatch} from './modelGeometry.ts';
-import {isRefinedFace,nativeFaceDetails,finishNativeFaceDetails,createRefinedFaceArtwork} from './refinedFaceArtwork.ts';
+import {headSurface,surfacePatch} from './geometry.ts';
+import {isRefinedFace,nativeFaceDetails,finishNativeFaceDetails,createRefinedFaceArtwork} from './faces/refinedFaceArtwork.ts';
 
 export type Point2=readonly[number,number];
 export type Point3=readonly[number,number,number];

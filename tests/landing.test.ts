@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { createBoardPlayer } from '../src/player/board.ts';
-import { createTrickSystem } from '../src/player/tricks.ts';
-import { judgeLanding, LANDING } from '../src/player/landing.ts';
+import { createTrickSystem } from '../src/player/tricks/tricks.ts';
+import { judgeLanding, LANDING } from '../src/player/movement/landing.ts';
 import type { PlayerIntent } from '../src/player/controller.ts';
 import type { RampWorld } from '../src/world/ramp.ts';
 

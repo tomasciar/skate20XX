@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
-import {croppedHairGeometry,sweptLockGeometry} from './modelGeometry.ts';
-import {refinedFaceSurface} from './refinedFaceArtwork.ts';
-import {hiddenLeafStrokes} from './characterInsignia.ts';
-import {batchCosmetics} from './cosmetics.ts';
-import {cosmeticMesh as mesh,cosmeticOval as oval,projectedPatch as patch,projectedLine as stroke,addGuestFace} from './characterPrimitives.ts';
-import type {Point3} from './characterPrimitives.ts';
+import {croppedHairGeometry,sweptLockGeometry} from '../geometry.ts';
+import {refinedFaceSurface} from '../faces/refinedFaceArtwork.ts';
+import {hiddenLeafStrokes} from '../insignia.ts';
+import {batchCosmetics} from '../cosmetics.ts';
+import {cosmeticMesh as mesh,cosmeticOval as oval,projectedPatch as patch,projectedLine as stroke,addGuestFace} from '../primitives.ts';
+import type {Point3} from '../primitives.ts';
 
 export type AnimeGuest='sasuke'|'onizuka';
 const COLORS={sasuke:{skin:0xe7c09c,hair:0x1c202d,shirt:0x20345c},onizuka:{skin:0xcd946f,hair:0xe5bd45,shirt:0xf3f1e5}};

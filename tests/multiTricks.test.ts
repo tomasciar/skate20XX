@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createTrickSystem } from '../src/player/tricks.ts';
+import { createTrickSystem } from '../src/player/tricks/tricks.ts';
 
 const dt=1/120;
 /** Flick, hold the direction for `hold` seconds, then stay airborne until the board is caught. */

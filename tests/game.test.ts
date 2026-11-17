@@ -5,7 +5,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { planChunk, districtAt, CHUNK_LENGTH, DISTRICTS, ENCOUNTER_KINDS } from '../src/world/generation.ts';
 import { createRamp, RAMP } from '../src/world/ramp.ts';
 import { createBoardPlayer } from '../src/player/board.ts';
-import { createTrickSystem } from '../src/player/tricks.ts';
+import { createTrickSystem } from '../src/player/tricks/tricks.ts';
 import { createInput } from '../src/input.ts';
 import { BOARD } from '../src/player/dimensions.ts';
 import { createController } from '../src/player/controller.ts';

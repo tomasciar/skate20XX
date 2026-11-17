@@ -1,4 +1,4 @@
-import type { TrickId } from './tricks.ts';
+import type { TrickId } from '../tricks/tricks.ts';
 
 export type TrickFootPose = { x: number; y: number; z: number; pitch: number; yaw: number; roll: number };
 type Flick = Omit<TrickFootPose,'y'>;

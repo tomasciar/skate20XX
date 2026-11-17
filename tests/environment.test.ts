@@ -9,7 +9,7 @@ import { makeScenery, makeCone, makeFence, makePicnic, makeSign } from '../src/w
 import { seededRandom } from '../src/world/generation.ts';
 import { createRamp, RAMP } from '../src/world/ramp.ts';
 import { createBoardPlayer } from '../src/player/board.ts';
-import { createTrickSystem } from '../src/player/tricks.ts';
+import { createTrickSystem } from '../src/player/tricks/tricks.ts';
 const context = new Proxy({}, {get:()=>()=>{}});
 Object.assign(globalThis,{document:{createElement:()=>({width:0,height:0,getContext:()=>context})}});
 

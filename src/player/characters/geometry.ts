@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
-import type {CharacterId} from '../characters.ts';
+import type {CharacterId} from '../../characters.ts';
 
 type Point3=readonly[number,number,number];
 /** A closed, curved clump with a broad root and a sharp tip. Rings follow the curve, not a vertical cone. */

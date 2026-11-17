@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { coastSpeed, dragSpeed, SPEED, MPH_PER_MPS } from '../src/player/speed.ts';
+import { coastSpeed, dragSpeed, SPEED, MPH_PER_MPS } from '../src/player/movement/speed.ts';
 
 function descend(degrees: number, tuck: number, seconds=90, initial=0, dt=1/120) {
   const slope=degrees*Math.PI/180,gravity=18*Math.sin(slope);

@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import {createSkaterVisual} from '../src/player/skaterVisual.ts';
+import {createSkaterVisual} from '../src/player/visuals/skaterVisual.ts';
 import {createRiderPortrait} from '../src/ui/riderPortrait.ts';
 
 test('paused portraits share the actual head materials and restore renderer state after capture or errors',()=>{

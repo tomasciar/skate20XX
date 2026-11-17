@@ -2,8 +2,8 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as THREE from 'three';
-import {FACE_ARTWORK,faceMaterial,createFaceArtwork,preloadCharacterFace} from '../src/player/faceArtwork.ts';
-import {headGeometry} from '../src/player/modelGeometry.ts';
+import {FACE_ARTWORK,faceMaterial,createFaceArtwork,preloadCharacterFace} from '../src/player/characters/faces/faceArtwork.ts';
+import {headGeometry} from '../src/player/characters/geometry.ts';
 
 test('each named character ships separate transparent facial artwork and a distinct fallback',()=>{
   const images=new Set<string>(),fallbacks=new Set<string>();

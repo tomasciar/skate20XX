@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
-import {croppedHairGeometry,headSurface,surfacePatch,sweptLockGeometry,torsoRadius,torsoCenter} from './modelGeometry.ts';
-import {characterPalette} from '../characters.ts';
-import {nativeFaceDetails,finishNativeFaceDetails,createRefinedFaceArtwork} from './refinedFaceArtwork.ts';
+import {croppedHairGeometry,headSurface,surfacePatch,sweptLockGeometry,torsoRadius,torsoCenter} from '../geometry.ts';
+import {characterPalette} from '../../../characters.ts';
+import {nativeFaceDetails,finishNativeFaceDetails,createRefinedFaceArtwork} from '../faces/refinedFaceArtwork.ts';
 
 const SKIN=0xefc69e,HAIR=0x75452b,SHIRT=0xf7f6eb,INK=0x30271f;
 const material=(color:number)=>new THREE.MeshStandardMaterial({color,roughness:.85});

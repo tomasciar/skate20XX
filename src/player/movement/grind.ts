@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BOARD, GRIND_HEIGHT } from './dimensions.ts';
+import { BOARD, GRIND_HEIGHT } from '../dimensions.ts';
 import { dragSpeed } from './speed.ts';
 
 export type GrindRail = { id: string; start: THREE.Vector3; end: THREE.Vector3; normal?: THREE.Vector3 };

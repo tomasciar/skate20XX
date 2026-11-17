@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { createInput } from '../src/input.ts';
 import { createController } from '../src/player/controller.ts';
-import { createTrickSystem, type GroundTrick } from '../src/player/tricks.ts';
-import { createSkaterVisual } from '../src/player/skaterVisual.ts';
-import { GRABS, screenGrabFacing } from '../src/player/grabs.ts';
+import { createTrickSystem, type GroundTrick } from '../src/player/tricks/tricks.ts';
+import { createSkaterVisual } from '../src/player/visuals/skaterVisual.ts';
+import { GRABS, screenGrabFacing } from '../src/player/tricks/grabs.ts';
 import { BOARD, RIDER } from '../src/player/dimensions.ts';
 import {CHARACTERS} from '../src/characters.ts';
 

@@ -4,12 +4,12 @@ import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import {BOARD_STYLES,BOARD_STYLE_STORAGE_KEY,applyBoardStyle,boardTexture,boardStyle,loadBoardStyle,saveBoardStyle} from '../src/boards.ts';
 import {createBoardControls} from '../src/ui/boards.ts';
-import {createSkaterVisual} from '../src/player/skaterVisual.ts';
+import {createSkaterVisual} from '../src/player/visuals/skaterVisual.ts';
 import {createBoardPlayer} from '../src/player/board.ts';
-import {createTrickSystem} from '../src/player/tricks.ts';
+import {createTrickSystem} from '../src/player/tricks/tricks.ts';
 import {CHARACTERS} from '../src/characters.ts';
 import {BOARD} from '../src/player/dimensions.ts';
-import {GRABS} from '../src/player/grabs.ts';
+import {GRABS} from '../src/player/tricks/grabs.ts';
 import type {RampWorld} from '../src/world/ramp.ts';
 import type {PlayerIntent} from '../src/player/controller.ts';
 

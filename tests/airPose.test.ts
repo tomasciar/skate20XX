@@ -1,9 +1,9 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import {createAirPose} from '../src/player/airPose.ts';
-import {createSkaterVisual} from '../src/player/skaterVisual.ts';
-import {GRABS} from '../src/player/grabs.ts';
+import {createAirPose} from '../src/player/animation/airPose.ts';
+import {createSkaterVisual} from '../src/player/visuals/skaterVisual.ts';
+import {GRABS} from '../src/player/tricks/grabs.ts';
 import {BOARD,RIDER} from '../src/player/dimensions.ts';
 import {CHARACTERS} from '../src/characters.ts';
 

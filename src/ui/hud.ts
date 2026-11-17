@@ -1,6 +1,6 @@
-import type { GrindState } from "../player/grind";
-import type { TrickState } from "../player/tricks";
-import type { AirRotationState } from "../player/airRotation";
+import type { GrindState } from "../player/movement/grind";
+import type { TrickState } from "../player/tricks/tricks";
+import type { AirRotationState } from "../player/movement/airRotation";
 import {MODE_TITLES} from '../mode.ts';
 import type {RideMode} from '../mode.ts';
 

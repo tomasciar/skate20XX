@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { createBoardPlayer } from '../src/player/board.ts';
 import { createController, type PlayerIntent } from '../src/player/controller.ts';
-import { createTrickSystem } from '../src/player/tricks.ts';
+import { createTrickSystem } from '../src/player/tricks/tricks.ts';
 import { BOARD } from '../src/player/dimensions.ts';
 import type { InputState } from '../src/input.ts';
 import type { RampWorld } from '../src/world/ramp.ts';

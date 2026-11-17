@@ -1,6 +1,6 @@
 import { classifyGrab, GRABS } from "./grabs.ts";
 import type { GrabDef, GrabFacing } from "./grabs.ts";
-import type { LandingGrade } from "./landing.ts";
+import type { LandingGrade } from "../movement/landing.ts";
 export type TrickId =
   | "kickflip"
   | "heelflip"

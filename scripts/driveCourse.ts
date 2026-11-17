@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { carveTurnRate } from '../src/player/carve.ts';
+import { carveTurnRate } from '../src/player/movement/carve.ts';
 import type { BoardPlayer } from '../src/player/board.ts';
 import type { RampWorld } from '../src/world/ramp.ts';
 

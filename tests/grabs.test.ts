@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { createInput } from '../src/input.ts';
 import { createController } from '../src/player/controller.ts';
-import { classifyGrab, GRABS, screenGrabFacing } from '../src/player/grabs.ts';
-import { createTrickSystem } from '../src/player/tricks.ts';
-import { createSkaterVisual } from '../src/player/skaterVisual.ts';
+import { classifyGrab, GRABS, screenGrabFacing } from '../src/player/tricks/grabs.ts';
+import { createTrickSystem } from '../src/player/tricks/tricks.ts';
+import { createSkaterVisual } from '../src/player/visuals/skaterVisual.ts';
 import { BOARD, RIDER } from '../src/player/dimensions.ts';
 
 test('plain arrows hold grabs and Shift switches to board tricks without changing movement', () => {

@@ -1,7 +1,7 @@
 import type {Object3D} from 'three';
 import {Mesh} from 'three';
 import type {RideMode} from './mode.ts';
-import {characterLegGeometry,characterHandGeometry,characterTorsoGeometry} from './player/modelGeometry.ts';
+import {characterLegGeometry,characterHandGeometry,characterTorsoGeometry} from './player/characters/geometry.ts';
 
 export const CHARACTERS=[
   {id:'boy',name:'Boy'},

@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { BOARD, GRIND_HEIGHT } from '../src/player/dimensions.ts';
-import { createGrindSystem, GRIND, type GrindRail } from '../src/player/grind.ts';
+import { createGrindSystem, GRIND, type GrindRail } from '../src/player/movement/grind.ts';
 import { createBoardPlayer } from '../src/player/board.ts';
-import { createTrickSystem } from '../src/player/tricks.ts';
+import { createTrickSystem } from '../src/player/tricks/tricks.ts';
 import type { PlayerIntent } from '../src/player/controller.ts';
 import type { RampWorld } from '../src/world/ramp.ts';
-import { MPH_PER_MPS } from '../src/player/speed.ts';
+import { MPH_PER_MPS } from '../src/player/movement/speed.ts';
 
 const dt = 1 / 120;
 const normal = new THREE.Vector3(0, 1, 0), forward = new THREE.Vector3(0, 0, -1), right = new THREE.Vector3(1, 0, 0);

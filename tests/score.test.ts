@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {createTrickSystem} from '../src/player/tricks.ts';
+import {createTrickSystem} from '../src/player/tricks/tricks.ts';
 import {SCORE,airPoints,createScore,flipPoints,grabPoints,grindKey,grindRate,trickPoints} from '../src/player/score.ts';
 import type {RideSample} from '../src/player/score.ts';
 import {highScoreKey,loadHighScore,saveHighScore} from '../src/highScore.ts';

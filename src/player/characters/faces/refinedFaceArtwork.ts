@@ -1,16 +1,16 @@
 import * as THREE from 'three';
-import type {CharacterId} from '../characters.ts';
-import {headSurface,headHalfWidth} from './modelGeometry.ts';
-import {batchCosmetics} from './cosmetics.ts';
+import type {CharacterId} from '../../../characters.ts';
+import {headSurface,headHalfWidth} from '../geometry.ts';
+import {batchCosmetics} from '../cosmetics.ts';
 
 export const REFINED_FACE_ARTWORK={
-  finn:{url:new URL('../assets/faces/finn.png',import.meta.url).href,width:.285,height:.109,top:.044,eyeV:.7012,mouthV:.797,eyeY:.004,mouthY:-.035},
-  bart:{url:new URL('../assets/faces/bart.png',import.meta.url).href,width:.224,height:.220,top:.087,eyeV:.456,mouthV:.786,eyeY:-.006,mouthY:-.080},
-  shaggy:{url:new URL('../assets/faces/shaggy.png',import.meta.url).href,width:.180,height:.210,top:.068,eyeV:.344,mouthV:.704,eyeY:-.015,mouthY:-.085},
-  light:{url:new URL('../assets/faces/light.png',import.meta.url).href,width:.160,height:.163,top:.047,eyeV:.379,mouthV:.78,eyeY:-.013,mouthY:-.073},
-  peter:{url:new URL('../assets/faces/peter.png',import.meta.url).href,width:.220,height:.245,top:.093,eyeV:.356,mouthV:.655,eyeY:.007,mouthY:-.077},
-  sasuke:{url:new URL('../assets/faces/sasuke.png',import.meta.url).href,width:.158,height:.177,top:.060,eyeV:.416,mouthV:.768,eyeY:-.013,mouthY:-.071},
-  onizuka:{url:new URL('../assets/faces/onizuka.png',import.meta.url).href,width:.155,height:.180,top:.054,eyeV:.375,mouthV:.774,eyeY:-.013,mouthY:-.075},
+  finn:{url:new URL('../../../assets/faces/finn.png',import.meta.url).href,width:.285,height:.109,top:.044,eyeV:.7012,mouthV:.797,eyeY:.004,mouthY:-.035},
+  bart:{url:new URL('../../../assets/faces/bart.png',import.meta.url).href,width:.224,height:.220,top:.087,eyeV:.456,mouthV:.786,eyeY:-.006,mouthY:-.080},
+  shaggy:{url:new URL('../../../assets/faces/shaggy.png',import.meta.url).href,width:.180,height:.210,top:.068,eyeV:.344,mouthV:.704,eyeY:-.015,mouthY:-.085},
+  light:{url:new URL('../../../assets/faces/light.png',import.meta.url).href,width:.160,height:.163,top:.047,eyeV:.379,mouthV:.78,eyeY:-.013,mouthY:-.073},
+  peter:{url:new URL('../../../assets/faces/peter.png',import.meta.url).href,width:.220,height:.245,top:.093,eyeV:.356,mouthV:.655,eyeY:.007,mouthY:-.077},
+  sasuke:{url:new URL('../../../assets/faces/sasuke.png',import.meta.url).href,width:.158,height:.177,top:.060,eyeV:.416,mouthV:.768,eyeY:-.013,mouthY:-.071},
+  onizuka:{url:new URL('../../../assets/faces/onizuka.png',import.meta.url).href,width:.155,height:.180,top:.054,eyeV:.375,mouthV:.774,eyeY:-.013,mouthY:-.075},
 } as const;
 export type RefinedFace=keyof typeof REFINED_FACE_ARTWORK;
 export function isRefinedFace(id:CharacterId):id is RefinedFace{return id in REFINED_FACE_ARTWORK;}

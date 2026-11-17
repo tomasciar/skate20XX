@@ -5,7 +5,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import {createRamp,RAMP} from '../src/world/ramp.ts';
 import {START_PLATFORM,START_BOOST,makeStartPlatform} from '../src/world/startPlatform.ts';
 import {createBoardPlayer} from '../src/player/board.ts';
-import {createTrickSystem} from '../src/player/tricks.ts';
+import {createTrickSystem} from '../src/player/tricks/tricks.ts';
 import {createChaseCamera} from '../src/camera/chase.ts';
 import {BOARD} from '../src/player/dimensions.ts';
 import type {PlayerIntent} from '../src/player/controller.ts';
