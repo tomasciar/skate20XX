@@ -16,7 +16,7 @@ The root contains the player entry points: `board.ts` coordinates the simulation
 
 `characters/catalog.ts` owns the roster, persistence, palettes and proportions. It has no runtime dependency on Three.js or model builders. `characters/skin.ts` applies those choices to live riders and crash clones. The existing `src/characters.ts` module remains the public selection API, re-exporting these operations for callers outside the player folder.
 
-`characters/registry.ts` maps every character ID to a typed model definition. Each definition supplies a profile, head/outfit construction, limb details and shoes, with optional thigh, hip and hand attachments. Related characters can share builders. The original five designs live in `models/classicRiders.ts`; their geometry and expressions are preserved.
+`characters/registry.ts` maps every character ID to a typed model definition. Each definition supplies a profile, head/outfit construction, limb details and shoes, with optional thigh, hip and hand attachments. Models can also supply a custom head, cached rig-part geometry, vertex colours, footwear visibility and fitted crash shapes. These optional policies let non-human riders use the existing skeleton without character-ID branches in the rig. Related characters can share builders. The original five designs live in `models/classicRiders.ts`; their geometry and expressions are preserved.
 
 `characters/visuals.ts` assembles the registered models, keeps character/mode visibility tags, and batches rigid details. The shared rig in `visuals/skaterVisual.ts` calls those assembly functions and animates the bones. Character-specific props, such as Finn's sword, belong to the registry and model builders. They attach to the existing bones so captured crash parts inherit them too.
 
@@ -31,3 +31,5 @@ Shared geometry, head profiles, hands and cached limb alternatives live in `char
 5. Check both riding modes, grips, planted soles, crash attachments, portraits and the existing per-rider geometry budgets.
 
 Movement and scoring modules should not import individual character builders. Pose modules describe motion; model builders describe appearance. Folder organization itself does not change simulation timing or rendering performance.
+
+`models/sahur.ts` is an example of a non-human rider: overlapping cylindrical body/head sections, cached slender limb meshes, baked wood/end grain, sculpted eyes, barefoot geometry and a wrist-mounted bat. The skin applicator restores standard geometry, vertex-colour flags and footwear when switching away, including in crash clones. Cosmetic batching preserves authored vertex colours while applying the authoring material tint.

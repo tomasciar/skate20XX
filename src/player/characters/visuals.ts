@@ -19,7 +19,7 @@ export function addCharacterLooks(head:THREE.Group,torso:THREE.Group) {
     const {chestWidth:width,chestDepth:depth}=characterProportions(id);
     const clothSurface=(back:boolean)=>(x:number,y:number)=>{const r=torsoRadius(y,id);return torsoCenter(y,id)*depth+(back?1:-1)*r*depth*Math.sqrt(Math.max(.015,1-(x/(r*width))**2));};
     const skin=new THREE.MeshStandardMaterial({color:characterPalette(id,'skate').skin});
-    group.add(new THREE.Mesh(headGeometry(id),skin));
+    group.add(new THREE.Mesh(model.headGeometry?model.headGeometry():headGeometry(id),skin));
     const cleanup=model.buildLook({head:group,outfit,front:clothSurface(false),back:clothSurface(true),width,depth});
     batchCosmetics(group);batchCosmetics(outfit);
     skin.dispose();cleanup?.();

@@ -1,11 +1,21 @@
-import {Mesh} from 'three';
-import type {Object3D} from 'three';
+import {CapsuleGeometry,Mesh,MeshStandardMaterial} from 'three';
+import type {BufferGeometry,Object3D} from 'three';
 import {characterProportions,characterHasShorts,characterHasCartoonHands,isCharacterId} from './catalog.ts';
 import type {CharacterId} from './catalog.ts';
-import {characterLegGeometry,characterHandGeometry,characterTorsoGeometry} from './geometry.ts';
+import {characterLegGeometry,characterHandGeometry,characterTorsoGeometry,limbGeometry} from './geometry.ts';
+import {CHARACTER_MODELS} from './registry.ts';
+import type {CharacterBodyPart} from './registry.ts';
+
+const originalGeometry=new WeakMap<Mesh,BufferGeometry>();
+const restoredParts=new Map<string,BufferGeometry>();
+function restorePart(kind:'upperarm'|'forearm'|'pelvis'|'sleeve') {
+  let geometry=restoredParts.get(kind);
+  if(!geometry){geometry=kind==='pelvis'?new CapsuleGeometry(.11,.1,4,10):limbGeometry(kind);restoredParts.set(kind,geometry);}return geometry;
+}
 
 export function applyCharacterSkin(root:Object3D,character:CharacterId) {
   const build=characterProportions(character);
+  const model=CHARACTER_MODELS[character];
   root.traverse(object=>{
     if(isCharacterId(object.userData.characterSkin))object.visible=object.userData.characterSkin===character;
     const capturedScale=object.userData.ragdollBodyScale ?? 1;
@@ -36,6 +46,26 @@ export function applyCharacterSkin(root:Object3D,character:CharacterId) {
         object.visible=character!=='goku'&&character!=='spiderman';
         object.scale.x=object.scale.z=(character==='peter'||character==='bart'?build.upperarm:1)*capturedScale;
         break;
+    }
+    const role=object.userData.characterBuild as CharacterBodyPart|undefined;
+    if(role && role!=='sleeve' && object instanceof Mesh)object.visible=true;
+    const part=role&&model.rigParts?.[role];
+    if(part?.hidden)object.visible=false;
+    if(object instanceof Mesh) {
+      // Standard foot geometry is a single direct child; registered feet and bindings remain separate.
+      if(object.parent?.userData.characterBuild==='foot')object.visible=!model.hideFootwear;
+      if(role) {
+        if(part?.geometry) {
+          if(!object.geometry.userData.characterOverride)originalGeometry.set(object,object.geometry);
+          object.geometry=part.geometry(object);
+          object.geometry.userData.characterOverride=role;
+        } else if(object.geometry.userData.characterOverride && (role==='upperarm'||role==='forearm'||role==='pelvis'||role==='sleeve')) {
+          object.geometry=originalGeometry.get(object)??restorePart(role);
+        }
+        if(object.material instanceof MeshStandardMaterial && object.material.vertexColors!==Boolean(model.vertexColors)) {
+          object.material.vertexColors=Boolean(model.vertexColors);object.material.needsUpdate=true;
+        }
+      }
     }
   });
 }

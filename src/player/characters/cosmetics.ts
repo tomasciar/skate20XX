@@ -11,10 +11,17 @@ export function batchCosmetics(group:THREE.Group) {
     child.updateMatrix();
     const geometry=child.geometry.index?child.geometry.toNonIndexed():child.geometry.clone();
     geometry.applyMatrix4(child.matrix);
+    const sourceColors=geometry.getAttribute('color');
     for(const attribute of Object.keys(geometry.attributes))if(attribute!=='position' && attribute!=='normal')geometry.deleteAttribute(attribute);
     if(!geometry.hasAttribute('normal'))geometry.computeVertexNormals();
     const count=geometry.getAttribute('position').count,colors=new Float32Array(count*3);
-    for(let i=0;i<count;i++)material.color.toArray(colors,i*3);
+    for(let i=0;i<count;i++) {
+      if(sourceColors) {
+        colors[i*3]=sourceColors.getX(i)*material.color.r;
+        colors[i*3+1]=sourceColors.getY(i)*material.color.g;
+        colors[i*3+2]=sourceColors.getZ(i)*material.color.b;
+      } else material.color.toArray(colors,i*3);
+    }
     geometry.setAttribute('color',new THREE.BufferAttribute(colors,3));
     geometries.push(geometry);group.remove(child);child.geometry.dispose();
   }

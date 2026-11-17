@@ -23,6 +23,7 @@ import type {CharacterId} from '../characters/catalog.ts';
 import {applyBoardStyle,boardMaterial,boardUVs} from '../../boards.ts';
 import type {BoardStyleId} from '../../boards.ts';
 import {addCharacterLooks,addCharacterLimbDetails,addCharacterShoeDetails,addCharacterHipDetails,addCharacterHandDetails} from '../characters/visuals.ts';
+import {CHARACTER_MODELS} from '../characters/registry.ts';
 
 const RIDING_GRAB = {...TUCK,offset:{x:0,y:0,z:0},rotation:{x:0,y:0,z:0},
   crouch:0.95,hipDrop:0.14,chestPitch:-0.4};
@@ -483,12 +484,16 @@ export function createSkaterVisual(initialMode:RideMode='skate',initialCharacter
       parts.push({ id, center, rotation: reference.getWorldQuaternion(new THREE.Quaternion()), objects, mass, shape });
     };
     const stocky=character==='peter',build=characterProportions(character);
+    const anatomy=CHARACTER_MODELS[character].ragdoll,torsoShape=anatomy?.torso,headShape=anatomy?.head;
+    const limbWidths=stocky||anatomy?.matchLimbWidths;
     part('pelvis', pelvis, pelvis.getWorldPosition(new THREE.Vector3()), [pelvis,hipDetails], 12,
       { kind: 'capsule', length: .3*build.pelvisWidth, radius: .10*build.pelvisDepth });
     const torsoObjects = torso.children.filter(o => o.userData.characterAttachment || o instanceof THREE.Mesh && (!o.name || o===chest));
-    part('torso', torso, point(torso,0,0.23,stocky?-.03:0), torsoObjects, 24,
-      { kind: 'box', half: stocky?new THREE.Vector3(.29,.23,.22):new THREE.Vector3(.15,.18,.09) });
-    part('head', head, point(head), [head], 5, { kind: 'ball', radius: stocky?.143:.115 });
+    part('torso', torso, torsoShape?point(torso,...torsoShape.center):point(torso,0,0.23,stocky?-.03:0), torsoObjects, 24,
+      { kind: 'box', half: torsoShape?new THREE.Vector3(...torsoShape.half):stocky?new THREE.Vector3(.29,.23,.22):new THREE.Vector3(.15,.18,.09) });
+    part('head', head, headShape?point(head,...headShape.center):point(head), [head], 5,
+      headShape?.length!==undefined?{kind:'capsule',radius:headShape.radius,length:headShape.length}
+        :{ kind: 'ball', radius: headShape?.radius??(stocky?.143:.115) });
     joints.push({ a: 'pelvis', b: 'torso', anchor: point(torso,0,0.08), kind: 'ball' },
       { a: 'torso', b: 'head', anchor: point(torso,0,0.44), kind: 'ball' });
     const hinge = (a: string, b: string, start: THREE.Vector3, middle: THREE.Vector3, end: THREE.Vector3) => {
@@ -500,17 +505,17 @@ export function createSkaterVisual(initialMode:RideMode='skate',initialCharacter
     for (const a of arms) {
       const id = `arm${a.side}`, fore = `fore${a.side}`, handId = `hand${a.side}`;
       const shoulder = point(a.shoulder), elbow = point(a.elbow), wrist = point(a.hand);
-      part(id, a.upper, a.upper.getWorldPosition(new THREE.Vector3()), [a.upper,a.sleeve,a.shoulder], 2.5, { kind: 'capsule', length: 0.25*armScale, radius: 0.04*(stocky?build.upperarm:1) });
-      part(fore, a.fore, a.fore.getWorldPosition(new THREE.Vector3()), [a.fore,a.elbow], 1.5, { kind: 'capsule', length: 0.24*armScale, radius: 0.03*(stocky?build.forearm:1) });
-      part(handId, a.hand, wrist, [a.hand], 0.5, { kind: 'ball', radius: 0.035*(stocky?build.hand:1) });
+      part(id, a.upper, a.upper.getWorldPosition(new THREE.Vector3()), [a.upper,a.sleeve,a.shoulder], 2.5, { kind: 'capsule', length: 0.25*armScale, radius: 0.04*(limbWidths?build.upperarm:1) });
+      part(fore, a.fore, a.fore.getWorldPosition(new THREE.Vector3()), [a.fore,a.elbow], 1.5, { kind: 'capsule', length: 0.24*armScale, radius: 0.03*(limbWidths?build.forearm:1) });
+      part(handId, a.hand, wrist, [a.hand], 0.5, { kind: 'ball', radius: 0.035*(limbWidths?build.hand:1) });
       joints.push({ a:'torso',b:id,anchor:shoulder,kind:'ball' }, { a:fore,b:handId,anchor:wrist,kind:'fixed' });
       hinge(id,fore,shoulder,elbow,wrist);
     }
     for (const l of legs) {
       const thigh = `thigh${l.side}`, shin = `shin${l.side}`, foot = `foot${l.side}`;
       const hip = point(hips,l.side*0.095*hipWidth), knee = point(l.knee), ankle = point(l.foot,0,0.06);
-      part(thigh,l.thigh,l.thigh.getWorldPosition(new THREE.Vector3()),[l.thigh],7,{kind:'capsule',length:RIDER.upperLeg*legScale,radius:characterHasShorts(character)?.045:0.065*(character==='kick'?1.2535:stocky?build.thigh:1)});
-      part(shin,l.shin,l.shin.getWorldPosition(new THREE.Vector3()),[l.shin,l.knee],4,{kind:'capsule',length:RIDER.lowerLeg*legScale,radius:characterHasShorts(character)?.033:0.05*(character==='kick'?1.311:stocky?build.shin:1)});
+      part(thigh,l.thigh,l.thigh.getWorldPosition(new THREE.Vector3()),[l.thigh],7,{kind:'capsule',length:RIDER.upperLeg*legScale,radius:characterHasShorts(character)?.045:0.065*(character==='kick'?1.2535:limbWidths?build.thigh:1)});
+      part(shin,l.shin,l.shin.getWorldPosition(new THREE.Vector3()),[l.shin,l.knee],4,{kind:'capsule',length:RIDER.lowerLeg*legScale,radius:characterHasShorts(character)?.033:0.05*(character==='kick'?1.311:limbWidths?build.shin:1)});
       part(foot,l.foot,point(l.foot,0,0.025,-0.02),[l.foot],1,{kind:'box',half:new THREE.Vector3(0.06,0.045,0.12)});
       joints.push({a:'pelvis',b:thigh,anchor:hip,kind:'ball'}, {a:shin,b:foot,anchor:ankle,kind:'fixed'});
       hinge(thigh,shin,hip,knee,ankle);

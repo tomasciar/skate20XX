@@ -86,7 +86,7 @@ test('each character has a distinct active look in both modes with planted feet 
     else {
       assert.equal(rig.parts.length,15);assert.equal(rig.joints.length,14);
       const build=characterProportions(id);
-      assert.equal(rig.parts.find(part=>part.id==='head')!.shape.radius,(id==='peter'?.143:.115)*build.bodyScale);
+      assert.equal(rig.parts.find(part=>part.id==='head')!.shape.radius,(id==='sahur'?.14:id==='peter'?.143:.115)*build.bodyScale);
       assert.equal(rig.parts.find(part=>part.id==='thigh1')!.shape.length,RIDER.upperLeg*build.legScale*build.bodyScale);
     }
     let meshes=0,triangles=0;
@@ -434,6 +434,14 @@ test('eyes and mouths are visible from the front instead of being buried in the 
     }
     if(id==='spiderman') {
       for(const side of [-1,1])assert.equal(visibleColor(side*.039,-.004),0xf6f8ee,'Spider-Man needs unobscured white lenses');
+      continue;
+    }
+    if(id==='sahur') {
+      for(const side of [-1,1]) {
+        assert.equal(visibleColor(side*.050,.104),0x17140f,'Sahur needs visible dark pupils');
+        assert.equal(visibleColor(side*.079,.105),0xe9dfc9,'Sahur needs visible eye whites');
+      }
+      assert.equal(visibleColor(0,-.034),0x302014,'Sahur smile must sit above the wooden surface');
       continue;
     }
     if(id==='sasuke'||id==='mj'||id==='onizuka') {

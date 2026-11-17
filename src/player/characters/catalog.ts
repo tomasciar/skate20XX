@@ -15,6 +15,7 @@ export const CHARACTERS=[
   {id:'sasuke',name:'Sasuke Uchiha'},
   {id:'mj',name:'Michael Jackson'},
   {id:'onizuka',name:'Eikichi Onizuka'},
+  {id:'sahur',name:'Triple T',modelName:'Tung Tung Tung Sahur'},
 ] as const;
 export type CharacterId=(typeof CHARACTERS)[number]['id'];
 export const CHARACTER_STORAGE_KEY='skate5.character';
@@ -44,6 +45,7 @@ const PALETTES:Record<CharacterId,CharacterPalette>={
   sasuke:{skin:0xe7c09c,shirt:0x20345c,pants:0xf4f1e8,arms:0xe7c09c,sleeves:0x20345c,shoes:0x243556,helmet:0x20345c,hair:0x1c202d,accent:0xb73e42,gloves:0xe7c09c,knees:0xe7c09c},
   mj:{skin:0xbc8767,shirt:0xf0e9d8,pants:0xf0e9d8,arms:0xf0e9d8,sleeves:0xf0e9d8,shoes:0x20232b,helmet:0xf0e9d8,hair:0x211d24,accent:0x5c87aa,gloves:0xbc8767,knees:0xf0e9d8},
   onizuka:{skin:0xcd946f,shirt:0xf3f1e5,pants:0x292b2d,arms:0xcd946f,sleeves:0xf3f1e5,shoes:0x72523c,helmet:0xf3f1e5,hair:0xe5bd45,accent:0x32383d,gloves:0xcd946f,knees:0x292b2d},
+  sahur:{skin:0xa76d36,shirt:0xa76d36,pants:0xa76d36,arms:0xa76d36,sleeves:0xa76d36,shoes:0xa76d36,helmet:0xa76d36,hair:0x69441f,accent:0x69441f,gloves:0xa76d36,knees:0xa76d36},
 };
 export function characterPalette(character:CharacterId,mode:RideMode):CharacterPalette {
   const palette=PALETTES[character];
@@ -75,6 +77,8 @@ const BUILDS:Record<CharacterId,CharacterBuild>={
   sasuke:{...BASE_BUILD,bodyScale:.96,legScale:.96,hipDrop:.04,headHeight:.54,chestWidth:.97,thigh:.94,shin:.96,knee:.65},
   mj:{...BASE_BUILD,chestWidth:.94,chestDepth:.62,upperarm:.94,forearm:.93,shoulder:.95,thigh:.97,shin:.96,knee:.70,elbow:.82,headHeight:.535},
   onizuka:{...BASE_BUILD,bodyScale:1.09,chestWidth:1.16,chestDepth:.72,upperarm:1.18,forearm:1.12,shoulder:1.14,thigh:1.03,shin:1.01,knee:.96,headHeight:.54},
+  sahur:{...BASE_BUILD,bodyScale:1.04,chestWidth:1,chestDepth:1,upperarm:.75,forearm:.80,shoulder:.62,
+    thigh:.50,shin:.65,knee:.48,elbow:.65,headHeight:.515,hand:1.20,pelvisWidth:.85,pelvisDepth:.85},
 };
 /** Cosmetic proportions are independent of the board and the riding collision solver. */
 export function characterProportions(character:CharacterId) {

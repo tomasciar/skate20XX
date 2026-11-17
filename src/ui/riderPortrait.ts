@@ -16,7 +16,9 @@ export function createRiderPortrait(renderer:THREE.WebGLRenderer,rider:THREE.Obj
   const viewport=new THREE.Vector4(),scissor=new THREE.Vector4();
   function refresh(character:CharacterId,mode:RideMode) {
     applyRideSkin(head,mode);applyCharacterSkin(head,character);
-    const name=CHARACTERS.find(item=>item.id===character)!.name;image.alt=`${name}: actual 3D face close-up`;title.textContent=name;
+    const info=CHARACTERS.find(item=>item.id===character)!;
+    const modelName='modelName' in info?info.modelName:info.name;
+    image.alt=`${modelName}: actual 3D face close-up`;title.textContent=info.name;
     if(!context || image.getClientRects().length===0)return;
     renderer.getViewport(viewport);renderer.getScissor(scissor);
     const scissorTest=renderer.getScissorTest(),autoClear=renderer.autoClear,ratio=renderer.getPixelRatio();
