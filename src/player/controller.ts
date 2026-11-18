@@ -1,4 +1,6 @@
 import type { InputState } from "../input.ts";
+import {clampSensitivity} from './movement/sensitivity.ts';
+import type {SensitivitySettings} from './movement/sensitivity.ts';
 
 export type PlayerIntent = {
   grabModifier: boolean;
@@ -12,6 +14,10 @@ export type PlayerIntent = {
   /** 1 push, -1 slide; controls pitch while aerial flip mode is active. */
   push: number;
   steer: number;
+  /** Independent rotation rates; movement forces and input directions remain normalized. */
+  carveSensitivity?:number;
+  flipSensitivity?:number;
+  turnSensitivity?:number;
   crouch: boolean;
   crouchHold: number;
   wantOllie: boolean;
@@ -26,6 +32,7 @@ export type PlayerIntent = {
 };
 
 export function createController() {
+  let sensitivity:SensitivitySettings={carve:1,flip:1,turn:1};
   let crouchHold = 0;
   let ollieArmed = false;
   let airSpaceHeld = false;
@@ -69,6 +76,7 @@ export function createController() {
       wantSlide: input.brake,
       push,
       steer,
+      carveSensitivity:sensitivity.carve,flipSensitivity:sensitivity.flip,turnSensitivity:sensitivity.turn,
       crouch: allowOllie && input.crouch,
       crouchHold,
       wantOllie,
@@ -87,5 +95,6 @@ export function createController() {
     return intent;
   }
 
-  return { update, reset() { crouchHold = 0; ollieArmed = airSpaceHeld = false; } };
+  return { update,setSensitivities(values:SensitivitySettings){sensitivity={carve:clampSensitivity(values.carve),flip:clampSensitivity(values.flip),turn:clampSensitivity(values.turn)};},
+    reset() { crouchHold = 0; ollieArmed = airSpaceHeld = false; } };
 }

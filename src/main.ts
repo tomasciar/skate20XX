@@ -26,6 +26,7 @@ import {createBoardControls} from './ui/boards';
 import {createCharacterControls} from './ui/characters';
 import {createRiderPortrait} from './ui/riderPortrait';
 import {createWeaponControls} from './ui/weapons';
+import {createSensitivityControls} from './ui/sensitivity';
 import {applyWeaponVisibility} from './player/characters/weapons';
 import {createScore} from './player/score';
 import {loadHighScore,saveHighScore} from './highScore';
@@ -145,6 +146,7 @@ async function main() {
   cameraToggle.addEventListener('click',()=>{toggleCamera();cameraToggle.blur();});
   const riderPortrait=createRiderPortrait(renderer,player.mesh);
   createHudOptions();
+  createSensitivityControls(values=>controller.setSensitivities(values));
   createWeaponControls(shown=>{applyWeaponVisibility(scene,shown);pausedSceneDirty=true;});
   createCharacterControls(character,next=>{input.clear();controller.reset();player.setCharacter(next);pausedSceneDirty=true;void preloadCharacterFace(next).then(()=>{pausedSceneDirty=true;});});
   createBoardControls(boardStyle,next=>{input.clear();controller.reset();player.setBoardStyle(next);pausedSceneDirty=true;});

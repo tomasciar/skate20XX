@@ -12,6 +12,7 @@ import type {PlayerIntent} from '../src/player/controller.ts';
 import {planChunk} from '../src/world/generation.ts';
 import {courseHeight,courseX} from '../src/world/course.ts';
 import {START_BOOST} from '../src/world/startPlatform.ts';
+import {BOARD} from '../src/player/dimensions.ts';
 
 const dt=1/120,rotation=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),-14*Math.PI/180);
 const normal=new THREE.Vector3(0,1,0).applyQuaternion(rotation),forward=new THREE.Vector3(0,0,-1).applyQuaternion(rotation);
@@ -115,27 +116,107 @@ test('ramp variety appears on both sides without filling the central riding corr
   assert.equal(planChunk(2).encounters[1]!.kind,'rail');
 });
 
-async function riddenRamp(kind:RampShape['kind'],side:-1|1,speed:number) {
+async function riddenRamp(kind:RampShape['kind'],side:-1|1,speed:number,mode:'skate'|'snowboard'='skate') {
   await RAPIER.init();
   const world=new RAPIER.World({x:0,y:-18,z:0});world.timestep=dt;
   const scene=new THREE.Scene(),root=new THREE.Group();root.quaternion.copy(rotation);scene.add(root);
   const ramp=shape(kind,side),center=20,entry=center-ramp.length/2;
   const floor=world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0,-0.25*normal.y,-0.25*normal.z).setRotation(rotation));
-  world.createCollider(RAPIER.ColliderDesc.cuboid(40,0.25,1000),floor);
+  world.createCollider(RAPIER.ColliderDesc.cuboid(200,0.25,1000),floor);
   const material=new THREE.MeshStandardMaterial(),mesh=new THREE.Mesh(createRampShapeGeometry(ramp),material);
   mesh.position.set(side*4.9,0,-center);root.add(mesh);root.updateMatrixWorld(true);
   // Bake in hill-local coordinates, then apply the hill transform just once to the collider.
   const baked=bakeSceneryCollision(root)!,body=world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setRotation(rotation));
-  world.createCollider(RAPIER.ColliderDesc.trimesh(baked.vertices,baked.indices),body);
+  const flags=kind==='bank'?RAPIER.TriMeshFlags.FIX_INTERNAL_EDGES:undefined;
+  world.createCollider(RAPIER.ColliderDesc.trimesh(baked.vertices,baked.indices,flags),body);
   const x=side*(4.9+(kind==='bank'?0.35*ramp.width:0));
   const spawn=new THREE.Vector3(x,0.02,-entry+3).applyQuaternion(rotation),anchor=new THREE.Vector3();
   const course:RampWorld={mesh:root,spawn,anchor,surfaceOrigin:anchor,endZ:-99999,surfaceNormal:normal.clone(),forward:forward.clone(),
     distance:0,grindRails:[],scroll:()=>new THREE.Vector3(),reset:()=>{},prepareNextChunk:()=>true,flushDeferredDestroy:()=>{}};
-  const player=createBoardPlayer(scene,world,course),tricks=createTrickSystem();
-  const tick=()=>{player.update(dt,idle,tricks.state);world.step();player.sync(false);};
+  const player=createBoardPlayer(scene,world,course,mode),tricks=createTrickSystem();
+  const tick=(intent=idle)=>{player.update(dt,intent,tricks.state);world.step();player.sync(false);};
   for(let i=0;i<60;i++)tick();player.body.setLinvel(forward.clone().multiplyScalar(speed),true);
   return {world,player,tick,geometry:mesh.geometry,material};
 }
+
+test('bank takeoffs retain the launch angle without snapping upright or throwing the rider off the board',async()=>{
+  for(const mode of ['skate','snowboard'] as const)for(const side of [-1,1] as const)for(const speed of [20,45,70,90]) {
+    const f=await riddenRamp('bank',side,speed,mode);
+    try {
+      let launched=false,landed=false,previousAir=false,transition=0;
+      for(let i=0;i<600;i++) {
+        const before=new THREE.Quaternion().copy(f.player.body.rotation());
+        f.tick();f.player.render(1,dt);
+        assert.equal(f.player.crashed,false,`${mode} bank ${side} at ${speed}, frame ${i}: ${f.player.crashCause}, along ${f.player.position.dot(forward)}, height ${f.player.position.dot(normal)}`);
+        if(f.player.airborne && !previousAir && f.player.position.dot(normal)>.3) {
+          launched=true;transition=before.angleTo(new THREE.Quaternion().copy(f.player.body.rotation()));
+          assert.ok(transition<.16,`${mode} bank ${side} at ${speed}: takeoff snapped ${transition*180/Math.PI} degrees`);
+        }
+        if(launched) {
+          for(const side of [-1,1]) {
+            const foot=f.player.mesh.getObjectByName(`foot-${side}`)!;
+            const board=f.player.mesh.children[0]!;
+            const sole=board.worldToLocal(foot.localToWorld(new THREE.Vector3(0,BOARD.soleBottom,0)));
+            assert.ok(Math.abs(sole.y-BOARD.gripY)<1e-5,'both feet must remain attached to the board during launch');
+          }
+          if(!f.player.airborne){landed=true;break;}
+        }
+        previousAir=f.player.airborne;
+      }
+      assert.ok(launched && landed,`${mode} bank ${side} at ${speed}: complete a rideable flight and landing`);
+    } finally {f.world.free();f.geometry.dispose();f.material.dispose();}
+  }
+});
+
+test('the generated purple bank launches a Nimbus rider smoothly in either riding mode',async()=>{
+  await RAPIER.init();
+  const context=new Proxy({},{get:()=>()=>{}});
+  Object.assign(globalThis,{document:{createElement:()=>({getContext:()=>context})}});
+  for(const mode of ['skate','snowboard'] as const)for(const speed of [20,70]) {
+    const world=new RAPIER.World({x:0,y:-18,z:0});world.timestep=dt;
+    const scene=new THREE.Scene(),ramp=createRamp(scene,world,{mode,startPlatform:false});
+    const player=createBoardPlayer(scene,world,ramp,mode,'goku','nimbus'),tricks=createTrickSystem();
+    try {
+      const bank=planChunk(2).encounters[0]!,entry=2*RAMP.chunkLength+bank.along-bank.length/2;
+      const at=ramp.anchor.clone().addScaledVector(ramp.forward,entry-3).addScaledVector(ramp.surfaceNormal,.22);
+      at.x=bank.x-.35*bank.width;player.body.setTranslation(at,true);
+      const tick=()=>{player.update(dt,idle,tricks.state);world.step();player.sync(false);player.render(1,dt);};
+      for(let i=0;i<30;i++)tick();player.body.setLinvel(ramp.forward.clone().multiplyScalar(speed),true);
+      let airFrames=0,previousAir=false;
+      for(let i=0;i<240 && airFrames<30;i++) {
+        const before=new THREE.Quaternion().copy(player.body.rotation());tick();
+        assert.equal(player.crashed,false,`${mode} at ${speed}: ${player.crashCause}`);
+        if(player.airborne && player.position.clone().sub(ramp.anchor).dot(ramp.surfaceNormal)>.3) {
+          if(!previousAir)assert.ok(before.angleTo(new THREE.Quaternion().copy(player.body.rotation()))<.16);
+          airFrames++;
+        }
+        previousAir=player.airborne;
+      }
+      assert.equal(airFrames,30,'complete a sustained launch from the actual generated bank');
+    } finally {world.free();}
+  }
+});
+
+test('banked launch angles still allow flips and keep both feet with the deck',async()=>{
+  const f=await riddenRamp('bank',-1,45);
+  try {
+    for(let i=0;i<240 && !f.player.airborne;i++)f.tick();
+    assert.equal(f.player.airborne,true);
+    for(let i=0;i<20;i++)f.tick();
+    const before=new THREE.Quaternion().copy(f.player.body.rotation());
+    for(let i=0;i<20;i++) {
+      f.tick({...idle,toggleAirFlip:i===0,push:1});f.player.render(1,dt);
+      assert.equal(f.player.crashed,false);
+      for(const side of [-1,1]) {
+        const foot=f.player.mesh.getObjectByName(`foot-${side}`)!;
+        const sole=f.player.mesh.children[0]!.worldToLocal(foot.localToWorld(new THREE.Vector3(0,BOARD.soleBottom,0)));
+        assert.ok(Math.abs(sole.y-BOARD.gripY)<1e-5);
+      }
+    }
+    assert.equal(f.player.aerial.active,true);
+    assert.ok(before.angleTo(new THREE.Quaternion().copy(f.player.body.rotation()))>.7);
+  } finally {f.world.free();f.geometry.dispose();f.material.dispose();}
+});
 
 test('curved ramps launch and land the actual rider with forward momentum using the existing physics',async()=>{
   for(const speed of [18,35,55,70]) {

@@ -22,6 +22,7 @@ import type {CharacterId} from './characters/catalog.ts';
 import type {BoardStyleId} from '../boards.ts';
 import {isLooseProp,isSolidObstacle,strikeLooseProp} from '../world/looseProps.ts';
 import {createRideContact,RIDE_CONTACT} from './movement/rideContact.ts';
+import {clampSensitivity} from './movement/sensitivity.ts';
 
 /** Person-sized inertia so flips take a real moment, not a frisbee twitch. */
 const INERTIA = { x: 14, y: 9, z: 6 };
@@ -185,7 +186,14 @@ export function createBoardPlayer(
   // orientation continuous across a catch or exit, are layered onto the yaw-based deck frame.
   const grindPoint = new THREE.Vector3(), deckTilt = new THREE.Quaternion(), settle = new THREE.Quaternion();
   const settled = new THREE.Quaternion(), tiltAxis = new THREE.Vector3(1,0,0);
+  const inverseLaunch=new THREE.Quaternion();
   let deckPitch = 0, resettle = false;
+  let settleRate=10,launchSettle=false;
+
+  function preserveLaunchAngle() {
+    // holdDeck captures the current orientation relative to the airborne frame before switching planes.
+    resettle=true;launchSettle=true;settleRate=4;
+  }
 
   function sampleVisualSupport(at: THREE.Vector3) {
     // A grind keeps the wheel offset it arrived with, so the visible board never hops at a catch or exit.
@@ -252,7 +260,9 @@ export function createBoardPlayer(
     q.multiply(settle);
     if(air.state.engaged && !grounded && !grind.state.active) {
       nextAirOffset.copy(pivot).applyQuaternion(q);
-      q.multiply(air.rotation);
+      // Input still turns in the course frame while a bank's initial roll eases away.
+      if(launchSettle)q.multiply(inverseLaunch.copy(settle).invert()).multiply(air.rotation).multiply(settle);
+      else q.multiply(air.rotation);
       nextAirOffset.sub(rotatedPivot.copy(pivot).applyQuaternion(q));
       // Rotate around the rider's center while the center follows the ballistic trajectory.
       const t=body.translation();
@@ -296,7 +306,7 @@ export function createBoardPlayer(
     rideContact.reset();surfaceUp.copy(ramp.surfaceNormal);
     slide.reset();
     air.reset();airOffset.set(0,0,0);previousAirOffset.set(0,0,0);
-    grind.reset(); deckPitch = 0; resettle = false; settle.identity();
+    grind.reset(); deckPitch = 0; resettle = launchSettle = false; settleRate=10;settle.identity();
     visual.resetPose();
     visualHeightOffset = -0.11;
     poseDt = posePush = 0;
@@ -478,15 +488,18 @@ export function createBoardPlayer(
     previousPosition.copy(position); previousQuat.copy(quat);
     previousAirOffset.copy(airOffset);
     if (Math.abs(settle.w) > 0.9999999) settle.identity();
-    else settle.slerp(settled, 1 - Math.exp(-10 * dt));
+    else settle.slerp(settled, 1 - Math.exp(-settleRate * dt));
     if (tricks.bail) { startCrash(tricks, velocity, 'trick'); return; }
     if (obstacleAhead(dt)) { startCrash(tricks, velocity, 'obstacle'); return; }
     ramp.directionAt?.(position,courseForward);
     const courseYaw=Math.atan2(-courseForward.x,courseForward.dot(ramp.forward));
+    const carveSensitivity=clampSensitivity(intent.carveSensitivity??1);
+    const flipSensitivity=clampSensitivity(intent.flipSensitivity??1);
+    const turnSensitivity=clampSensitivity(intent.turnSensitivity??1);
     const wantSlide=intent.wantSlide ?? intent.push<0;
     const boostSpeed=ramp.boostAt?.(position) ?? 0;
     if(!boostSpeed)boostEntered=false;
-    air.update(dt,intent.toggleAirFlip ?? false,intent.push,intent.steer,rideContact.airborne && !grind.state.active,yaw-courseYaw);
+    air.update(dt,intent.toggleAirFlip ?? false,intent.push,intent.steer,rideContact.airborne && !grind.state.active,yaw-courseYaw,flipSensitivity);
     aeroTuck=THREE.MathUtils.damp(aeroTuck,THREE.MathUtils.clamp(intent.crouchHold,0,1),12,dt);
     pump.update(dt, intent.push > 0, speed, !rideContact.airborne && !wantSlide && !grind.state.active && !slide.state.active && !tricks.ground && !intent.crouch && !intent.wantOllie && !tricks.bail);
     ollieCooldown = Math.max(0, ollieCooldown - dt);
@@ -500,13 +513,13 @@ export function createBoardPlayer(
     const steering=air.state.active ? 0 : intent.steer;
     const slideYaw=slide.update(dt,wantSlide,steering,yaw,
       Math.atan2(-velocity.x,velocity.dot(ramp.forward)),speed,
-      (!rideContact.airborne || canOllie()) && !grind.state.active && !air.state.engaged);
+      (!rideContact.airborne || canOllie()) && !grind.state.active && !air.state.engaged,turnSensitivity);
     lean = THREE.MathUtils.damp(lean, slide.state.active ? 0 : steering, !rideContact.airborne ? CARVE.response : 8, dt);
 
     // On the road the trucks turn as weight shifts onto an edge; in the air the rider spins freely.
     const previousYaw=yaw;
     if (slide.state.active) yaw=slideYaw;
-    else yaw = slideYaw - (!rideContact.airborne ? lean * carveTurnRate(speed) * dt : steering * AIR_YAW_SPEED * dt);
+    else yaw = slideYaw - (!rideContact.airborne ? lean * carveTurnRate(speed)*carveSensitivity : steering * AIR_YAW_SPEED*turnSensitivity)*dt;
     yaw = Math.atan2(Math.sin(yaw), Math.cos(yaw));
     yawVelocity=rideContact.airborne&&!grind.state.active&&dt>0?Math.atan2(Math.sin(yaw-previousYaw),Math.cos(yaw-previousYaw))/dt:0;
 
@@ -520,7 +533,7 @@ export function createBoardPlayer(
       // The board keeps whatever heading it has on the rail, sideways included, into the air.
       yaw = Math.atan2(-grind.heading.x,grind.heading.dot(ramp.forward));
       deckPitch = grind.state.active ? grind.pitch : 0;
-      if (!wasGrinding || !grind.state.active) resettle = true;
+      if (!wasGrinding || !grind.state.active) {resettle=true;settleRate=10;launchSettle=false;}
       grounded = false; followSurface = grind.state.active; wasOnKicker = false;
       rideContact.takeoff();
       ollieGrace = pendingOllie = 0; nearGround = false;
@@ -607,7 +620,9 @@ export function createBoardPlayer(
       const road=world.castRay(new RAPIER.Ray(position,down),.6,true,undefined,undefined,undefined,body,isSolidObstacle);
       clearDeparture=!road || road.timeOfImpact>REST+WHEEL_R+.02+.15;
     }
+    const wasAirborne=rideContact.airborne;
     const landed=rideContact.update(dt,supported,nearRoad,-velocity.dot(contactN),clearDeparture);
+    const startingFlight=!wasAirborne && rideContact.airborne;
     const landingFromStart=introLanding && tmp.copy(position).sub(ramp.spawn).dot(ramp.surfaceNormal)<-2;
     if (!grounded && leaveGround <= 0 && wheelsDown >= 2) {
       // Touchdown: a board pointing along its travel can take a harder hit, more so the faster it rolls.
@@ -637,6 +652,8 @@ export function createBoardPlayer(
 
     // Wheel grip and pushing still require real suspension contact.
     if (grounded) {
+      // The launch offset belongs to the airborne frame. Do not apply it again on the landing plane.
+      if(launchSettle){settle.identity();resettle=launchSettle=false;settleRate=10;}
       if(air.state.engaged) {
         const courseRight=new THREE.Vector3().crossVectors(ramp.forward,ramp.surfaceNormal);
         yaw=Math.atan2(-forward.dot(courseRight),forward.dot(ramp.forward));
@@ -656,6 +673,7 @@ export function createBoardPlayer(
         grounded = false;
         rideContact.takeoff();
         followSurface = false;
+        preserveLaunchAngle();
         holdDeck();
       } else {
         wasOnKicker = onKicker;
@@ -720,7 +738,9 @@ export function createBoardPlayer(
         wasOnKicker = false;
         leaveGround = Math.max(leaveGround, 0.35);
         rideContact.takeoff();
+        preserveLaunchAngle();
       }
+      else if(startingFlight)preserveLaunchAngle();
       // A seam or shallow skim keeps the last support plane instead of snapping to the base hill.
       followSurface = !rideContact.airborne;
       if(followSurface && nearRoad)surfaceUp.copy(rollingNormal);
@@ -748,6 +768,7 @@ export function createBoardPlayer(
       nearGround = grounded = followSurface = false;
       rideContact.takeoff();
       slide.reset();
+      preserveLaunchAngle();
       holdDeck();
     }
 

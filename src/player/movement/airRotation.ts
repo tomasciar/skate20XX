@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {clampSensitivity} from './sensitivity.ts';
 
 /** `pitch` and `roll` accumulate signed radians about the rider's local axes; positive pitch is a backflip. */
 export type AirRotationState = { active: boolean; engaged: boolean; pitch: number; roll: number };
@@ -22,14 +23,14 @@ export function createAirRotation() {
    * `heading` is the board's yaw away from straight down the course. Inputs are read in the course's frame
    * (the camera's), so W always tumbles forward down the hill, whichever way the board happens to point.
    */
-  function update(dt: number, toggle: boolean, pitch: number, roll: number, airborne: boolean, heading = 0) {
+  function update(dt: number, toggle: boolean, pitch: number, roll: number, airborne: boolean, heading = 0,sensitivity=1) {
     if(!airborne) { reset();return; }
     if(toggle) { state.active=!state.active;state.engaged=true; }
     // Switching back to steering preserves the aerial pose without continuing to tumble.
     if(!state.active) { velocity.set(0,0,0);setLean();return; }
     target.set(-pitch,0,-roll).applyAxisAngle(UP,-heading);
     if(target.lengthSq()>1)target.normalize();
-    target.multiplyScalar(AIR_ROTATION_SPEED);
+    target.multiplyScalar(AIR_ROTATION_SPEED*clampSensitivity(sensitivity));
     velocity.lerp(target,1-Math.exp(-14*dt));
     setLean();
     const speed=velocity.length();

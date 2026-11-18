@@ -1,3 +1,5 @@
+import {clampSensitivity} from './sensitivity.ts';
+
 export const SLIDE = {
   response: 12,
   deceleration: 18,
@@ -20,7 +22,7 @@ export function createSlide() {
     state.active=state.choosing=false;state.amount=0;state.side=1;
   }
 
-  function update(dt:number,held:boolean,steer:number,yaw:number,motionYaw:number,speed:number,supported:boolean) {
+  function update(dt:number,held:boolean,steer:number,yaw:number,motionYaw:number,speed:number,supported:boolean,sensitivity=1) {
     if (!supported) { reset();return yaw; }
     if (speed>SLIDE.minSpeed) travelYaw=motionYaw;
     if (held && phase!=='held' && (state.active || speed>SLIDE.minSpeed)) {
@@ -40,7 +42,7 @@ export function createSlide() {
     if (!state.active) return yaw;
     const target=travelYaw+(phase==='recovering' ? (exitFacing<0 ? Math.PI : 0) : state.side*Math.PI/2);
     const difference=wrap(target-yaw);
-    const next=wrap(yaw+difference*(1-Math.exp(-SLIDE.response*dt)));
+    const next=wrap(yaw+difference*(1-Math.exp(-SLIDE.response*clampSensitivity(sensitivity)*dt)));
     state.amount=Math.sin(next-travelYaw)**2;
     if (phase==='recovering' && Math.abs(wrap(target-next))<0.02) {
       phase='idle';state.active=false;state.amount=0;

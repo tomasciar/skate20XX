@@ -42,16 +42,37 @@
         <span id="board-swatch" aria-hidden="true"></span>
         <select id="board-select" aria-label="Board design"></select>
       </div>
-      <div id="hud-options" role="group" aria-label="Display options">
-        <button type="button" data-option="controls" aria-pressed="true" title="Show or hide the key guide at the bottom of the screen">Show controls</button>
-        <button type="button" data-option="tricks" aria-pressed="true" title="Show or hide trick, grind and landing names in the middle of the screen">Show trick names</button>
-        <button id="weapon-toggle" type="button" aria-pressed="true" title="Show or hide the rider's sword or bat">Show held weapons</button>
-        <button id="camera-toggle" type="button" aria-pressed="false" title="Switch camera view (V)">First person · V</button>
+      <div id="ride-settings">
+        <div id="hud-options" role="group" aria-label="Game options">
+          <button type="button" data-option="controls" aria-pressed="true" title="Show or hide the key guide at the bottom of the screen">Show controls</button>
+          <button type="button" data-option="tricks" aria-pressed="true" title="Show or hide trick, grind and landing names in the middle of the screen">Show trick names</button>
+          <button id="weapon-toggle" type="button" aria-pressed="true" title="Show or hide the rider's sword or bat">Show held weapons</button>
+          <button id="camera-toggle" type="button" aria-pressed="false" title="Switch camera view (V)">First person · V</button>
+          <fieldset class="sensitivity-settings">
+            <legend>Movement sensitivity</legend>
+            <div class="sensitivity-setting">
+              <label for="carve-sensitivity">Carve speed <output id="carve-sensitivity-value" for="carve-sensitivity" aria-hidden="true">1.00×</output></label>
+              <input id="carve-sensitivity" type="range" min="0.5" max="2" step="0.05" value="1" aria-describedby="carve-sensitivity-hint" />
+              <span id="carve-sensitivity-hint" class="sensitivity-hint">Ground steering</span>
+            </div>
+            <div class="sensitivity-setting">
+              <label for="flip-sensitivity">Flip speed <output id="flip-sensitivity-value" for="flip-sensitivity" aria-hidden="true">1.00×</output></label>
+              <input id="flip-sensitivity" type="range" min="0.5" max="2" step="0.05" value="1" aria-describedby="flip-sensitivity-hint" />
+              <span id="flip-sensitivity-hint" class="sensitivity-hint">Flips &amp; rolls in flip mode</span>
+            </div>
+            <div class="sensitivity-setting">
+              <label for="turn-sensitivity">Turn speed <output id="turn-sensitivity-value" for="turn-sensitivity" aria-hidden="true">1.00×</output></label>
+              <input id="turn-sensitivity" type="range" min="0.5" max="2" step="0.05" value="1" aria-describedby="turn-sensitivity-hint" />
+              <span id="turn-sensitivity-hint" class="sensitivity-hint">Air steering &amp; boardslide turns</span>
+            </div>
+            <div class="sensitivity-limits"><span>0.5×</span><span>Default 1×</span><span>2×</span></div>
+          </fieldset>
+        </div>
+        <figure id="rider-preview">
+          <img id="rider-portrait" width="192" height="224" alt="Rider face close-up" />
+          <figcaption><span id="rider-portrait-name"></span><span>3D face close-up</span></figcaption>
+        </figure>
       </div>
-      <figure id="rider-preview">
-        <img id="rider-portrait" width="192" height="224" alt="Rider face close-up" />
-        <figcaption><span id="rider-portrait-name"></span><span>3D face close-up</span></figcaption>
-      </figure>
       <div id="audio-controls" role="group" aria-label="Game audio">
         <button id="audio-mute" type="button" aria-pressed="false">Sound on · M</button>
         <input id="audio-volume" type="range" min="0" max="100" step="1" value="55" aria-label="Sound volume" />
