@@ -1,14 +1,18 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
-import { createRamp } from '../src/world/ramp.ts';
+import { createRamp,RAMP } from '../src/world/ramp.ts';
 import { createBoardPlayer } from '../src/player/board.ts';
 import { createTrickSystem } from '../src/player/tricks/tricks.ts';
 import { steerAlongCourse } from './driveCourse.ts';
+import {BOARD_STYLES} from '../src/boards.ts';
 const context = new Proxy({}, { get: () => () => {} });
 Object.assign(globalThis, { document: { createElement: () => ({ width: 0, height: 0, getContext: () => context }) } });
 await RAPIER.init();
 const world = new RAPIER.World({ x: 0, y: -18, z: 0 }); world.timestep = 1 / 120;
-const scene = new THREE.Scene(), ramp = createRamp(scene, world), player = createBoardPlayer(scene, world, ramp);
+const requestedBoard=process.argv.find(arg=>arg.startsWith('--board='))?.slice(8)??'classic';
+const style=BOARD_STYLES.find(board=>board.id===requestedBoard);
+if(!style)throw new Error(`Unknown board: ${requestedBoard}`);
+const scene = new THREE.Scene(), ramp = createRamp(scene, world), player = createBoardPlayer(scene, world, ramp,'skate','boy',style.id);
 const tricks = createTrickSystem();
 const intent = { grabModifier: false, grabDX: 0, grabDY: 0, push: 1, steer: 0, crouch: false, crouchHold: 0, wantOllie: false, olliePower: 0, reset: false, flickDX: 0, flickDY: 0, flickReady: false };
 // Match the game's pre-start suspension/physics warm-up, excluding first-use WASM work.
@@ -18,8 +22,8 @@ for (let tick=0; tick<90; tick++) {
 player.render(1,1/60);
 const split = process.argv.includes('--split-render');
 const samples: number[] = [], streams: number[] = [], preparations: number[] = [];
+const totalSamples:number[]=[];
 const prepare = process.argv.includes("--prepare");
-let preparedAt = -1;
 for (let frame = 0; frame < 3600; frame++) {
   const distance = ramp.distance, before = performance.now();
   for (let tick = 0; tick < 2; tick++) {
@@ -30,18 +34,23 @@ for (let frame = 0; frame < 3600; frame++) {
   if (split) (player as unknown as { render(alpha: number, dt: number): void }).render(1, 1 / 60);
   const elapsed = performance.now() - before;
   samples.push(elapsed); if (ramp.distance !== distance) streams.push(elapsed);
-  if (prepare && preparedAt !== ramp.distance && player.position.clone().sub(ramp.anchor).dot(ramp.forward) > 30) {
-    const start = performance.now(); const done = ramp.prepareNextChunk(2); preparations.push(performance.now() - start); if (done) preparedAt = ramp.distance;
+  if (prepare) {
+    const start = performance.now();ramp.prepareNextChunk(RAMP.prepareBudgetMs);preparations.push(performance.now() - start);
   }
+  totalSamples.push(performance.now()-before);
 }
 samples.sort((a,b) => a-b); streams.sort((a,b) => a-b); preparations.sort((a,b) => a-b);
+totalSamples.sort((a,b)=>a-b);
 console.log(JSON.stringify({
   mode: split ? 'render once per frame' : 'render every physics tick',
+  board:style.id,preparationBudgetMs:prepare?RAMP.prepareBudgetMs:0,
   simulationSeconds: 60, distanceMeters: Math.round(ramp.distance),
   meanFrameCpuMs: samples.reduce((a,b) => a+b,0) / samples.length,
   p95FrameCpuMs: samples[Math.floor(samples.length * 0.95)],
   p95StreamingFrameCpuMs: streams[Math.floor(streams.length * 0.95)],
   p95IdlePreparationCpuMs: preparations[Math.floor(preparations.length * 0.95)] ?? null,
-  maxFrameCpuMs: samples.at(-1), note: 'CPU only; excludes browser/GPU rendering. Prepared chunks are measured separately to model idle work.',
+  p95FrameCpuWithPreparationMs:totalSamples[Math.floor(totalSamples.length*.95)],
+  maxFrameCpuWithPreparationMs:totalSamples.at(-1),
+  maxFrameCpuMs: samples.at(-1), note: 'CPU only; excludes browser/GPU rendering. Total frame timings include the same per-frame preparation budget as the game.',
 }, null, 2));
 world.free();

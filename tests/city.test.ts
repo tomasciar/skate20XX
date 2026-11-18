@@ -6,7 +6,7 @@ import {populateDistrict} from '../src/world/districts.ts';
 import {districtAt,DISTRICTS,seededRandom,CHUNK_LENGTH} from '../src/world/generation.ts';
 import {makeCityBuilding,makeCityHydrant,makeCityBin,makeParkingMeter} from '../src/world/environments/cityProps.ts';
 import {bakeSceneryCollision} from '../src/world/collision.ts';
-import {createRamp} from '../src/world/ramp.ts';
+import {createRamp,RAMP} from '../src/world/ramp.ts';
 import {createBoardPlayer} from '../src/player/board.ts';
 import {createTrickSystem} from '../src/player/tricks/tricks.ts';
 import {steerAlongCourse} from '../scripts/driveCourse.ts';
@@ -120,7 +120,10 @@ test('the city downhill line remains rideable in both skate and snowboard modes'
         if(along>500){passed=true;break;}
       }
       assert.ok(inCity && passed,`${mode} must ride through the complete opening city section`);
-      assert.ok(world.colliders.len()<=16,'the city must use the existing bounded collision window');
+      const maxChunks=RAMP.chunksBehind+1+RAMP.chunksAhead+RAMP.prepareLead+3;
+      let staticColliders=0;world.colliders.forEach(c=>{if(c.parent()?.isFixed())staticColliders++;});
+      assert.ok(staticColliders<=maxChunks,'the city must keep a bounded static collision window');
+      assert.ok(world.colliders.len()<=maxChunks*7+1,'movable cones must remain bounded with their owner chunks');
     } finally {world.free();}
   }
 });

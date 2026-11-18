@@ -3,7 +3,7 @@ import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { basePixelRatio, createRenderQuality } from "./renderQuality";
 import { createInput } from "./input";
-import { createRamp } from "./world/ramp";
+import { createRamp,RAMP } from "./world/ramp";
 import { createBoardPlayer } from "./player/board";
 import { createController } from "./player/controller";
 import { createTrickSystem } from "./player/tricks/tricks";
@@ -203,7 +203,7 @@ async function main() {
   }
   function prepareCourse() {
     // Nibble upcoming chunks every frame so scroll never has to build on the camera frame.
-    ramp.prepareNextChunk(4);
+    ramp.prepareNextChunk(RAMP.prepareBudgetMs);
   }
   function audioState(): RideAudioState {
     return {

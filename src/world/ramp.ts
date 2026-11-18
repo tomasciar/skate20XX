@@ -29,6 +29,8 @@ export const RAMP = {
   chunksAhead: 8,
   /** Extra chunks to finish off-thread before they enter the live window. */
   prepareLead: 3,
+  /** Leave room for browser/GPU rendering while filling the three-chunk lead. */
+  prepareBudgetMs:1.5,
   /** Keep a little behind so despawn never flashes in the mirror. */
   chunksBehind: 2,
   centerY: 22,
@@ -76,6 +78,7 @@ type Chunk = {
   cones: LooseCone[];
   rails: { id: string; start: THREE.Vector3; end: THREE.Vector3; normal?: THREE.Vector3 }[];
 };
+type ChunkStep=void|'frame';
 
 export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{startPlatform?:boolean;mode?:RideMode}={}): RampWorld {
   let mode=options.mode ?? 'skate';
@@ -102,7 +105,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
   let cursor = 0;
   let distance = 0;
   let grindRails: GrindRail[] = [];
-  let preparation: { index: number; steps: Generator<void> } | null = null;
+  let preparation: { index: number; steps: Generator<ChunkStep> } | null = null;
 
   function worldFromLocal(local: THREE.Vector3) {
     return local.clone().applyQuaternion(q).add(hill.position);
@@ -141,7 +144,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
   function buildChunk(index: number) {
     for (const _ of generateChunk(index)) { void _; }
   }
-  function* generateChunk(index: number): Generator<void> {
+  function* generateChunk(index: number): Generator<ChunkStep> {
     destroyChunk(index);
     const rng = seededRandom(Math.imul(index, 2654435761) ^ 0x9e3779b9);
     const { district, entering, encounters } = planChunk(index);
@@ -307,8 +310,12 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
     yield;
     const solid = yield* bakeSceneryCollisionSteps(root);
     if (solid) {
+      // Rapier builds the triangle mesh's acceleration structure synchronously. Do not stack
+      // that indivisible operation onto geometry work already done in this display frame.
+      yield 'frame';
       addCollider(RAPIER.ColliderDesc.trimesh(solid.vertices,solid.indices),new THREE.Vector3());
       root.userData.solidMeshes = solid.meshCount; root.userData.collisionTriangles = solid.indices.length/3;
+      yield 'frame';
     }
 
     function addCollider(desc: RAPIER.ColliderDesc, local: THREE.Vector3) {
@@ -413,11 +420,13 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
     }
     const start = performance.now();
     do {
-      if (preparation.steps.next().done) {
+      const step=preparation.steps.next();
+      if (step.done) {
         preparation = null;
         refreshRails();
         return next >= limit;
       }
+      if(step.value==='frame' && Number.isFinite(budgetMs))return false;
     } while (performance.now() - start < budgetMs);
     return false;
   }
