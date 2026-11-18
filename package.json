@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "bench": "node --experimental-strip-types scripts/benchmark.ts --split-render --prepare",
+    "bench:rider": "node --experimental-strip-types scripts/benchmarkRider.ts",
     "bench:world": "node --experimental-strip-types scripts/benchmarkWorld.ts"
   },
   "devDependencies": {

@@ -2,18 +2,26 @@ import * as THREE from 'three';
 import { createPumpCycle } from '../movement/pump.ts';
 import type { PumpState } from '../movement/pump.ts';
 
-/** A pole selects which side of the shoulder/wrist or hip/ankle line the joint occupies. */
-export function solveLimb(start: THREE.Vector3, target: THREE.Vector3, pole: THREE.Vector3, upper: number, lower: number) {
-  const axis = target.clone().sub(start);
-  const distance = THREE.MathUtils.clamp(axis.length(), Math.abs(upper - lower) + 0.0001, upper + lower - 0.0001);
-  axis.normalize();
-  const bend = pole.clone().addScaledVector(axis, -pole.dot(axis)).normalize();
-  const along = (upper * upper - lower * lower + distance * distance) / (2 * distance);
-  const height = Math.sqrt(Math.max(0, upper * upper - along * along));
-  return {
-    joint: start.clone().addScaledVector(axis, along).addScaledVector(bend, height),
-    end: start.clone().addScaledVector(axis, distance),
+/** Reusable two-bone solver. Its joint/end vectors belong to this solver until the next call. */
+export function createLimbSolver() {
+  const axis=new THREE.Vector3(),bend=new THREE.Vector3();
+  const result={joint:new THREE.Vector3(),end:new THREE.Vector3()};
+  return (start:THREE.Vector3,target:THREE.Vector3,pole:THREE.Vector3,upper:number,lower:number)=>{
+    axis.copy(target).sub(start);
+    const distance=THREE.MathUtils.clamp(axis.length(),Math.abs(upper-lower)+0.0001,upper+lower-0.0001);
+    axis.normalize();
+    bend.copy(pole).addScaledVector(axis,-pole.dot(axis)).normalize();
+    const along=(upper*upper-lower*lower+distance*distance)/(2*distance);
+    const height=Math.sqrt(Math.max(0,upper*upper-along*along));
+    result.joint.copy(start).addScaledVector(axis,along).addScaledVector(bend,height);
+    result.end.copy(start).addScaledVector(axis,distance);
+    return result;
   };
+}
+
+/** A pole selects which side of the shoulder/wrist or hip/ankle line the joint occupies. */
+export function solveLimb(start:THREE.Vector3,target:THREE.Vector3,pole:THREE.Vector3,upper:number,lower:number) {
+  return createLimbSolver()(start,target,pole,upper,lower);
 }
 
 /** The elbow points back (+Z); the forearm folds toward the front (-Z).

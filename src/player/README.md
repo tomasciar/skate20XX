@@ -18,7 +18,9 @@ The root contains the player entry points: `board.ts` coordinates the simulation
 
 `characters/registry.ts` maps every character ID to a typed model definition. Each definition supplies a profile, head/outfit construction, limb details and shoes, with optional thigh, hip and hand attachments. Models can also supply a custom head, cached rig-part geometry, vertex colours, footwear visibility and fitted crash shapes. These optional policies let non-human riders use the existing skeleton without character-ID branches in the rig. Related characters can share builders. The original five designs live in `models/classicRiders.ts`; their geometry and expressions are preserved.
 
-`characters/visuals.ts` assembles the registered models, keeps character/mode visibility tags, and batches rigid details. The shared rig in `visuals/skaterVisual.ts` calls those assembly functions and animates the bones. Character-specific props, such as Finn's sword, belong to the registry and model builders. They attach to the existing bones so captured crash parts inherit them too.
+`characters/visuals.ts` registers attachment slots on the shared rig. Selecting a rider authors only that character's required attachments, batches their rigid details, and caches immutable templates. Instances share the templates' geometry and materials. Previously selected attachments are detached and cached per slot, keeping the animated scene small even after visiting the whole roster. The shared rig in `visuals/skaterVisual.ts` animates the bones independently of these attachments.
+
+Slot metadata is plain data so portraits and ragdoll clones can select characters that have not been built for that clone yet. Per-slot caches use weak ownership; they do not keep expired rigs alive. Geometry and materials belong to the template cache, so switching characters and clearing crash clones must not dispose them. Character-specific props, such as Finn's sword, belong to the registry and model builders and attach to the existing bones. Mode and weapon preferences are stored on slots and applied to newly attached details before they become visible.
 
 Shared geometry, head profiles, hands and cached limb alternatives live in `characters/geometry.ts`. Small authoring helpers, hair and insignia are alongside it. Image assets remain in `src/assets/faces/`; moving a face module must preserve its asset URL and lazy loading/cache behavior.
 
@@ -31,6 +33,12 @@ Shared geometry, head profiles, hands and cached limb alternatives live in `char
 5. Check both riding modes, grips, planted soles, crash attachments, portraits and the existing per-rider geometry budgets.
 
 Movement and scoring modules should not import individual character builders. Pose modules describe motion; model builders describe appearance. Folder organization itself does not change simulation timing or rendering performance.
+
+## Animation workspaces
+
+Physics rays, board-alignment math and rendered limb targets use per-player workspaces. `createLimbSolver` and `createGrabTransform` return reusable results for a rig; copy any result that must survive the next call. The standalone `solveLimb`, `solveArm` and `grabTransform` helpers retain fresh-result behavior for independent callers. Crash capture still creates owned vectors because the ragdoll retains that pose.
+
+`npm run bench:rider` reports first construction, animation/matrix CPU costs and scene-object counts before and after visiting the roster. It excludes browser/GPU rendering. `tests/characterLoading.test.ts` covers deferred authoring, asset reuse, detached variants and preferences on newly selected/cloned attachments. Existing character, portrait, weapon and ragdoll tests cover their visible and physical behavior.
 
 `models/sahur.ts` is an example of a non-human rider: overlapping cylindrical body/head sections, cached slender limb meshes, baked wood/end grain, sculpted eyes, barefoot geometry and a wrist-mounted bat. The skin applicator restores standard geometry, vertex-colour flags and footwear when switching away, including in crash clones. Cosmetic batching preserves authored vertex colours while applying the authoring material tint.
 

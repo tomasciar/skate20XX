@@ -8,6 +8,7 @@ export function selectHeldWeapon(object:Object3D,selected:boolean) {
 
 export function applyWeaponVisibility(root:Object3D,shown:boolean) {
   root.traverse(object=>{
+    if(object.userData.characterSlot?.kind==='hand')object.userData.weaponVisible=shown;
     if(!object.userData.heldWeapon)return;
     object.userData.weaponVisible=shown;
     object.visible=shown && object.userData.weaponSelected!==false;

@@ -6,6 +6,7 @@ import {characterLegGeometry,characterHandGeometry,characterTorsoGeometry,limbGe
 import {CHARACTER_MODELS} from './registry.ts';
 import type {CharacterBodyPart} from './registry.ts';
 import {selectHeldWeapon} from './weapons.ts';
+import {ensureCharacterVisuals} from './visuals.ts';
 
 const originalGeometry=new WeakMap<Mesh,BufferGeometry>();
 const restoredParts=new Map<string,BufferGeometry>();
@@ -15,6 +16,7 @@ function restorePart(kind:'upperarm'|'forearm'|'pelvis'|'sleeve') {
 }
 
 export function applyCharacterSkin(root:Object3D,character:CharacterId) {
+  ensureCharacterVisuals(root,character);
   const build=characterProportions(character);
   const model=CHARACTER_MODELS[character];
   root.traverse(object=>{

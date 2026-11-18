@@ -131,7 +131,7 @@ test('Sahur captures the right-hand bat and fitted log colliders, and retains cu
     for(let i=0;i<45;i++){world.step();ragdoll.sync();}ragdoll.render(1);
     assert.ok(Number.isFinite(ragdoll.focus.x)&&Number.isFinite(ragdoll.focus.y));
     applyCharacterSkin(ragdoll.root,'boy');
-    assert.equal(ragdoll.root.getObjectByName('character-bat-sahur')!.visible,false);
+    assert.equal(ragdoll.root.getObjectByName('character-bat-sahur'),undefined);
     assert.equal((ragdoll.root.getObjectByName('upper-arm-1') as THREE.Mesh).geometry.userData.characterOverride,undefined);
     assert.equal(ragdoll.root.getObjectByName('pelvis')!.visible,true);
   } finally {ragdoll.clear();world.free();}

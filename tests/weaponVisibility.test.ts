@@ -44,9 +44,11 @@ test('sword and bat visibility survives rider/mode/crash changes without changin
   await RAPIER.init();const scene=new THREE.Scene(),world=new RAPIER.World({x:0,y:-18,z:0}),ragdoll=createRagdoll(scene,world);
   try {
     const v=createSkaterVisual('skate','finn');scene.add(v.root);
-    const sword=v.root.getObjectByName('character-sword-finn')!,bat=v.root.getObjectByName('character-bat-sahur')!;
-    assert.equal(sword.visible,true);assert.equal(bat.visible,false);
+    const sword=v.root.getObjectByName('character-sword-finn')!;
+    assert.equal(v.root.getObjectByName('character-bat-sahur'),undefined);
+    assert.equal(sword.visible,true);
     applyWeaponVisibility(scene,false);v.setCharacter('sahur');v.setMode('snowboard');
+    const bat=v.root.getObjectByName('character-bat-sahur')!;
     assert.equal(sword.visible,false);assert.equal(bat.visible,false);
     const pose={dt:1/60,speed:25,push:0,verticalSpeed:0,grinding:false,crouch:0,lean:0,airborne:false,bail:false,wheelRoll:0,boardSpin:{x:0,y:0,z:0}};
     for(let i=0;i<60;i++)v.setPose(pose);
@@ -58,10 +60,10 @@ test('sword and bat visibility survives rider/mode/crash changes without changin
     applyWeaponVisibility(scene,true);
     assert.equal(bat.visible,true);assert.equal(sword.visible,false);
     assert.equal(ragdoll.root.getObjectByName('character-bat-sahur')!.visible,true);
-    assert.equal(ragdoll.root.getObjectByName('character-sword-finn')!.visible,false);
+    assert.equal(ragdoll.root.getObjectByName('character-sword-finn'),undefined);
     assert.equal(JSON.stringify(v.captureRagdoll().parts.map(p=>[p.id,p.mass,p.shape])),shapes);
     v.setCharacter('finn');applyCharacterSkin(ragdoll.root,'finn');
-    assert.equal(sword.visible,true);assert.equal(bat.visible,false);
+    assert.equal(sword.visible,true);
     assert.equal(ragdoll.root.getObjectByName('character-sword-finn')!.visible,true);
     applyWeaponVisibility(scene,false);v.setMode('skate');
     assert.equal(sword.visible,false);assert.equal(ragdoll.root.getObjectByName('character-sword-finn')!.visible,false);

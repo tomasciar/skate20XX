@@ -23,8 +23,15 @@ export function softenGrab(tweak: GrabTweak, amount: number): GrabTweak {
   return {...tweak,chestPitch:tweak.chestPitch*(1-0.27*amount),
     offset:{...tweak.offset,y:tweak.offset.y*(1-0.12*amount),z:tweak.offset.z*(1-0.1*amount)}};
 }
-export function grabTransform(tweak: GrabTweak, blend: number) {
-  const offset = new THREE.Vector3(tweak.offset.x,tweak.offset.y,tweak.offset.z).multiplyScalar(blend);
-  const rotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(tweak.rotation.x*blend,tweak.rotation.y*blend,tweak.rotation.z*blend));
-  return { offset,rotation };
+/** A reusable transform for an animated rig; reset every field before returning it. */
+export function createGrabTransform() {
+  const result={offset:new THREE.Vector3(),rotation:new THREE.Quaternion()},angles=new THREE.Euler();
+  return (tweak:GrabTweak,blend:number)=>{
+    result.offset.set(tweak.offset.x,tweak.offset.y,tweak.offset.z).multiplyScalar(blend);
+    result.rotation.setFromEuler(angles.set(tweak.rotation.x*blend,tweak.rotation.y*blend,tweak.rotation.z*blend));
+    return result;
+  };
+}
+export function grabTransform(tweak:GrabTweak,blend:number) {
+  return createGrabTransform()(tweak,blend);
 }

@@ -14,5 +14,8 @@ export function saveRideMode(mode:RideMode,storage?:ModeStorage) {
 }
 /** Skin tags survive ragdoll cloning, so switching also updates an ongoing crash. */
 export function applyRideSkin(root:Object3D,mode:RideMode) {
-  root.traverse(object=>{if(isRideMode(object.userData.rideSkin))object.visible=object.userData.rideSkin===mode;});
+  root.traverse(object=>{
+    if(object.userData.characterSlot)object.userData.characterMode=mode;
+    if(isRideMode(object.userData.rideSkin))object.visible=object.userData.rideSkin===mode;
+  });
 }

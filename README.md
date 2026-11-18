@@ -160,6 +160,8 @@ The renderer caps its initial drawing buffer at about two million pixels, with a
 
 `npm run bench` uses a headless test driver to steer around the curves (the game always uses player input), runs a 60-second CPU simulation and reports frame work and idle chunk preparation separately. It warms up physics first, as the game does before starting, and excludes browser/GPU rendering, so these timings are not FPS measurements. Combined frame timings include the same per-frame preparation schedule as the game. Use `npm run bench -- --board=nimbus` to compare the cloud with the default board.
 
+Character attachments are built on selection and share cached geometry/materials. Inactive variants stay outside the animated scene graph. Physics alignment, ray queries and limb posing reuse per-player math workspaces. `npm run bench:rider` measures rider construction, animation/matrix work and attached object counts, including after visiting every character. These are CPU measurements, not browser FPS.
+
 See [environment authoring](docs/environments.md) for adding districts and props that share layouts, collision, and seasonal appearance across skate and snowboard modes.
 
 `npm run bench:world` measures environment density, render/collision triangles, static batches, and CPU chunk preparation. Scenery variants use seeded shared pieces and compact vertex colours across all six districts, including winter mode; the benchmark excludes browser/GPU rendering.

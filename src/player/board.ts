@@ -190,6 +190,17 @@ export function createBoardPlayer(
   let deckPitch = 0, resettle = false;
   let settleRate=10,launchSettle=false;
 
+  // Per-player workspaces: physics and presentation never retain these temporary values.
+  const deckForward=new THREE.Vector3(),deckRight=new THREE.Vector3(),deckBack=new THREE.Vector3();
+  const deckBasis=new THREE.Matrix4(),deckRotation=new THREE.Quaternion(),paintUp=new THREE.Vector3();
+  const obstacleDirection=new THREE.Vector3(),obstacleNormal=new THREE.Vector3(),contactNormal=new THREE.Vector3();
+  const courseRight=new THREE.Vector3(),courseUp=new THREE.Vector3(),courseProgress=new THREE.Vector3();
+  const groundTravel=new THREE.Vector3(),groundVelocity=new THREE.Vector3(),rollingDirection=new THREE.Vector3();
+  const streamedProgress=new THREE.Vector3(),looseRenderPosition=new THREE.Vector3(),looseRenderRotation=new THREE.Quaternion();
+  const supportRay=new RAPIER.Ray(supportOrigin,supportDown),wheelRay=new RAPIER.Ray(mount,rayDir);
+  const obstacleRay=new RAPIER.Ray(position,obstacleDirection),landingRay=new RAPIER.Ray(landingProbe,landingDown);
+  const departureRay=new RAPIER.Ray(position,rayDir);
+
   function preserveLaunchAngle() {
     // holdDeck captures the current orientation relative to the airborne frame before switching planes.
     resettle=true;launchSettle=true;settleRate=4;
@@ -208,7 +219,7 @@ export function createBoardPlayer(
       const candidate = supportCandidate.copy(at).addScaledVector(currentUp, visualHeightOffset);
       for (const m of MOUNTS) {
         const origin = supportOrigin.set(m.x,0.25,m.z).applyQuaternion(renderQuat).add(candidate);
-        const hit = world.castRayAndGetNormal(new RAPIER.Ray(origin, down), 0.65, true, undefined, undefined, undefined, body,isSolidObstacle);
+        const hit = world.castRayAndGetNormal(supportRay, 0.65, true, undefined, undefined, undefined, body,isSolidObstacle);
         if (!hit || supportDelta.set(hit.normal.x,hit.normal.y,hit.normal.z).dot(ramp.surfaceNormal)<0.4) continue;
         supportPoints[contactCount++]!.copy(origin).addScaledVector(down,hit.timeOfImpact);
       }
@@ -248,13 +259,13 @@ export function createBoardPlayer(
   /** Keep the deck planted on whatever surface the wheels are on. */
   function holdDeck(up: THREE.Vector3 = ramp.surfaceNormal) {
     const n = up;
-    const f = ramp.forward.clone().applyAxisAngle(ramp.surfaceNormal, yaw);
+    const f = deckForward.copy(ramp.forward).applyAxisAngle(ramp.surfaceNormal, yaw);
     f.addScaledVector(n, -f.dot(n));
     if (f.lengthSq() < 1e-6) f.copy(ramp.forward);
     f.normalize();
-    const r = new THREE.Vector3().crossVectors(f, n).normalize();
-    const basis = new THREE.Matrix4().makeBasis(r, n, f.clone().negate());
-    const q = new THREE.Quaternion().setFromRotationMatrix(basis);
+    const r = deckRight.crossVectors(f, n).normalize();
+    const basis = deckBasis.makeBasis(r, n, deckBack.copy(f).negate());
+    const q = deckRotation.setFromRotationMatrix(basis);
     if (deckPitch) q.multiply(deckTilt.setFromAxisAngle(tiltAxis, deckPitch));
     if (resettle) { settle.copy(q).invert().multiply(quat).normalize(); resettle = false; }
     q.multiply(settle);
@@ -359,7 +370,7 @@ export function createBoardPlayer(
     // Lean toward the inside of the turn as travelled, not toward a fixed side of the deck.
     const travelSide = !rideContact.airborne && velocity.dot(forward) < -0.1 ? -1 : 1;
     visual.root.quaternion.copy(renderQuat);
-    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(renderQuat);
+    const up = paintUp.set(0, 1, 0).applyQuaternion(renderQuat);
     // The suspension body stays stable; its visible wheel bottoms sit on the measured surface.
     visual.root.position.copy(at).addScaledVector(up, visualHeightOffset);
     // Project the actual yaw onto the rider's axes, including while inverted in a flip.
@@ -422,15 +433,15 @@ export function createBoardPlayer(
 
   function obstacleAhead(dt: number) {
     if (velocity.length() < 4.5) return false;
-    const direction = velocity.clone().normalize();
-    const ray=new RAPIER.Ray(position,direction),length=.4+speed*dt;
+    obstacleDirection.copy(velocity).normalize();
+    const ray=obstacleRay,length=.4+speed*dt;
     let hit = world.castRayAndGetNormal(ray,length,true,undefined,undefined,undefined,body);
     if(hit && isLooseProp(hit.collider)) {
       strikeLooseProp(hit.collider,velocity,ramp.surfaceNormal);
       hit=world.castRayAndGetNormal(ray,length,true,undefined,undefined,undefined,body,isSolidObstacle);
     }
     if (!hit) return false;
-    const n = new THREE.Vector3(hit.normal.x,hit.normal.y,hit.normal.z);
+    const n = obstacleNormal.set(hit.normal.x,hit.normal.y,hit.normal.z);
     return Math.abs(n.dot(ramp.surfaceNormal)) < 0.55 && Math.abs(n.dot(velocity)) > 4.5;
   }
 
@@ -454,7 +465,7 @@ export function createBoardPlayer(
     // The wheel rays face away from the road when inverted; probe the rider too.
     for(const height of [0,0.55,1.05]) {
       landingProbe.set(0,height,0).applyQuaternion(quat).add(position).addScaledVector(ramp.surfaceNormal,0.15);
-      const hit=world.castRayAndGetNormal(new RAPIER.Ray(landingProbe,landingDown),0.32,true,undefined,undefined,undefined,body,isSolidObstacle);
+      const hit=world.castRayAndGetNormal(landingRay,0.32,true,undefined,undefined,undefined,body,isSolidObstacle);
       if(!hit)continue;
       const normal=tmp.set(hit.normal.x,hit.normal.y,hit.normal.z);
       if(normal.dot(ramp.surfaceNormal)>0.4 && velocity.dot(normal)<-0.1 && boardUp.dot(normal)<0.75) return true;
@@ -555,13 +566,10 @@ export function createBoardPlayer(
     let rollingWheels=0;
     nearbyNormal.set(0,0,0);
     rollingNormal.set(0,0,0);
-    let contactN = new THREE.Vector3();
+    const contactN = contactNormal.set(0,0,0);
     for (const m of MOUNTS) {
       mount.set(m.x, m.y, m.z).applyQuaternion(quat).add(position);
-      const ray = new RAPIER.Ray(
-        { x: mount.x, y: mount.y, z: mount.z },
-        { x: rayDir.x, y: rayDir.y, z: rayDir.z }
-      );
+      const ray = wheelRay;
       const hit = world.castRayAndGetNormal(ray, RAY_LEN, true, undefined, undefined, undefined, body,isSolidObstacle);
       if (!hit) continue;
       const compressed = REST - (hit.timeOfImpact - WHEEL_R);
@@ -580,7 +588,7 @@ export function createBoardPlayer(
       }
       if (compressed <= 0) continue;
       wheelsDown++;
-      contactN.add(new THREE.Vector3(nx, ny, nz));
+      contactN.x+=nx;contactN.y+=ny;contactN.z+=nz;
 
       // While popping, the springs would grab the deck and cancel the ollie.
       if (leaveGround > 0) continue;
@@ -616,8 +624,8 @@ export function createBoardPlayer(
       Math.abs(velocity.dot(rollingNormal))<RIDE_CONTACT.normalSpeed;
     let clearDeparture=false;
     if(!supported && rollingWheels<2 && !rideContact.airborne) {
-      const down=rayDir.copy(surfaceUp).negate();
-      const road=world.castRay(new RAPIER.Ray(position,down),.6,true,undefined,undefined,undefined,body,isSolidObstacle);
+      rayDir.copy(surfaceUp).negate();
+      const road=world.castRay(departureRay,.6,true,undefined,undefined,undefined,body,isSolidObstacle);
       clearDeparture=!road || road.timeOfImpact>REST+WHEEL_R+.02+.15;
     }
     const wasAirborne=rideContact.airborne;
@@ -655,15 +663,15 @@ export function createBoardPlayer(
       // The launch offset belongs to the airborne frame. Do not apply it again on the landing plane.
       if(launchSettle){settle.identity();resettle=launchSettle=false;settleRate=10;}
       if(air.state.engaged) {
-        const courseRight=new THREE.Vector3().crossVectors(ramp.forward,ramp.surfaceNormal);
+        courseRight.crossVectors(ramp.forward,ramp.surfaceNormal);
         yaw=Math.atan2(-forward.dot(courseRight),forward.dot(ramp.forward));
         const landedFlip=describeAirRotation(air.state);
         if(landedFlip) { tricks.lastLanded=landedFlip;tricks.message=tricks.landing ? `${landedFlip} · ${tricks.landing}` : landedFlip;tricks.messageAge=0; }
         air.reset();airOffset.set(0,0,0);
       }
-      const n = contactN.lengthSq() > 0.5 ? contactN : ramp.surfaceNormal.clone();
-      const coursePitch = Math.atan(courseSlope(ramp.distance + position.clone().sub(ramp.anchor).dot(ramp.forward)));
-      const courseUp = ramp.surfaceNormal.clone().multiplyScalar(Math.cos(coursePitch)).addScaledVector(ramp.forward,-Math.sin(coursePitch));
+      const n = contactN.lengthSq() > 0.5 ? contactN : ramp.surfaceNormal;
+      const coursePitch = Math.atan(courseSlope(ramp.distance + courseProgress.copy(position).sub(ramp.anchor).dot(ramp.forward)));
+      courseUp.copy(ramp.surfaceNormal).multiplyScalar(Math.cos(coursePitch)).addScaledVector(ramp.forward,-Math.sin(coursePitch));
       const onKicker = n.dot(courseUp) < 0.97;
       if (wasOnKicker && !onKicker) {
         // Keep the speed you had going up the face, so the lip throws you.
@@ -677,18 +685,18 @@ export function createBoardPlayer(
         holdDeck();
       } else {
         wasOnKicker = onKicker;
-        const travel = ramp.forward.clone().applyAxisAngle(ramp.surfaceNormal, yaw);
+        const travel = groundTravel.copy(ramp.forward).applyAxisAngle(ramp.surfaceNormal, yaw);
         travel.addScaledVector(n, -travel.dot(n));
         if (travel.lengthSq() < 1e-6) travel.copy(ramp.forward);
         travel.normalize();
 
         // Keep the suspension impulses applied above, including their normal lift.
         const current = body.linvel();
-        const vel = new THREE.Vector3(current.x, current.y, current.z);
+        const vel = groundVelocity.set(current.x, current.y, current.z);
         const normalSpeed = vel.dot(n);
         vel.addScaledVector(n, -normalSpeed);
         // A 180 changes stance, not momentum: land switch and keep rolling downhill.
-        const rollingDirection = travel.clone().multiplyScalar(vel.dot(travel) < -0.1 ? -1 : 1);
+        rollingDirection.copy(travel).multiplyScalar(vel.dot(travel) < -0.1 ? -1 : 1);
 
         if (slide.state.active || wantSlide) {
           // A sideways slide scrubs speed along the existing motion instead of steering it across the road.
@@ -789,7 +797,7 @@ export function createBoardPlayer(
     if (ragdoll.active) { ragdoll.sync(); position.copy(ragdoll.focus); velocity.copy(ragdoll.velocity); speed = velocity.length(); }
     // When you've ridden a full chunk downhill, snap origin and stream the next seeded stretch.
     // Keep the crash site streamed in while the ragdoll tumbles further downhill.
-    const along = (ragdoll.active?recoveryPosition:position).clone().sub(ramp.anchor).dot(ramp.forward);
+    const along = streamedProgress.copy(ragdoll.active?recoveryPosition:position).sub(ramp.anchor).dot(ramp.forward);
     if (along > RAMP.chunkLength) {
       const steps = Math.floor(along / RAMP.chunkLength);
       const shift = steps * RAMP.chunkLength;
@@ -824,8 +832,8 @@ export function createBoardPlayer(
     if (ragdoll.active) {
       ragdoll.render(THREE.MathUtils.clamp(alpha,0,1));
       const t = body.translation(), q = body.rotation();
-      visual.root.position.lerpVectors(loosePrevious, new THREE.Vector3(t.x,t.y,t.z), alpha);
-      visual.root.quaternion.slerpQuaternions(loosePreviousQ, new THREE.Quaternion(q.x,q.y,q.z,q.w), alpha);
+      visual.root.position.lerpVectors(loosePrevious, looseRenderPosition.set(t.x,t.y,t.z), alpha);
+      visual.root.quaternion.slerpQuaternions(loosePreviousQ, looseRenderRotation.set(q.x,q.y,q.z,q.w), alpha);
       return;
     }
     sampleVisualSupport(renderBodyPosition);

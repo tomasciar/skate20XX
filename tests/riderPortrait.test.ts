@@ -19,7 +19,7 @@ test('paused portraits share the actual head materials and restore renderer stat
   };
   try {
     const rider=createSkaterVisual(),portrait=createRiderPortrait(renderer as never,rider.root);
-    portrait.refresh('kick','skate');
+    rider.setCharacter('kick');portrait.refresh('kick','skate');
     assert.equal(image.src,'data:image/png;base64,portrait');assert.equal(title.textContent,'Kick Buttowski');assert.equal(copies,1);
     assert.ok(image.alt.includes('3D face'));assert.ok(viewport.equals(originalViewport)&&scissor.equals(originalScissor));
     assert.equal(scissorTest,false);assert.equal(renderer.autoClear,false);
@@ -27,7 +27,7 @@ test('paused portraits share the actual head materials and restore renderer stat
     const actual=rider.root.getObjectByName('face-artwork-kick') as THREE.Mesh,preview=rendered!.getObjectByName('face-artwork-kick') as THREE.Mesh;
     assert.equal(preview.geometry,actual.geometry);assert.equal(preview.material,actual.material,'preview must show the actual game artwork');
     for(const [id,name] of [['finn','Finn'],['bart','Bart Simpson'],['shaggy','Shaggy Rogers'],['light','Light Yagami'],['peter','Peter Griffin'],['spiderman','Spider-Man'],['sasuke','Sasuke Uchiha'],['mj','Michael Jackson'],['onizuka','Eikichi Onizuka'],['sahur','Triple T']] as const) {
-      portrait.refresh(id,'snowboard');assert.equal(title.textContent,name);
+      rider.setCharacter(id);portrait.refresh(id,'snowboard');assert.equal(title.textContent,name);
       const source=rider.root.getObjectByName(`character-head-${id}`)!,clone=rendered!.getObjectByName(`character-head-${id}`)!;
       assert.equal(clone.visible,true);assert.equal((clone.children[0] as THREE.Mesh).geometry,(source.children[0] as THREE.Mesh).geometry);
     }

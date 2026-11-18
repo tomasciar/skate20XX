@@ -25,7 +25,7 @@ test('registered wrist props participate in selection, mode changes and crash ca
         assert.ok(captured.objects.some(object=>object.getObjectByName(prop.name)===prop));
       }
       visual.setCharacter('boy');
-      for(const side of [-1,1])assert.equal(visual.root.getObjectByName(`registered-prop-${side}`)!.visible,false);
+      for(const side of [-1,1])assert.equal(visual.root.getObjectByName(`registered-prop-${side}`),undefined);
       visual.setCharacter('bart');
     }
   } finally {

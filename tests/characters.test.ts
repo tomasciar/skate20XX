@@ -531,7 +531,7 @@ test('costumes and head details survive crashes and can be switched on the activ
     const crash=f.scene.getObjectByName('crash-ragdoll')!;assert.ok(crash);
     const torso=crash.getObjectByName('character-outfit-naruto');assert.ok(torso && torso.visible);
     f.player.setCharacter('kick');
-    assert.equal(crash.getObjectByName('character-head-naruto')!.visible,false);
+    assert.equal(crash.getObjectByName('character-head-naruto'),undefined);
     assert.equal(crash.getObjectByName('character-head-kick')!.visible,true);
     assert.equal(crash.getObjectByName('character-outfit-kick')!.visible,true);
     assert.equal((crash.getObjectByName('chest') as THREE.Mesh).material.color.getHex(),characterPalette('kick','skate').shirt);
