@@ -1,6 +1,6 @@
 # Player code
 
-The root contains the player entry points: `board.ts` coordinates the simulation, `controller.ts` translates input, `dimensions.ts` defines shared measurements, and `score.ts` handles run scoring.
+The root contains the player entry points: `board.ts` coordinates the simulation, `controller.ts` translates input, `dimensions.ts` defines shared measurements, and `score.ts` handles run scoring. Public contracts live in `types.ts`; `board.ts` re-exports `BoardPlayer` and `CrashCause` for existing callers.
 
 | Folder | Responsibility |
 | --- | --- |
@@ -11,6 +11,33 @@ The root contains the player entry points: `board.ts` coordinates the simulation
 | `characters/` | Character data, appearance selection and registered model assembly |
 | `characters/models/` | Character-specific heads, outfits, limb details and props |
 | `characters/faces/` | Facial artwork projection, texture loading and native fallback switching |
+
+## Simulation boundaries
+
+`board.ts` owns input capture, simulation order, landing/jump decisions, reset/recovery,
+origin shifts and the public player API. Its `update` captures intent and presentation
+inputs before `simulate`, then records impact velocity for the post-physics `sync`.
+`sync` reads the world after its step; `render` interpolates once per display frame.
+
+| Module | Owns |
+| --- | --- |
+| `movement/boardPhysics.ts` | Body creation and normal/released board mass, friction and collision settings |
+| `movement/suspension.ts` | Wheel rays, contact normals, spring/grip impulses and departure probes |
+| `movement/deckFrame.ts` | Support alignment, grind pitch, launch blending and aerial rotation about the rider |
+| `movement/crashDetection.ts` | Ahead/contact/inverted landing queries and loose-prop strikes |
+| `movement/crashPhysics.ts` | Ragdoll capture, board release, crash interpolation and physics rebasing |
+| `visuals/surfaceSupport.ts` | Visible wheel fitting and its cached height offset |
+
+The coordinator decides when to invoke these helpers. Suspension contact and visible
+wheel fitting stay separate so a visual correction cannot count as a physical landing
+or enable wheel grip. Each helper owns its temporary vectors/rays and reuses them;
+suspension samples must be consumed before the next sample overwrites those buffers.
+Shared wheel mount positions belong in `dimensions.ts`.
+
+Crash capture follows a rendered pose. The coordinator clears control/trick state,
+then releases the physical board. Crash visuals share model assets and never dispose
+them when recovering. Keep the `update` → physics step → `sync` → `render` sequence
+when extending movement or presentation.
 
 ## Character boundaries
 

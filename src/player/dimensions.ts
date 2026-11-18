@@ -14,3 +14,11 @@ export const FOOT_Y = BOARD.gripY - BOARD.soleBottom;
 export const GRIND_HEIGHT = -BOARD.hangerY + BOARD.hangerHalfHeight;
 
 export const RIDER = { upperLeg: 0.34, lowerLeg: 0.34, hipHeight: 0.65, stanceY: -Math.PI/2 } as const;
+
+/** Local mounts: x right, y up, z toward tail. Nose is -Z. */
+export const WHEEL_MOUNTS = [
+  { x: -BOARD.wheelX, y: -0.02, z: -BOARD.truckZ },
+  { x: BOARD.wheelX, y: -0.02, z: -BOARD.truckZ },
+  { x: -BOARD.wheelX, y: -0.02, z: BOARD.truckZ },
+  { x: BOARD.wheelX, y: -0.02, z: BOARD.truckZ },
+];
