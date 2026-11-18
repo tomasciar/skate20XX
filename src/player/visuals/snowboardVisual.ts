@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import {BOARD,WHEEL_BOTTOM} from '../dimensions.ts';
+import {BOARD,SNOWBOARD} from '../dimensions.ts';
 import {boardMaterial,boardUVs} from '../../boards.ts';
 
-export const SNOWBOARD={halfWidth:0.12,halfLength:0.68,baseY:WHEEL_BOTTOM} as const;
+export {SNOWBOARD} from '../dimensions.ts';
 /** A twin-tip board and raised bindings under the existing stance and animation targets. */
 export function createSnowboardVisual() {
   const root=new THREE.Group();root.name='snowboard';root.userData.rideSkin='snowboard';

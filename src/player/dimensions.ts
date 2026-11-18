@@ -10,6 +10,7 @@ export const BOARD = {
   soleBottom: -0.0185,
 } as const;
 export const WHEEL_BOTTOM = BOARD.wheelY - BOARD.wheelRadius;
+export const SNOWBOARD = {halfWidth:0.12,halfLength:0.68,baseY:WHEEL_BOTTOM} as const;
 export const FOOT_Y = BOARD.gripY - BOARD.soleBottom;
 export const GRIND_HEIGHT = -BOARD.hangerY + BOARD.hangerHalfHeight;
 

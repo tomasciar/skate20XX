@@ -39,13 +39,40 @@ then releases the physical board. Crash visuals share model assets and never dis
 them when recovering. Keep the `update` → physics step → `sync` → `render` sequence
 when extending movement or presentation.
 
+## Visual construction and animation
+
+`visuals/skaterVisual.ts` remains the public entry point. It connects geometry,
+appearance selection, animation and crash capture, and preserves the existing
+`SkaterVisual` and `FLIP_LEAN` exports. Pose inputs and the visual contract live in
+`visuals/types.ts`.
+
+| Module | Owns |
+| --- | --- |
+| `visuals/boardVisual.ts` | Skateboard hardware, wheel groups, snowboard and Nimbus construction |
+| `visuals/riderRig.ts` | Bones, footwear, deferred character attachment sites and rider material colours |
+| `visuals/parts.ts` | Construction helpers and batching of rigid mesh details |
+| `animation/riderPose.ts` | Pose blending, IK buffers, arm/leg targets, gaze, grabs, manuals and animation reset |
+| `visuals/ragdollCapture.ts` | A snapshot of the posed bones, attachment objects, joints and fitted crash shapes |
+
+Rig construction returns bone references without animation state. Each animator
+owns its motion buffers, keeping separate riders independent. Appearance choices
+are updated on selection and read by the animator without rebuilding the rig. Board
+and snowboard dimensions belong in `dimensions.ts` so animation can use them
+without importing a geometry builder.
+
+Ragdoll capture reads the current world transforms and creates owned physics
+vectors. It neither advances animation nor disposes shared model assets. Keep the
+bone names, hierarchy, attachment tags and material sharing stable when extending
+builders: portraits, first-person visibility, character selection and crash cloning
+use those contracts.
+
 ## Character boundaries
 
 `characters/catalog.ts` owns the roster, persistence, palettes and proportions. It has no runtime dependency on Three.js or model builders. `characters/skin.ts` applies those choices to live riders and crash clones. The existing `src/characters.ts` module remains the public selection API, re-exporting these operations for callers outside the player folder.
 
 `characters/registry.ts` maps every character ID to a typed model definition. Each definition supplies a profile, head/outfit construction, limb details and shoes, with optional thigh, hip and hand attachments. Models can also supply a custom head, cached rig-part geometry, vertex colours, footwear visibility and fitted crash shapes. These optional policies let non-human riders use the existing skeleton without character-ID branches in the rig. Related characters can share builders. The original five designs live in `models/classicRiders.ts`; their geometry and expressions are preserved.
 
-`characters/visuals.ts` registers attachment slots on the shared rig. Selecting a rider authors only that character's required attachments, batches their rigid details, and caches immutable templates. Instances share the templates' geometry and materials. Previously selected attachments are detached and cached per slot, keeping the animated scene small even after visiting the whole roster. The shared rig in `visuals/skaterVisual.ts` animates the bones independently of these attachments.
+`characters/visuals.ts` registers attachment slots on the shared rig. Selecting a rider authors only that character's required attachments, batches their rigid details, and caches immutable templates. Instances share the templates' geometry and materials. Previously selected attachments are detached and cached per slot, keeping the animated scene small even after visiting the whole roster. `animation/riderPose.ts` animates the bones independently of these attachments.
 
 Slot metadata is plain data so portraits and ragdoll clones can select characters that have not been built for that clone yet. Per-slot caches use weak ownership; they do not keep expired rigs alive. Geometry and materials belong to the template cache, so switching characters and clearing crash clones must not dispose them. Character-specific props, such as Finn's sword, belong to the registry and model builders and attach to the existing bones. Mode and weapon preferences are stored on slots and applied to newly attached details before they become visible.
 
