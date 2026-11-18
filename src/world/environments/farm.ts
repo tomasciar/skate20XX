@@ -1,4 +1,8 @@
-import {makeBush,makeHouse,makePaving,makeBarn,makeSilo,makeHayBale,makeWindpump,makeTractor,makeFence} from '../scenery.ts';
+import {makeBush} from '../props/nature.ts';
+import {makeHouse, makeBarn} from '../props/buildings.ts';
+import {makePaving, makeFence} from '../props/furniture.ts';
+import {makeSilo, makeHayBale, makeWindpump} from '../props/landmarks.ts';
+import {makeTractor} from '../props/vehicles.ts';
 import {facing,ALONG} from './layout.ts';
 import type {LayoutContext} from './layout.ts';
 

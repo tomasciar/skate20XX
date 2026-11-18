@@ -1,7 +1,10 @@
-import {makeBush,makeHouse,makeShop,makeChapel,makeCar,makeBench,makePlanter,makeBusStop,makeWell,makeShed,makeHedge,makePaving,makeFence,makeLamp} from '../scenery.ts';
+import {makeBush, makeHedge} from '../props/nature.ts';
+import {makeHouse, makeShop, makeChapel, makeShed} from '../props/buildings.ts';
+import {makeCar} from '../props/vehicles.ts';
+import {makeBench, makePlanter, makeBusStop, makeWell, makePaving, makeFence, makeLamp} from '../props/furniture.ts';
 import {facing,ALONG} from './layout.ts';
 import type {LayoutContext} from './layout.ts';
-import {makeArchitecture} from './architecture.ts';
+import {makeArchitecture} from '../structures/architecture.ts';
 
 export function populateVillage({index,rng,free,place,scatter,tree,forest,side}:LayoutContext) {
   let chapel = index%3 !== 0;

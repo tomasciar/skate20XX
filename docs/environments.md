@@ -2,6 +2,8 @@
 
 Build each environment once. Its layout, props, collision, and gameplay encounters are shared by skateboarding and snowboarding. The shared appearance system supplies summer and winter materials; layout builders do not receive a riding mode or season.
 
+See the [world code guide](../src/world/README.md) for the directory map and chunk construction flow. Runtime layouts import prop builders directly from their family modules; `props/scenery.ts` remains an aggregate API for tools.
+
 1. Add an entry to `src/world/environments/catalog.ts` with a stable ID, display name, default tree mix, and ground palette `[left colour, right colour, rock amount]`. Keep existing IDs and catalog ordering stable. Ground colours blend across district boundaries automatically.
 2. Add a layout module beside `grove.ts`, `village.ts`, etc. Use `LayoutContext` helpers to reserve space, queue props, and scatter scenery. Register the builder in `registry.ts`; TypeScript requires one builder for every catalog entry.
 3. Run the environment contract tests and the build:
@@ -17,7 +19,7 @@ Each registered environment is automatically included in the streaming and skate
 
 Props queued through `place`, `scatter`, and `forest` receive the `scenery` surface role automatically when their materials have no explicit role. Standard scenery materials gain snow on upward-facing surfaces, including new architecture. This uses the same geometry and collision in both seasons. Custom material shader hooks are composed with the winter coating.
 
-Use `surface(material, role)` from `appearance.ts` for special surfaces:
+Use `surface(material, role)` from `rendering/appearance.ts` for special surfaces:
 
 | Role | Winter treatment |
 | --- | --- |
@@ -36,7 +38,7 @@ The existing UI maps skate mode to summer and snowboard mode to winter through `
 
 Every queued prop receives a separate visual seed based on its district, chunk, and placement slot. Shape and palette choices never consume the placement RNG. Existing object counts, positions, gameplay encounter IDs, and density therefore stay stable when visual variations are expanded.
 
-Use `sceneryMaterial` from `variety.ts` for shared, tintable materials. Its optional fourth argument selects a palette role such as `paint`, `roof`, `wood`, `stone`, `foliage`, `glass`, or `accent`. For example:
+Use `sceneryMaterial` from `props/variety.ts` for shared, tintable materials. Its optional fourth argument selects a palette role such as `paint`, `roof`, `wood`, `stone`, `foliage`, `glass`, or `accent`. For example:
 
 ```ts
 const wall = sceneryMaterial(0xc5a589, 0, 0.8, 'paint');
@@ -46,7 +48,7 @@ An environment may specify its own optional `paint` palette in the catalog. Othe
 
 `palettes.ts` selects a coherent landscape colourway for each district run, independently of riding mode and placement randomness. It supplies grass and deciduous foliage colours, while conifers retain deep greens. City terrain uses the same green/yellow grass family; concrete and paving belong to built structures. The opening grove previews golden autumn. Ground colours blend across seams using the existing terrain rows; neither terrain geometry nor its collision changes. Seven warm green/yellow colourways include spring pasture, sunlit hills and olive orchard. Higher terrain blends toward warm ochre rather than grey. Add coordinated colourways here rather than new materials or seasonal layout branches.
 
-`architecture.ts` supplies rowhouses, colonnades, gabled warehouses, terraces and lofts. Layouts substitute them into existing frontage slots with the same placement reservations. Seven shared materials carry their colour variation. Pitched roofs are closed solids with outward-facing triangles; an inverted wedge exposes its bottom against the wall top and causes depth flicker. Keep facade overlays clear of backing surfaces and check new roof normals from above as well as matching collision.
+`structures/architecture.ts` supplies rowhouses, colonnades, gabled warehouses, terraces and lofts. Layouts substitute them into existing frontage slots with the same placement reservations. Seven shared materials carry their colour variation. Pitched roofs are closed solids with outward-facing triangles; an inverted wedge exposes its bottom against the wall top and causes depth flicker. Keep facade overlays clear of backing surfaces and check new roof normals from above as well as matching collision.
 
 The current families include tree crowns, angular and rounded rocks, low and steep roofs, vehicle body proportions, city window patterns and stepped towers, round/rectangular/wrapped bales, faceted tanks, timber/metal stacks, and painted fences. Containers and street terminals each provide twelve designs with identical solid collision within their family; thin painted details add no collision.
 
@@ -70,7 +72,7 @@ Keep geometry, material, and collision complexity controlled per section. The cu
 
 `workshop.ts` supplies the existing low roof line. `warehouseSite.ts` plans the long depot and its separate loading ramp; `warehouse.ts` supplies their geometry. `sideBuildings.ts` adds tall, elongated buildings with main roofs from 12 to 36 m and upper setbacks. A broad terrain bank meets each roof at its uphill end; a lower exit bank offers a landing beyond it. The first taller building previews this at 132–312 m on the left. Later sites alternate sides, height and length without increasing their width substantially.
 
-The owner of each large building remains in the existing trailing stream until the player has passed its roof. Adjacent chunks reserve the entire footprint and landing area. Mesh construction, warping, collision and batching run incrementally. Materials from `landmarkParts.ts` are shared and retain winter support; no extra lights, textures, trigger bodies or automatic movement are needed. Terrain colliders weld internal edges so off-road carving cannot hit triangle seams as though they were walls. The circular-opening feature and scoring trigger have been removed.
+The owner of each large building remains in the existing trailing stream until the player has passed its roof. Adjacent chunks reserve the entire footprint and landing area. Mesh construction, warping, collision and batching run incrementally. Materials from `structures/parts.ts` are shared and retain winter support; no extra lights, textures, trigger bodies or automatic movement are needed. Terrain colliders weld internal edges so off-road carving cannot hit triangle seams as though they were walls. The circular-opening feature and scoring trigger have been removed.
 
 Run `tests/exploration.test.ts` for connected clearings, shoulder heights, terrain access to roofs, building dimensions and complete off-road/rooftop rides. `tests/worldExpansion.test.ts` checks regional palettes, roof normals, existing roof lines, seasonal switching and origin rebasing. Both work in skate and snowboard modes.
 

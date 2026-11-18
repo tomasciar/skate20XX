@@ -1,4 +1,4 @@
-import type {RideMode} from '../mode.ts';
+import type {RideMode} from '../../mode.ts';
 
 /** Appearance is independent of environment selection and physics. */
 export type WorldSeason = 'summer' | 'winter';

@@ -12,15 +12,15 @@ import { coastSpeed, dragSpeed, SPEED } from "./movement/speed.ts";
 import { CARVE, carveDrag, carveLean, carveTurnRate } from "./movement/carve.ts";
 import { createSlide, SLIDE } from "./movement/slide.ts";
 import { judgeLanding, LANDING } from "./movement/landing.ts";
-import { LANDSCAPE_HALF_WIDTH } from "../world/landscape.ts";
-import { courseSlope } from "../world/course.ts";
+import { LANDSCAPE_HALF_WIDTH } from "../world/terrain/landscape.ts";
+import { courseSlope } from "../world/terrain/course.ts";
 import { RAMP, type RampWorld } from "../world/ramp.ts";
 import {applyRideSkin} from '../mode.ts';
 import type {RideMode} from '../mode.ts';
 import {applyCharacterSkin} from './characters/skin.ts';
 import type {CharacterId} from './characters/catalog.ts';
 import type {BoardStyleId} from '../boards.ts';
-import {isLooseProp,isSolidObstacle,strikeLooseProp} from '../world/looseProps.ts';
+import {isLooseProp,isSolidObstacle,strikeLooseProp} from '../world/physics/looseProps.ts';
 import {createRideContact,RIDE_CONTACT} from './movement/rideContact.ts';
 import {clampSensitivity} from './movement/sensitivity.ts';
 

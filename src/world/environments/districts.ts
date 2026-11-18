@@ -1,8 +1,8 @@
-import {makeSign} from './scenery.ts';
-import {ENVIRONMENT_LAYOUTS} from './environments/registry.ts';
-import {createLayoutContext} from './environments/layout.ts';
-import type {DistrictContext} from './environments/layout.ts';
-export type {Plant,DistrictContext} from './environments/layout.ts';
+import {makeSign} from '../props/furniture.ts';
+import {ENVIRONMENT_LAYOUTS} from './registry.ts';
+import {createLayoutContext} from './layout.ts';
+import type {DistrictContext} from './layout.ts';
+export type {Plant,DistrictContext} from './layout.ts';
 
 /** Common placement, snow compatibility, and incremental construction for every environment. */
 export function* populateDistrict(context:DistrictContext):Generator<void> {

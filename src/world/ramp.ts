@@ -1,48 +1,24 @@
-import * as THREE from "three";
-import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
-import { CHUNK_LENGTH, planChunk, seededRandom } from "./generation.ts";
-import { makeCone } from "./scenery.ts";
-import type {SceneryExclusion} from './environments/layout.ts';
-import { populateDistrict } from "./districts.ts";
-import { SUN_DIRECTION, createShadowBuilder } from "./shadows.ts";
-import { landscapeWorldHeight } from "./landscape.ts";
-import { bakeSceneryCollisionSteps } from "./collision.ts";
-import { courseHeight, courseSlope, courseX, courseCurveSlope, COURSE_STEP } from "./course.ts";
-import { placeScenery } from "./placement.ts";
-import { makeLandscape } from "./landscape.ts";
-import { makeStartPlatform, makeStartBoostPad, START_PLATFORM, START_BOOST } from "./startPlatform.ts";
-import type { GrindRail } from "../player/movement/grind.ts";
-import RAPIER from "@dimforge/rapier3d-compat";
-import {createWorldAppearance,surface} from './appearance.ts';
+import * as THREE from 'three';
+import {SUN_DIRECTION} from './rendering/shadows.ts';
+import {bakeSceneryCollisionSteps} from './physics/collision.ts';
+import {courseHeight, courseSlope, courseX, courseCurveSlope} from './terrain/course.ts';
+import {START_PLATFORM, START_BOOST} from './structures/startPlatform.ts';
+import type {GrindRail} from '../player/movement/grind.ts';
+import RAPIER from '@dimforge/rapier3d-compat';
+import {createWorldAppearance, surface} from './rendering/appearance.ts';
 import type {RideMode} from '../mode.ts';
-import {makeRampShape} from './rampShapes.ts';
-import {seasonForRideMode,type WorldSeason} from './season.ts';
-import {applySceneryTint} from './variety.ts';
-import {createLooseCone,type LooseCone} from './looseProps.ts';
-import {ROOFTOP,makeRooftopLane} from './workshop.ts';
-import {makeLongWarehouse,warehouseSiteAt,WAREHOUSE} from './warehouse.ts';
-import {explorationExclusions,sideBuildingForChunk,sideRouteCenter} from './exploration.ts';
-import {makeSideBuildingSteps} from './sideBuildings.ts';
-import {ridingSiteForChunk,ridingSiteExclusions} from './ridingSites.ts';
-import {makeRidingStructure} from './ridingStructures.ts';
-import {makeBankFeatures,bankBoostSpeed} from './bankFeatures.ts';
+import {seasonForRideMode} from './rendering/season.ts';
+import {createLooseCone} from './physics/looseProps.ts';
+import {bankBoostSpeed} from './structures/bankFeatures.ts';
+import {RAMP} from './config.ts';
+import type {Chunk,PhysPart,ChunkStep} from './streaming/types.ts';
+import {buildChunkContent} from './streaming/chunkBuilder.ts';
+import {makeAsphaltTexture} from './rendering/textures.ts';
+import {makeSharedMaterials} from './rendering/materials.ts';
+import {addBackdrop} from './rendering/backdrop.ts';
+import {batchChunk} from './rendering/batching.ts';
 
-/** Endless rolling downhill: road and scenery share the streamed height profile. */
-export const RAMP = {
-  width: 16,
-  thickness: 1.0,
-  angleDeg: 14,
-  chunkLength: CHUNK_LENGTH,
-  /** Live chunks ahead of the rider. Fog ends ~300m; keep build past that. */
-  chunksAhead: 8,
-  /** Extra chunks to finish off-thread before they enter the live window. */
-  prepareLead: 3,
-  /** Leave room for browser/GPU rendering while filling the three-chunk lead. */
-  prepareBudgetMs:1.5,
-  /** Keep a little behind so despawn never flashes in the mirror. */
-  chunksBehind: 2,
-  centerY: 22,
-} as const;
+export {RAMP} from './config.ts';
 
 export type RampWorld = {
   mesh: THREE.Group;
@@ -71,22 +47,6 @@ export type RampWorld = {
   syncProps?:()=>void;
   renderProps?:(alpha:number)=>void;
 };
-
-type PhysPart = {
-  body: RAPIER.RigidBody;
-  collider: RAPIER.Collider;
-  local: THREE.Vector3;
-  rot: THREE.Quaternion;
-};
-
-type Chunk = {
-  index: number;
-  root: THREE.Group;
-  parts: PhysPart[];
-  cones: LooseCone[];
-  rails: { id: string; start: THREE.Vector3; end: THREE.Vector3; normal?: THREE.Vector3 }[];
-};
-type ChunkStep=void|'frame';
 
 export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{startPlatform?:boolean;mode?:RideMode}={}): RampWorld {
   let mode=options.mode ?? 'skate';
@@ -154,8 +114,6 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
   }
   function* generateChunk(index: number): Generator<ChunkStep> {
     destroyChunk(index);
-    const rng = seededRandom(Math.imul(index, 2654435761) ^ 0x9e3779b9);
-    const { district, entering, encounters } = planChunk(index);
     const root = new THREE.Group(); root.visible = false;
     const baseHeight=courseHeight(index*RAMP.chunkLength);
     const baseX=courseX(index*RAMP.chunkLength);
@@ -164,192 +122,11 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
     hill.add(root);
 
     const chunk: Chunk = { index, root, parts: [], cones:[], rails: [] };
-    const coneMeshes:THREE.Group[]=[];
     chunks.set(index, chunk);
 
-    function warpCourse(mesh: THREE.Mesh) {
-      if(mesh.geometry.userData.shared) {
-        // BufferGeometry.clone shares userData with its source. Give this owned copy
-        // separate metadata before clearing the flag, or the next instance mutates the template.
-        const source=mesh.geometry;
-        mesh.geometry=source.clone();mesh.geometry.userData={...source.userData};delete mesh.geometry.userData.shared;
-      }
-      mesh.updateMatrix();
-      const positions=mesh.geometry.getAttribute('position'), point=new THREE.Vector3();
-      for(let i=0;i<positions.count;i++) {
-        point.fromBufferAttribute(positions,i).applyMatrix4(mesh.matrix);
-        point.y+=courseHeight(index*RAMP.chunkLength-point.z)-baseHeight;
-        point.x+=courseX(index*RAMP.chunkLength-point.z)-baseX;
-        positions.setXYZ(i,point.x,point.y,point.z);
-      }
-      mesh.position.set(0,0,0);mesh.rotation.set(0,0,0);mesh.scale.set(1,1,1);
-      mesh.updateMatrix();mesh.geometry.computeVertexNormals();return mesh;
-    }
-    const deck = new THREE.Mesh(
-      new THREE.BoxGeometry(RAMP.width,RAMP.thickness,RAMP.chunkLength,1,1,RAMP.chunkLength/COURSE_STEP),
-      asphaltMaterial
-    );
-    deck.receiveShadow = true;
-    deck.castShadow = true;
-    deck.position.set(0, 0, -RAMP.chunkLength / 2);
-    root.add(warpCourse(deck));
-
-    for (const side of [-1, 1] as const) {
-      // Most edges are open to explore. Short ridge sections still mark exposed shoulders.
-      if(district==='ridge' && (index+(side>0?1:0))%2===0 && Math.abs(sideRouteCenter(index*RAMP.chunkLength+10,side))>14) {
-        const rail = new THREE.Mesh(new THREE.BoxGeometry(0.28,0.5,20,1,1,4), mats.barrier);
-        rail.position.set(side * (RAMP.width / 2 + 0.08), RAMP.thickness / 2 + 0.18, -10);
-        root.add(warpCourse(rail));
-      }
-
-      const edge = new THREE.Mesh(
-        new THREE.BoxGeometry(0.12,0.002,RAMP.chunkLength,1,1,RAMP.chunkLength/COURSE_STEP),
-        mats.edge
-      );
-      edge.position.set(side * (RAMP.width / 2 - 0.4), RAMP.thickness / 2 + 0.001, -RAMP.chunkLength / 2);
-      edge.userData.collision = false;
-      root.add(warpCourse(edge));
-    }
-
-    const dashes = Math.floor(RAMP.chunkLength / 7);
-    for (let i = 0; i < dashes; i++) {
-      const dash = new THREE.Mesh(new THREE.BoxGeometry(0.22,0.002,2.6,1,1,4), mats.dash);
-      dash.position.set(0, RAMP.thickness / 2 + 0.001, -4 - i * 7);
-      dash.userData.collision = false;
-      root.add(warpCourse(dash));
-    }
-
-    root.add(makeLandscape(index,mats.terrain,baseHeight,baseX));
-    if(index===0 && options.startPlatform!==false) {
-      const platform=makeStartPlatform();
-      // A normal offset of h*cos(angle) gives exactly h metres of vertical clearance above the road.
-      platform.position.y=RAMP.thickness/2+START_PLATFORM.height*Math.cos(angle);
-      root.add(platform);
-      for(const side of [-1,1]) {
-        const boost=makeStartBoostPad();boost.position.set(side*START_BOOST.x,RAMP.thickness/2,-START_BOOST.along);
-        root.add(boost);
-      }
-    }
-    for (const side of [-1,1]) {
-      const path = new THREE.Mesh(new THREE.BoxGeometry(1.8,0.08,RAMP.chunkLength,1,1,RAMP.chunkLength/COURSE_STEP),mats.path);
-      path.position.set(side*10.5,0.44,-RAMP.chunkLength/2); path.receiveShadow = true; root.add(warpCourse(path));
-    }
-    yield;
-    const shadows = createShadowBuilder(sunOnHill), bounds = new THREE.Box3();
-    const centerAt = (z: number) => courseX(index*RAMP.chunkLength-z)-baseX;
-    const groundAt = (x: number, z: number) => landscapeWorldHeight(x+baseX,index*RAMP.chunkLength-z)-baseHeight+0.1;
-    function plant(object: THREE.Object3D, x: number, along: number, yaw = 0) {
-      const placed = placeScenery(object,x,along,index*RAMP.chunkLength,baseHeight,angle,yaw,baseX);
-      // Roadside shadows are draped on the terrain, which runs underneath the raised road and footpath,
-      // so each stays on its own verge. Street lamps stand inside that strip and go without.
-      const verge = 11.6;
-      if (object.userData.shadow !== 'none' && Math.abs(x) >= verge) {
-        // Measure the prop itself, not the terrace it may stand on.
-        placed.updateMatrixWorld(true);
-        shadows.add(bounds.setFromObject(object), object.userData.shadow === 'round' ? 'round' : 'box', groundAt,
-          x > 0 ? verge : -Infinity, x > 0 ? Infinity : -verge,centerAt);
-      }
-      root.add(placed);
-    }
-
-    const warehouse=warehouseSiteAt(index);
-    const sideBuilding=sideBuildingForChunk(index);
-    const ridingSite=ridingSiteForChunk(index);
-    const rooftop=index===2 || (!warehouse && sideBuilding?.side!==1 && ridingSite?.side!==1 && index>2 && index%17===2 && encounters.every(item=>item.x<0));
-    const exclusions:SceneryExclusion[]=explorationExclusions(index);
-    if(rooftop)exclusions.push({minX:7.6,maxX:17,start:10,end:ROOFTOP.end+3});
-    if(warehouse)exclusions.push({minX:8.4,maxX:32,start:warehouse.owner===index?WAREHOUSE.rampStart-2:warehouse.start-index*RAMP.chunkLength-4,end:warehouse.end-index*RAMP.chunkLength+warehouse.clearance});
-    if(ridingSite)exclusions.push(...ridingSiteExclusions(ridingSite,index));
-    yield* populateDistrict({ district, index, entering, rng, plant,exclusions });
-    if(rooftop)for(const mesh of makeRooftopLane(index*RAMP.chunkLength))root.add(warpCourse(mesh));
-    if(warehouse?.owner===index) {
-      let processed=0;
-      for(const mesh of makeLongWarehouse(index)) {
-        root.add(warpCourse(mesh));if(++processed%8===0)yield;
-      }
-    }
-    if(sideBuilding?.owner===index) {
-      let processed=0;
-      for(const mesh of makeSideBuildingSteps(sideBuilding)) {
-        root.add(warpCourse(mesh));if(++processed%8===0)yield;
-      }
-    }
-    if(ridingSite?.owner===index) {
-      let processed=0;
-      for(const mesh of makeRidingStructure(ridingSite)) {
-        root.add(warpCourse(mesh));if(++processed%8===0)yield;
-      }
-    }
-    for(const mesh of makeBankFeatures(index))root.add(warpCourse(mesh));
-
-    for (const item of encounters) {
-      const { x, along, width, length, height, kind } = item;
-      const y = RAMP.thickness / 2;
-      if(kind==='curved' || kind==='bank') {
-        const shape={kind,width,length,height,side:(x<0?-1:1) as -1|1};
-        for(const mesh of makeRampShape(shape,kind==='bank'?mats.bank:mats.kicker,mats.lip,index*RAMP.chunkLength+along-length/2)) {
-          mesh.position.set(x,y,-along);root.add(warpCourse(mesh));
-        }
-        continue;
-      }
-      if (kind === 'rail' || kind === 'ledge') {
-        // Each grind remains a straight, rigid line, aligned between two points on the bend.
-        const s=index*RAMP.chunkLength+along;
-        const start=new THREE.Vector3(x+courseX(s-length/2)-baseX,y+courseHeight(s-length/2)-baseHeight+height,-along+length/2);
-        const end=new THREE.Vector3(x+courseX(s+length/2)-baseX,y+courseHeight(s+length/2)-baseHeight+height,-along-length/2);
-        const tangent=end.clone().sub(start),physicalLength=tangent.length();tangent.normalize();
-        const normal=new THREE.Vector3(0,1,(end.y-start.y)/length).normalize();
-        const right=new THREE.Vector3().crossVectors(tangent,normal).normalize();
-        const rotation=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(right,normal,tangent.clone().negate()));
-        const center=start.clone().lerp(end,0.5);
-        if(kind==='ledge') {
-          const depth=height+0.5;
-          const block=new THREE.Mesh(new THREE.BoxGeometry(width,depth,physicalLength),mats.ledge);
-          block.position.copy(center).addScaledVector(normal,0.07-depth/2);block.quaternion.copy(rotation);root.add(block);
-          for(const side of [-1,1]) {
-            const coping=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.06,physicalLength),mats.rail);
-            coping.position.copy(center).addScaledVector(normal,0.045).addScaledVector(right,side*(width/2-0.02));
-            coping.quaternion.copy(rotation);coping.userData.collision=false;root.add(coping);
-          }
-        } else {
-          const top=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.14,physicalLength),mats.rail);
-          top.position.copy(center);top.quaternion.copy(rotation);root.add(top);
-          for(const z of [-length/2+0.6,0,length/2-0.6]) {
-            const point=start.clone().lerp(end,(length/2-z)/length),ground=y+courseHeight(s-z)-baseHeight;
-            const support=new THREE.Mesh(new THREE.BoxGeometry(0.12,Math.max(0.05,point.y-ground),0.12),mats.rail);
-            support.position.set(point.x,(ground+point.y)/2,point.z);root.add(support);
-            const foot=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.05,0.5),mats.lip);
-            foot.position.set(point.x,ground+0.025,point.z);foot.quaternion.copy(rotation);root.add(foot);
-          }
-        }
-        chunk.rails.push({id:`${index}:${along}`,normal,
-          start:start.addScaledVector(normal,0.07),end:end.addScaledVector(normal,0.07)});
-        continue;
-      }
-      if (kind === 'cones') {
-        for (let i = 0; i < 3; i++) {
-          const cone = makeCone();
-          cone.userData.collision=false;cone.userData.looseProp=true;cone.name='loose-cone';
-          const s=index*RAMP.chunkLength+along-(i-1)*1.5;
-          cone.position.set(x+courseX(s)-baseX,y+courseHeight(s)-baseHeight,-along+(i-1)*1.5); cone.rotation.x=Math.atan(courseSlope(s));
-          root.add(cone);
-          coneMeshes.push(cone);
-        }
-        continue;
-      }
-      // A solid kicker wedge begins flush with the asphalt; physics and render share vertices.
-      const w = width / 2, l = length / 2;
-      const vertices = new Float32Array([-w, 0, l, w, 0, l, -w, 0, -l, w, 0, -l, -w, height, -l, w, height, -l]);
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-      geometry.setIndex([0,1,5, 0,5,4, 2,4,5, 2,5,3, 0,4,2, 1,3,5, 0,2,3, 0,3,1]);
-      geometry.computeVertexNormals();
-      const mesh = new THREE.Mesh(geometry, mats.kicker);
-      mesh.position.set(x,y,-along); root.add(warpCourse(mesh));
-      // Colored lip announces the optional jump without forming a raised collision seam.
-      const lip = new THREE.Mesh(new THREE.BoxGeometry(width, 0.004, 0.25), mats.lip);
-      lip.position.set(x, y + height - height*0.13/length + 0.003, -along - length / 2 + 0.13); lip.userData.collision = false; root.add(warpCourse(lip));
-    }
+    const {coneMeshes,shadows}=yield* buildChunkContent({
+      index,root,angle,sunOnHill,asphaltMaterial,mats,startPlatform:options.startPlatform!==false,rails:chunk.rails,
+    });
 
     yield;
     const solid = yield* bakeSceneryCollisionSteps(root);
@@ -583,195 +360,4 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
     scroll,
     reset,
   };
-}
-
-function makeSharedMaterials() {
-  return {
-    // Saturated paint keeps obstacles readable without ground shadows; a little fill lifts shaded faces.
-    rail: new THREE.MeshStandardMaterial({ color: 0xffc43d, roughness: 0.45, metalness: 0.25, emissive: 0xffc43d, emissiveIntensity: 0.04 }),
-    path: surface(new THREE.MeshStandardMaterial({ color: 0xaaa58d, roughness: 1 }),'path'),
-    terrain: surface(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, map: makeGroundTexture() }),'terrain'),
-    edge: new THREE.MeshBasicMaterial({ color: 0xffc857 }),
-    dash: surface(new THREE.MeshBasicMaterial({ color: 0xf2f5f8 }),'line'),
-    // Ramp entries and a bank's inner edge meet the road at zero height. Bias only their
-    // rendered depth so coplanar faces stay stable without raising the collision surface.
-    kicker: new THREE.MeshStandardMaterial({ color: 0x1db5d0, roughness: 0.65, emissive: 0x1db5d0, emissiveIntensity: 0.06,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-2 }),
-    bank: new THREE.MeshStandardMaterial({ color:0x9762df,roughness:0.7,emissive:0x9762df,emissiveIntensity:0.05,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-2 }),
-    lip: new THREE.MeshStandardMaterial({ color: 0xffedb0, roughness: 0.6,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-4 }),
-    ledge: new THREE.MeshStandardMaterial({ color: 0xf46b3f, roughness: 0.8, emissive: 0xf46b3f, emissiveIntensity: 0.04 }),
-    barrier: surface(new THREE.MeshStandardMaterial({ color: 0xc9c8c0, roughness: 0.85 }),'barrier'),
-  };
-}
-
-/** Tests and tools run without a browser canvas; they need the texture object but not its pixels. */
-function canPaint(g: CanvasRenderingContext2D) {
-  return typeof CanvasRenderingContext2D !== "undefined" && g instanceof CanvasRenderingContext2D;
-}
-
-function makeAsphaltTexture(): THREE.CanvasTexture {
-  const canvas = document.createElement("canvas");
-  canvas.width = 1024;
-  canvas.height = 1024;
-  const g = canvas.getContext("2d")!;
-  const rng = seededRandom(12345);
-  if (canPaint(g)) {
-    g.fillStyle = "#636a71";
-    g.fillRect(0, 0, 1024, 1024);
-    // Lengthwise wear: two slightly polished wheel paths per lane and darker oil between them.
-    for (const [x, width, shade] of [[170, 150, 255], [420, 150, 255], [604, 150, 255], [854, 150, 255], [295, 70, 20], [729, 70, 20]] as const) {
-      const wear = g.createLinearGradient(x - width / 2, 0, x + width / 2, 0);
-      wear.addColorStop(0, `rgba(${shade},${shade},${shade},0)`); wear.addColorStop(0.5, `rgba(${shade},${shade},${shade},0.07)`);
-      wear.addColorStop(1, `rgba(${shade},${shade},${shade},0)`);
-      g.fillStyle = wear; g.fillRect(x - width / 2, 0, width, 1024);
-    }
-    // Aggregate: many fine light and dark stones.
-    for (let i = 0; i < 26000; i++) {
-      const shade = rng() < 0.5 ? 55 + rng() * 40 : 120 + rng() * 60;
-      g.fillStyle = `rgba(${shade},${shade},${shade + 5},${0.12 + rng() * 0.3})`;
-      const size = 1 + rng() * 2.2;
-      g.fillRect(rng() * 1024, rng() * 1024, size, size);
-    }
-    // Faint resurfaced strips and fine tar-sealed cracks that wander along the road.
-    for (let i = 0; i < 3; i++) {
-      g.fillStyle = `rgba(40,44,50,${0.05 + rng() * 0.05})`;
-      g.fillRect(rng() * 900, rng() * 900, 50 + rng() * 90, 120 + rng() * 260);
-    }
-    g.strokeStyle = "rgba(34,36,40,0.38)";
-    g.lineCap = "round";
-    g.lineJoin = "round";
-    for (let i = 0; i < 9; i++) {
-      g.lineWidth = 0.8 + rng() * 1.1;
-      g.beginPath();
-      let x = rng() * 1024;
-      let y = rng() * 1024;
-      g.moveTo(x, y);
-      for (let k = 0; k < 14; k++) {
-        x += (rng() - 0.5) * 16;
-        y += 8 + rng() * 22;
-        g.lineTo(x, y);
-      }
-      g.stroke();
-    }
-  }
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = THREE.RepeatWrapping;
-  tex.wrapT = THREE.RepeatWrapping;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 16;
-  return tex;
-}
-
-/** Near-white grass detail that multiplies the terrain's vertex colours, so districts keep their own tint. */
-function makeGroundTexture(): THREE.CanvasTexture {
-  const canvas = document.createElement("canvas");
-  canvas.width = 512;
-  canvas.height = 512;
-  const g = canvas.getContext("2d")!;
-  const rng = seededRandom(777);
-  if (canPaint(g)) {
-    g.fillStyle = "#dcdcdc";
-    g.fillRect(0, 0, 512, 512);
-    for (let i = 0; i < 260; i++) {
-      const shade = rng() < 0.5 ? 255 : 150, radius = 14 + rng() * 44, x = rng() * 512, y = rng() * 512;
-      // Draw each blotch wrapped, so the tile repeats without a seam.
-      for (const ox of [-512, 0, 512]) for (const oy of [-512, 0, 512]) {
-        const blotch = g.createRadialGradient(x + ox, y + oy, 0, x + ox, y + oy, radius);
-        blotch.addColorStop(0, `rgba(${shade},${shade},${shade},0.16)`); blotch.addColorStop(1, `rgba(${shade},${shade},${shade},0)`);
-        g.fillStyle = blotch; g.fillRect(x + ox - radius, y + oy - radius, radius * 2, radius * 2);
-      }
-    }
-    for (let i = 0; i < 9000; i++) {
-      const shade = 150 + rng() * 105;
-      g.fillStyle = `rgba(${shade},${shade},${shade * 0.94},${0.25 + rng() * 0.4})`;
-      g.fillRect(rng() * 512, rng() * 512, 1 + rng() * 1.5, 2 + rng() * 4);
-    }
-  }
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = THREE.RepeatWrapping;
-  tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(3.4, 3.4);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 8;
-  return tex;
-}
-
-function addBackdrop(scene: THREE.Scene) {
-  scene.background = new THREE.Color(0x8ebfd4);
-  // Full visibility to 120 m; fade out by 300 m, before the streamed road ends.
-  scene.fog = new THREE.Fog(0x8ebfd4, 120, 300);
-
-  const hemisphere=new THREE.HemisphereLight(0xdcefff, 0x6f8f58, 0.95);scene.add(hemisphere);
-  const ambient=new THREE.AmbientLight(0xd0e4f0, 0.2);scene.add(ambient);
-
-  // Mid-morning sun from up the left flank: trees and buildings throw shadows across the road.
-  const sun = new THREE.DirectionalLight(0xfff0d6, 2.1);
-  sun.name = "sun";
-  sun.position.copy(SUN_DIRECTION).multiplyScalar(100);
-  sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.near = 1;
-  sun.shadow.camera.far = 280;
-  sun.shadow.camera.left = -70;
-  sun.shadow.camera.right = 70;
-  sun.shadow.camera.top = 70;
-  sun.shadow.camera.bottom = -70;
-  sun.shadow.bias = -0.0002;
-  scene.add(sun);
-
-  const fill = new THREE.DirectionalLight(0xb8d4e8, 0.35);
-  fill.position.set(40, 30, -20);
-  scene.add(fill);
-  return {setSeason(season:WorldSeason) {
-    const snow=season==='winter',horizon=snow?0xc6dce9:0x8ebfd4;
-    (scene.background as THREE.Color).setHex(horizon);(scene.fog as THREE.Fog).color.setHex(horizon);
-    hemisphere.color.setHex(snow?0xe5f3ff:0xdcefff);hemisphere.groundColor.setHex(snow?0x97b4cc:0x6f8f58);
-    ambient.color.setHex(snow?0xdceeff:0xd0e4f0);sun.color.setHex(snow?0xf5f9ff:0xfff0d6);
-    fill.color.setHex(snow?0xb5d5ef:0xb8d4e8);
-  }};
-}
-
-/** Merge static props by material: scenery variety should not mean thousands of draw calls. */
-function* batchChunk(root: THREE.Group,appearance:ReturnType<typeof createWorldAppearance>): Generator<void> {
-  root.updateMatrixWorld(true);
-  const inverse = root.matrixWorld.clone().invert();
-  const batches = new Map<THREE.Material, THREE.BufferGeometry[]>();
-  const meshes: THREE.Mesh[] = [];
-  const movable=root.children.filter(object=>object.userData.looseProp);
-  root.traverse(obj => {
-    if(!(obj instanceof THREE.Mesh) || Array.isArray(obj.material))return;
-    for(let ancestor:THREE.Object3D|null=obj;ancestor && ancestor!==root;ancestor=ancestor.parent)if(ancestor.userData.looseProp)return;
-    meshes.push(obj);
-  });
-  let processed = 0;
-  for (const obj of meshes) {
-    const geometry = obj.geometry.clone();
-    // Keep shared vertices through batching to reduce upload size and vertex/shadow work.
-    if (!geometry.index) geometry.setIndex(Array.from({length:geometry.getAttribute('position').count},(_,i)=>i));
-    if (!geometry.getAttribute("uv")) geometry.setAttribute("uv", new THREE.BufferAttribute(new Float32Array(geometry.getAttribute("position").count * 2), 2));
-    applySceneryTint(geometry,obj);
-    geometry.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inverse, obj.matrixWorld));
-    const material = obj.material as THREE.Material;
-    const list = batches.get(material) ?? [];
-    list.push(geometry); batches.set(material, list);
-    if (!obj.geometry.userData.shared) obj.geometry.dispose();
-    if (++processed % 8 === 0) yield;
-  }
-  root.clear();
-  if(movable.length)root.add(...movable);
-  for (const [material, geometries] of batches) {
-    const merged = mergeGeometries(geometries);
-    for (const geometry of geometries) geometry.dispose();
-    if (!merged) continue;
-    // mergeGeometries copies the data into a plain attribute; restore half-float decoding for tint RGB.
-    const colors=merged.getAttribute('color');
-    if(colors?.array instanceof Uint16Array)merged.setAttribute('color',new THREE.Float16BufferAttribute(colors.array,3));
-    merged.computeBoundingSphere();
-    const mesh = new THREE.Mesh(merged, material);
-    appearance.bind(mesh,material);
-    // Scenery shadows are baked onto the ground per chunk; the shadow map is reserved for the rider.
-    mesh.castShadow = false;
-    mesh.receiveShadow = material instanceof THREE.MeshStandardMaterial;
-    root.add(mesh);
-    yield;
-  }
 }

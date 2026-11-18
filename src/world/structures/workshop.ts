@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import {sceneryMaterial} from './variety.ts';
-import {COURSE_STEP} from './course.ts';
-import {LANDMARK_MATERIALS,landmarkBox,landmarkPart} from './environments/landmarkParts.ts';
+import {sceneryMaterial} from '../props/variety.ts';
+import {COURSE_STEP} from '../terrain/course.ts';
+import {LANDMARK_MATERIALS,landmarkBox,landmarkPart} from './parts.ts';
 
 export const ROOFTOP={x:5.25,width:4.5,start:3,rampEnd:38,end:64,height:2.4} as const;
 const {brick:wall,steel,trim,roof,glass,dark,concrete}=LANDMARK_MATERIALS;

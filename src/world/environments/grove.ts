@@ -1,4 +1,7 @@
-import {makeBush,makeRocks,makeBench,makePaving,makeCabin,makeShelter,makeLogPile,makePicnic} from '../scenery.ts';
+import {makeBush, makeRocks} from '../props/nature.ts';
+import {makeBench, makePaving, makePicnic} from '../props/furniture.ts';
+import {makeCabin, makeShelter} from '../props/buildings.ts';
+import {makeLogPile} from '../props/landmarks.ts';
 import {facing,ALONG} from './layout.ts';
 import type {LayoutContext} from './layout.ts';
 

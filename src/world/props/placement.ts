@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import { landscapeWorldHeight } from './landscape.ts';
-import { courseX, courseHeading } from './course.ts';
-import { foundationMaterial } from './scenery.ts';
+import { landscapeWorldHeight } from '../terrain/landscape.ts';
+import { courseX, courseHeading } from '../terrain/course.ts';
+import {foundationMaterial} from './parts.ts';
 
 /** Furniture/parking gets a level terrace; fences follow the surface; trees stay upright. */
 export function placeScenery(object: THREE.Object3D, x: number, along: number, chunkStart: number, baseHeight: number, hillAngle: number, yaw = 0, baseX = 0) {

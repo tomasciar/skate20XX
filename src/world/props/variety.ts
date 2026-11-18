@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import {surface,facadeMaterial} from './appearance.ts';
-import {seededRandom} from './generation.ts';
-import type {District} from './environments/catalog.ts';
-import {ENVIRONMENT_BY_ID} from './environments/catalog.ts';
+import {surface,facadeMaterial} from '../rendering/appearance.ts';
+import {seededRandom} from '../planning/generation.ts';
+import type {District} from '../environments/catalog.ts';
+import {ENVIRONMENT_BY_ID} from '../environments/catalog.ts';
 import {addAssetDetails} from './assetDetails.ts';
-import {landscapePaletteAt} from './environments/palettes.ts';
+import {landscapePaletteAt} from '../environments/palettes.ts';
 
 type PaletteRole='paint'|'roof'|'wood'|'cutwood'|'stone'|'foliage'|'autumn'|'flower'|'glass'|'trim'|'accent'|'metal'|'straw';
 const PALETTES:Record<PaletteRole,readonly number[]>={

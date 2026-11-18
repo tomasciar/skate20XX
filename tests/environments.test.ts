@@ -5,9 +5,9 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import {ENVIRONMENTS,DISTRICTS,DISTRICT_NAMES} from '../src/world/environments/catalog.ts';
 import {ENVIRONMENT_LAYOUTS} from '../src/world/environments/registry.ts';
 import {createLayoutContext} from '../src/world/environments/layout.ts';
-import {createWorldAppearance,surface} from '../src/world/appearance.ts';
-import {seasonForRideMode} from '../src/world/season.ts';
-import {districtAt,seededRandom} from '../src/world/generation.ts';
+import {createWorldAppearance,surface} from '../src/world/rendering/appearance.ts';
+import {seasonForRideMode} from '../src/world/rendering/season.ts';
+import {districtAt,seededRandom} from '../src/world/planning/generation.ts';
 import {createRamp,RAMP} from '../src/world/ramp.ts';
 
 const context=new Proxy({},{get:()=>()=>{}});

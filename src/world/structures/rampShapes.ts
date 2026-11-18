@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {COURSE_STEP} from './course.ts';
+import {COURSE_STEP} from '../terrain/course.ts';
 
 export type RampShape={kind:'curved'|'bank';width:number;length:number;height:number;side:-1|1};
 

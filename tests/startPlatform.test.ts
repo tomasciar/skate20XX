@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import {createRamp,RAMP} from '../src/world/ramp.ts';
-import {START_PLATFORM,START_BOOST,makeStartPlatform} from '../src/world/startPlatform.ts';
+import {START_PLATFORM,START_BOOST,makeStartPlatform} from '../src/world/structures/startPlatform.ts';
 import {createBoardPlayer} from '../src/player/board.ts';
 import {createTrickSystem} from '../src/player/tricks/tricks.ts';
 import {createChaseCamera} from '../src/camera/chase.ts';

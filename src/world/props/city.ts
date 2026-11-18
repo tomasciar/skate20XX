@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import {surface,facadeMaterial} from '../appearance.ts';
-import {sceneryMaterial,markAsset} from '../variety.ts';
+import {surface,facadeMaterial} from '../rendering/appearance.ts';
+import {sceneryMaterial,markAsset} from './variety.ts';
 
 const shared=<T extends THREE.BufferGeometry>(geometry:T)=>{geometry.userData.shared=true;return geometry;};
 const cube=shared(new THREE.BoxGeometry()),plane=shared(new THREE.PlaneGeometry()),cylinder=shared(new THREE.CylinderGeometry(0.5,0.5,1,8));

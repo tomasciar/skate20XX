@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
-import { planChunk, districtAt, CHUNK_LENGTH, DISTRICTS, ENCOUNTER_KINDS } from '../src/world/generation.ts';
+import { planChunk, districtAt, CHUNK_LENGTH, DISTRICTS, ENCOUNTER_KINDS } from '../src/world/planning/generation.ts';
 import { createRamp, RAMP } from '../src/world/ramp.ts';
 import { createBoardPlayer } from '../src/player/board.ts';
 import { createTrickSystem } from '../src/player/tricks/tricks.ts';

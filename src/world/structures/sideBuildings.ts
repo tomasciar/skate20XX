@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import {LANDMARK_MATERIALS as M,landmarkBox} from './environments/landmarkParts.ts';
-import {SIDE_BUILDING,type SideBuildingSite} from './exploration.ts';
-import {CHUNK_LENGTH} from './generation.ts';
-import {hasRoofLaunch} from './roofPlan.ts';
+import {LANDMARK_MATERIALS as M,landmarkBox} from './parts.ts';
+import {SIDE_BUILDING,type SideBuildingSite} from '../planning/exploration.ts';
+import {CHUNK_LENGTH} from '../planning/generation.ts';
+import {hasRoofLaunch} from '../planning/roofPlan.ts';
 import {makeRoofLaunch} from './roofLaunch.ts';
 
 /** Tall, elongated buildings sit wholly outside the road and meet their natural uphill approach. */

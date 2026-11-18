@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { DISTRICTS, seededRandom } from '../src/world/generation.ts';
-import { populateDistrict } from '../src/world/districts.ts';
-import { makeHouse, makeShop, makeChapel, makeBarn, makeCabin } from '../src/world/scenery.ts';
-import { LANDSCAPE_HALF_WIDTH } from '../src/world/landscape.ts';
+import { DISTRICTS, seededRandom } from '../src/world/planning/generation.ts';
+import { populateDistrict } from '../src/world/environments/districts.ts';
+import { makeHouse, makeShop, makeChapel, makeBarn, makeCabin } from '../src/world/props/scenery.ts';
+import { LANDSCAPE_HALF_WIDTH } from '../src/world/terrain/landscape.ts';
 import { createParticles, SPARK, DUST } from '../src/render/particles.ts';
 
 const context=new Proxy({},{get:()=>()=>{}});

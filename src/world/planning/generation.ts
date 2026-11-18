@@ -1,7 +1,7 @@
-import {DISTRICTS} from './environments/catalog.ts';
-import type {District} from './environments/catalog.ts';
-export {DISTRICTS,DISTRICT_NAMES} from './environments/catalog.ts';
-export type {District} from './environments/catalog.ts';
+import {DISTRICTS} from '../environments/catalog.ts';
+import type {District} from '../environments/catalog.ts';
+export {DISTRICTS,DISTRICT_NAMES} from '../environments/catalog.ts';
+export type {District} from '../environments/catalog.ts';
 
 /** Pure, reproducible layout rules. Every encounter leaves a 4.4 m clear corridor. */
 export const CHUNK_LENGTH = 70;

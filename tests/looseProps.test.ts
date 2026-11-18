@@ -5,8 +5,8 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import {createRamp,RAMP} from '../src/world/ramp.ts';
 import {createBoardPlayer} from '../src/player/board.ts';
 import {createTrickSystem} from '../src/player/tricks/tricks.ts';
-import {createLooseCone,isLooseProp,isSolidObstacle,strikeLooseProp} from '../src/world/looseProps.ts';
-import {makeCone} from '../src/world/scenery.ts';
+import {createLooseCone,isLooseProp,isSolidObstacle,strikeLooseProp} from '../src/world/physics/looseProps.ts';
+import {makeCone} from '../src/world/props/scenery.ts';
 
 const context=new Proxy({},{get:()=>()=>{}});
 Object.assign(globalThis,{document:{createElement:()=>({width:0,height:0,getContext:()=>context})}});

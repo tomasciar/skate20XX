@@ -1,6 +1,6 @@
 import {CHUNK_LENGTH} from './generation.ts';
-import type {SceneryExclusion} from './environments/layout.ts';
-import {MPH_PER_MPS} from '../player/movement/speed.ts';
+import type {SceneryExclusion} from '../environments/layout.ts';
+import {MPH_PER_MPS} from '../../player/movement/speed.ts';
 
 export type TerrainBank={owner:number;kind:'boost'|'launch'|'plain';side:-1|1;x:number;width:number;height:number;start:number;crestStart:number;crestEnd:number;end:number;branchStart:number;clearEnd:number};
 const PERIOD=56*CHUNK_LENGTH;

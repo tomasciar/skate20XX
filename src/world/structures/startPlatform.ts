@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { MPH_PER_MPS } from '../player/movement/speed.ts';
+import { MPH_PER_MPS } from '../../player/movement/speed.ts';
 
 export const START_PLATFORM={height:17,width:7,back:-4,front:10,
   /** Allow a full ollie off the introductory drop while keeping later hard landings unchanged. */

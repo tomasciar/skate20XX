@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import {terrainBanksForChunk,terrainBankAt,BANK_BOOST} from './terrainBanks.ts';
+import {terrainBanksForChunk,terrainBankAt,BANK_BOOST} from '../planning/terrainBanks.ts';
 import {makeBoostPad} from './startPlatform.ts';
 import {makeRoofLaunch} from './roofLaunch.ts';
-import {landscapeHeight} from './landscape.ts';
-import {courseHeight} from './course.ts';
-import {CHUNK_LENGTH} from './generation.ts';
+import {landscapeHeight} from '../terrain/landscape.ts';
+import {courseHeight} from '../terrain/course.ts';
+import {CHUNK_LENGTH} from '../planning/generation.ts';
 
 /** Only furniture is added here; the banks themselves belong to the continuous landscape. */
 export function makeBankFeatures(index:number) {

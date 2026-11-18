@@ -1,5 +1,5 @@
 import {CHUNK_LENGTH} from './generation.ts';
-import type {SceneryExclusion} from './environments/layout.ts';
+import type {SceneryExclusion} from '../environments/layout.ts';
 import {WAREHOUSE} from './warehouseSite.ts';
 import {hasRoofLaunch,ROOF_LAUNCH} from './roofPlan.ts';
 import {terrainBankExclusions} from './terrainBanks.ts';

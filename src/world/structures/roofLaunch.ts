@@ -1,7 +1,7 @@
 import {createRampShapeGeometry} from './rampShapes.ts';
-import {LANDMARK_MATERIALS,landmarkPart} from './environments/landmarkParts.ts';
-import {ROOF_LAUNCH} from './roofPlan.ts';
-import {CHUNK_LENGTH} from './generation.ts';
+import {LANDMARK_MATERIALS,landmarkPart} from './parts.ts';
+import {ROOF_LAUNCH} from '../planning/roofPlan.ts';
+import {CHUNK_LENGTH} from '../planning/generation.ts';
 
 const finish=LANDMARK_MATERIALS.concrete.clone();
 finish.polygonOffset=true;finish.polygonOffsetFactor=-1;finish.polygonOffsetUnits=-2;

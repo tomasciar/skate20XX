@@ -1,8 +1,8 @@
 import type * as THREE from 'three';
-import {CHUNK_LENGTH} from '../generation.ts';
-import {makeTree,treeStyleFor} from '../scenery.ts';
-import {prepareEnvironmentObject} from '../appearance.ts';
-import {varyScenery} from '../variety.ts';
+import {CHUNK_LENGTH} from '../planning/generation.ts';
+import {makeTree, treeStyleFor} from '../props/nature.ts';
+import {prepareEnvironmentObject} from '../rendering/appearance.ts';
+import {varyScenery} from '../props/variety.ts';
 import type {District,TreeStyle} from './catalog.ts';
 
 /** Builders describe one physical layout, shared by skateboarding and snowboarding. */

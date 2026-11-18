@@ -1,7 +1,11 @@
-import {makeBush,makeStump,makePaving,makeLogPile,makeSawmill,makeWarehouse,makeLumberStack,makeTank,makeStack,makePowerPole,makeLogTruck,makeYardFence,makeLamp} from '../scenery.ts';
+import {makeBush, makeStump} from '../props/nature.ts';
+import {makePaving, makeYardFence, makeLamp} from '../props/furniture.ts';
+import {makeLogPile, makeLumberStack, makeTank, makeStack, makePowerPole} from '../props/landmarks.ts';
+import {makeSawmill, makeWarehouse} from '../props/buildings.ts';
+import {makeLogTruck} from '../props/vehicles.ts';
 import {facing,ALONG} from './layout.ts';
 import type {LayoutContext} from './layout.ts';
-import {makeArchitecture} from './architecture.ts';
+import {makeArchitecture} from '../structures/architecture.ts';
 
 export function populateMill({index,rng,free,place,scatter,tree,forest}:LayoutContext) {
   const yard = index%2 ? 1 : -1, clear = -yard;

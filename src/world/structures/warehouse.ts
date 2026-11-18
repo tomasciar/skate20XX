@@ -1,12 +1,12 @@
 import * as THREE from 'three';
-import {CHUNK_LENGTH} from './generation.ts';
+import {CHUNK_LENGTH} from '../planning/generation.ts';
 import {createRampShapeGeometry} from './rampShapes.ts';
-import {LANDMARK_MATERIALS as M,landmarkBox,landmarkPart} from './environments/landmarkParts.ts';
+import {LANDMARK_MATERIALS as M,landmarkBox,landmarkPart} from './parts.ts';
 
-import {WAREHOUSE} from './warehouseSite.ts';
-import {hasRoofLaunch} from './roofPlan.ts';
+import {WAREHOUSE} from '../planning/warehouseSite.ts';
+import {hasRoofLaunch} from '../planning/roofPlan.ts';
 import {makeRoofLaunch} from './roofLaunch.ts';
-export {WAREHOUSE,warehouseSiteAt} from './warehouseSite.ts';
+export {WAREHOUSE,warehouseSiteAt} from '../planning/warehouseSite.ts';
 
 /** A roadside depot with a brick plinth, inset loading bays, clerestory glazing and a clear roof. */
 export function makeLongWarehouse(owner:number) {

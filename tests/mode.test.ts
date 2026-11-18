@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
-import {createWorldAppearance,surface} from '../src/world/appearance.ts';
+import {createWorldAppearance,surface} from '../src/world/rendering/appearance.ts';
 import {createRamp} from '../src/world/ramp.ts';
 import {createBoardPlayer} from '../src/player/board.ts';
 import {createSkaterVisual} from '../src/player/visuals/skaterVisual.ts';

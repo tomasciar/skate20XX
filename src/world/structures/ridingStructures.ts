@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import {landscapeHeight,LANDSCAPE_X} from './landscape.ts';
-import {courseHeight,COURSE_STEP} from './course.ts';
-import {CHUNK_LENGTH} from './generation.ts';
-import {LANDMARK_MATERIALS as M,landmarkPart,landmarkBox,sharedGeometry} from './environments/landmarkParts.ts';
-import type {RidingSite} from './ridingSites.ts';
-import {ridingPathX} from './ridingSites.ts';
+import {landscapeHeight,LANDSCAPE_X} from '../terrain/landscape.ts';
+import {courseHeight,COURSE_STEP} from '../terrain/course.ts';
+import {CHUNK_LENGTH} from '../planning/generation.ts';
+import {LANDMARK_MATERIALS as M,landmarkPart,landmarkBox,sharedGeometry} from './parts.ts';
+import type {RidingSite} from '../planning/ridingSites.ts';
+import {ridingPathX} from '../planning/ridingSites.ts';
 
 const finish=M.trim.clone();finish.polygonOffset=true;finish.polygonOffsetFactor=-1;finish.polygonOffsetUnits=-2;
 const cliffFinish=finish.clone();cliffFinish.color.setHex(0x9c9c52);

@@ -2,13 +2,13 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
-import {seededRandom} from '../src/world/generation.ts';
-import {makeHouse,makeTree,makeCar,makePlanter,makeRocks,makeCabin,makeBarn,makeWarehouse,makeBench} from '../src/world/scenery.ts';
-import {varyScenery,sceneryMaterial,applySceneryTint,CONTAINER_VARIANTS,TERMINAL_VARIANTS,makeContainerVariant,makeTerminalVariant} from '../src/world/variety.ts';
-import {bakeSceneryCollision} from '../src/world/collision.ts';
+import {seededRandom} from '../src/world/planning/generation.ts';
+import {makeHouse,makeTree,makeCar,makePlanter,makeRocks,makeCabin,makeBarn,makeWarehouse,makeBench} from '../src/world/props/scenery.ts';
+import {varyScenery,sceneryMaterial,applySceneryTint,CONTAINER_VARIANTS,TERMINAL_VARIANTS,makeContainerVariant,makeTerminalVariant} from '../src/world/props/variety.ts';
+import {bakeSceneryCollision} from '../src/world/physics/collision.ts';
 import {createRamp} from '../src/world/ramp.ts';
-import {addAssetDetails} from '../src/world/assetDetails.ts';
-import {makeCityBuilding} from '../src/world/environments/cityProps.ts';
+import {addAssetDetails} from '../src/world/props/assetDetails.ts';
+import {makeCityBuilding} from '../src/world/props/city.ts';
 
 Object.assign(globalThis,{document:{createElement:()=>({getContext:()=>new Proxy({},{get:()=>()=>{}})})}});
 

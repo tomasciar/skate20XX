@@ -1,4 +1,7 @@
-import {makeBush,makeRocks,makePaving,makeLookout,makeMast,makeHut,makeCairn,makeTurbine} from '../scenery.ts';
+import {makeBush, makeRocks, makeCairn} from '../props/nature.ts';
+import {makePaving} from '../props/furniture.ts';
+import {makeLookout, makeMast, makeTurbine} from '../props/landmarks.ts';
+import {makeHut} from '../props/buildings.ts';
 import {facing} from './layout.ts';
 import type {LayoutContext} from './layout.ts';
 

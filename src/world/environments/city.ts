@@ -1,8 +1,9 @@
-import {makeCar,makeBench,makePlanter,makeBusStop,makePaving,makeLamp} from '../scenery.ts';
-import {makeCityBuilding,makeCityHydrant,makeCityBin,makeParkingMeter} from './cityProps.ts';
+import {makeCar} from '../props/vehicles.ts';
+import {makeBench, makePlanter, makeBusStop, makePaving, makeLamp} from '../props/furniture.ts';
+import {makeCityBuilding,makeCityHydrant,makeCityBin,makeParkingMeter} from '../props/city.ts';
 import {facing,ALONG} from './layout.ts';
 import type {LayoutContext} from './layout.ts';
-import {makeArchitecture,ARCHITECTURE_STYLES} from './architecture.ts';
+import {makeArchitecture,ARCHITECTURE_STYLES} from '../structures/architecture.ts';
 
 /** Terraced street frontages, pocket plazas, and a second skyline row share the existing road. */
 export function populateCity({index,rng,place,tree}:LayoutContext) {

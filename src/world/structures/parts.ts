@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import {sceneryMaterial} from '../variety.ts';
-import {COURSE_STEP} from '../course.ts';
+import {sceneryMaterial} from '../props/variety.ts';
+import {COURSE_STEP} from '../terrain/course.ts';
 
 export const sharedGeometry=<T extends THREE.BufferGeometry>(geometry:T)=>{geometry.userData.shared=true;return geometry;};
 const cube=sharedGeometry(new THREE.BoxGeometry());

@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { courseHeight, courseX, courseCurveSlope, COURSE_STEP } from './course.ts';
-import { CHUNK_LENGTH, districtAt } from './generation.ts';
-import {ENVIRONMENTS} from './environments/catalog.ts';
-import {landscapePaletteAt} from './environments/palettes.ts';
-import {sideRouteCenter,sideBuildingBank,sideBuildingAt} from './exploration.ts';
-import {terrainBankAt,terrainBankHeight} from './terrainBanks.ts';
+import { CHUNK_LENGTH, districtAt } from '../planning/generation.ts';
+import {ENVIRONMENTS} from '../environments/catalog.ts';
+import {landscapePaletteAt} from '../environments/palettes.ts';
+import {sideRouteCenter,sideBuildingBank,sideBuildingAt} from '../planning/exploration.ts';
+import {terrainBankAt,terrainBankHeight} from '../planning/terrainBanks.ts';
 export const LANDSCAPE_HALF_WIDTH = 260;
 export const LANDSCAPE_X = [-260,-220,-180,-145,-115,-90,-84,-74,-70,-62,-52,-46,-38,-30,-26,-22,-18,-12,-11.4,-9.6,-8.3,0,8.3,9.6,11.4,12,18,22,26,30,38,46,52,62,70,74,84,90,115,145,180,220,260];
 const STEP = COURSE_STEP;

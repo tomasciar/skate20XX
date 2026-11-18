@@ -1,7 +1,7 @@
 import {CHUNK_LENGTH} from './generation.ts';
 import {sideRouteCenter,sideBuildingForChunk} from './exploration.ts';
 import {warehouseSiteAt} from './warehouseSite.ts';
-import type {SceneryExclusion} from './environments/layout.ts';
+import type {SceneryExclusion} from '../environments/layout.ts';
 
 export type RidingSite={owner:number;kind:'pavilion'|'spillway'|'cliff';side:-1|1;x:number;start:number;end:number;width:number;height:number};
 const DEFINITIONS=[

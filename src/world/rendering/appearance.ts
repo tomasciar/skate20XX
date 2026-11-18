@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type {WorldSeason} from './season.ts';
-import {seededRandom} from './generation.ts';
+import {seededRandom} from '../planning/generation.ts';
 
 export type Surface='scenery'|'road'|'terrain'|'path'|'barrier'|'line'|'obstacle';
 export function surface<T extends THREE.Material>(material:T,kind:Surface):T {material.userData.surface=kind;return material;}

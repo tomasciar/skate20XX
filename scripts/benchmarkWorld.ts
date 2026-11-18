@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
-import {populateDistrict} from '../src/world/districts.ts';
-import {DISTRICTS,seededRandom} from '../src/world/generation.ts';
-import {bakeSceneryCollision} from '../src/world/collision.ts';
+import {populateDistrict} from '../src/world/environments/districts.ts';
+import {DISTRICTS,seededRandom} from '../src/world/planning/generation.ts';
+import {bakeSceneryCollision} from '../src/world/physics/collision.ts';
 import {createRamp} from '../src/world/ramp.ts';
 
 Object.assign(globalThis,{document:{createElement:()=>({getContext:()=>new Proxy({},{get:()=>()=>{}})})}});

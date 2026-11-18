@@ -1,4 +1,4 @@
-import {districtAt} from '../generation.ts';
+import {districtAt} from '../planning/generation.ts';
 
 /** Shared visual colourways; independent of riding mode, geometry and placement randomness. */
 export const LANDSCAPE_PALETTES=[
