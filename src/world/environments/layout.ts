@@ -7,16 +7,18 @@ import type {District,TreeStyle} from './catalog.ts';
 
 /** Builders describe one physical layout, shared by skateboarding and snowboarding. */
 export type Plant = (object:THREE.Object3D,x:number,along:number,yaw?:number)=>void;
-export type DistrictContext = {district:District;index:number;entering:boolean;rng:()=>number;plant:Plant};
+export type SceneryExclusion={minX:number;maxX:number;start:number;end:number};
+export type DistrictContext = {district:District;index:number;entering:boolean;rng:()=>number;plant:Plant;exclusions?:readonly SceneryExclusion[]};
 export const facing = (side:number)=>side>0?-Math.PI/2:Math.PI/2;
 export const ALONG = Math.PI/2;
 
-export function createLayoutContext({district,index,rng,plant}:DistrictContext) {
+export function createLayoutContext({district,index,rng,plant,exclusions=[]}:DistrictContext) {
   const queue: (() => void)[] = [], taken: { x: number; along: number; radius: number }[] = [];
   const free = (x: number, along: number, radius: number) =>
     taken.every(t => Math.hypot(t.x-x, t.along-along) > t.radius+radius);
   /** Reserve ground and build later, so main features claim their space before filler is scattered. */
   function place(make: () => THREE.Object3D, x: number, along: number, yaw = 0, radius = 0) {
+    if(exclusions.some(area=>x+radius>area.minX && x-radius<area.maxX && along+radius>area.start && along-radius<area.end))return;
     if (radius) taken.push({ x, along, radius });
     const slot=queue.length;
     queue.push(() => { const object=varyScenery(make(),district,index,slot);prepareEnvironmentObject(object);plant(object, x, along, yaw); });

@@ -10,6 +10,7 @@ const top=new THREE.MeshStandardMaterial({color:0x29343f,roughness:0.95});
 const frame=new THREE.MeshStandardMaterial({color:0xe5683e,roughness:0.65,metalness:0.15});
 const paint=new THREE.MeshStandardMaterial({color:0xffd35a,roughness:0.6});
 const boostPaint=new THREE.MeshStandardMaterial({color:0xb5f542,roughness:0.75,emissive:0xb5f542,emissiveIntensity:0.06});
+boostPaint.userData.surface='obstacle';boostPaint.polygonOffset=true;boostPaint.polygonOffsetFactor=-1;boostPaint.polygonOffsetUnits=-2;
 const arrowShape=new THREE.Shape();
 arrowShape.moveTo(0,0.75);arrowShape.lineTo(-0.5,0);arrowShape.lineTo(-0.17,0);
 arrowShape.lineTo(-0.17,-0.65);arrowShape.lineTo(0.17,-0.65);arrowShape.lineTo(0.17,0);
@@ -48,10 +49,14 @@ export function makeStartPlatform() {
 
 /** Painted on the solid road, with no raised collision edge to trip the wheels. */
 export function makeStartBoostPad() {
-  const root=new THREE.Group();root.name='start-boost-pad';root.userData.collision=false;
-  const base=new THREE.Mesh(new THREE.BoxGeometry(START_BOOST.width,0.004,START_BOOST.length),boostPaint);
+  const root=makeBoostPad(START_BOOST.width,START_BOOST.length);root.name='start-boost-pad';return root;
+}
+
+export function makeBoostPad(width:number,length:number) {
+  const root=new THREE.Group();root.name='boost-pad';root.userData.collision=false;
+  const base=new THREE.Mesh(new THREE.BoxGeometry(width,0.004,length),boostPaint);
   base.position.y=0.002;root.add(base);
-  for(let along=-START_BOOST.length/2+3;along<START_BOOST.length/2;along+=5) {
+  for(let along=-length/2+3;along<length/2;along+=5) {
     const marking=arrow(top);marking.scale.setScalar(1.7);marking.position.set(0,0.006,-along);root.add(marking);
   }
   return root;

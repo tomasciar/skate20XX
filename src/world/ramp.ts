@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { CHUNK_LENGTH, planChunk, seededRandom } from "./generation.ts";
 import { makeCone } from "./scenery.ts";
+import type {SceneryExclusion} from './environments/layout.ts';
 import { populateDistrict } from "./districts.ts";
 import { SUN_DIRECTION, createShadowBuilder } from "./shadows.ts";
 import { landscapeWorldHeight } from "./landscape.ts";
@@ -18,6 +19,13 @@ import {makeRampShape} from './rampShapes.ts';
 import {seasonForRideMode,type WorldSeason} from './season.ts';
 import {applySceneryTint} from './variety.ts';
 import {createLooseCone,type LooseCone} from './looseProps.ts';
+import {ROOFTOP,makeRooftopLane} from './workshop.ts';
+import {makeLongWarehouse,warehouseSiteAt,WAREHOUSE} from './warehouse.ts';
+import {explorationExclusions,sideBuildingForChunk,sideRouteCenter} from './exploration.ts';
+import {makeSideBuildingSteps} from './sideBuildings.ts';
+import {ridingSiteForChunk,ridingSiteExclusions} from './ridingSites.ts';
+import {makeRidingStructure} from './ridingStructures.ts';
+import {makeBankFeatures,bankBoostSpeed} from './bankFeatures.ts';
 
 /** Endless rolling downhill: road and scenery share the streamed height profile. */
 export const RAMP = {
@@ -160,6 +168,12 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
     chunks.set(index, chunk);
 
     function warpCourse(mesh: THREE.Mesh) {
+      if(mesh.geometry.userData.shared) {
+        // BufferGeometry.clone shares userData with its source. Give this owned copy
+        // separate metadata before clearing the flag, or the next instance mutates the template.
+        const source=mesh.geometry;
+        mesh.geometry=source.clone();mesh.geometry.userData={...source.userData};delete mesh.geometry.userData.shared;
+      }
       mesh.updateMatrix();
       const positions=mesh.geometry.getAttribute('position'), point=new THREE.Vector3();
       for(let i=0;i<positions.count;i++) {
@@ -181,10 +195,12 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
     root.add(warpCourse(deck));
 
     for (const side of [-1, 1] as const) {
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.28,0.5,RAMP.chunkLength,1,1,RAMP.chunkLength/COURSE_STEP), mats.barrier);
-      rail.position.set(side * (RAMP.width / 2 + 0.08), RAMP.thickness / 2 + 0.18, -RAMP.chunkLength / 2);
-      rail.castShadow = true;
-      root.add(warpCourse(rail));
+      // Most edges are open to explore. Short ridge sections still mark exposed shoulders.
+      if(district==='ridge' && (index+(side>0?1:0))%2===0 && Math.abs(sideRouteCenter(index*RAMP.chunkLength+10,side))>14) {
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(0.28,0.5,20,1,1,4), mats.barrier);
+        rail.position.set(side * (RAMP.width / 2 + 0.08), RAMP.thickness / 2 + 0.18, -10);
+        root.add(warpCourse(rail));
+      }
 
       const edge = new THREE.Mesh(
         new THREE.BoxGeometry(0.12,0.002,RAMP.chunkLength,1,1,RAMP.chunkLength/COURSE_STEP),
@@ -216,7 +232,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
     }
     for (const side of [-1,1]) {
       const path = new THREE.Mesh(new THREE.BoxGeometry(1.8,0.08,RAMP.chunkLength,1,1,RAMP.chunkLength/COURSE_STEP),mats.path);
-      path.position.set(side*10.5,0.20,-RAMP.chunkLength/2); path.receiveShadow = true; root.add(warpCourse(path));
+      path.position.set(side*10.5,0.44,-RAMP.chunkLength/2); path.receiveShadow = true; root.add(warpCourse(path));
     }
     yield;
     const shadows = createShadowBuilder(sunOnHill), bounds = new THREE.Box3();
@@ -236,7 +252,35 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
       root.add(placed);
     }
 
-    yield* populateDistrict({ district, index, entering, rng, plant });
+    const warehouse=warehouseSiteAt(index);
+    const sideBuilding=sideBuildingForChunk(index);
+    const ridingSite=ridingSiteForChunk(index);
+    const rooftop=index===2 || (!warehouse && sideBuilding?.side!==1 && ridingSite?.side!==1 && index>2 && index%17===2 && encounters.every(item=>item.x<0));
+    const exclusions:SceneryExclusion[]=explorationExclusions(index);
+    if(rooftop)exclusions.push({minX:7.6,maxX:17,start:10,end:ROOFTOP.end+3});
+    if(warehouse)exclusions.push({minX:8.4,maxX:32,start:warehouse.owner===index?WAREHOUSE.rampStart-2:warehouse.start-index*RAMP.chunkLength-4,end:warehouse.end-index*RAMP.chunkLength+warehouse.clearance});
+    if(ridingSite)exclusions.push(...ridingSiteExclusions(ridingSite,index));
+    yield* populateDistrict({ district, index, entering, rng, plant,exclusions });
+    if(rooftop)for(const mesh of makeRooftopLane(index*RAMP.chunkLength))root.add(warpCourse(mesh));
+    if(warehouse?.owner===index) {
+      let processed=0;
+      for(const mesh of makeLongWarehouse(index)) {
+        root.add(warpCourse(mesh));if(++processed%8===0)yield;
+      }
+    }
+    if(sideBuilding?.owner===index) {
+      let processed=0;
+      for(const mesh of makeSideBuildingSteps(sideBuilding)) {
+        root.add(warpCourse(mesh));if(++processed%8===0)yield;
+      }
+    }
+    if(ridingSite?.owner===index) {
+      let processed=0;
+      for(const mesh of makeRidingStructure(ridingSite)) {
+        root.add(warpCourse(mesh));if(++processed%8===0)yield;
+      }
+    }
+    for(const mesh of makeBankFeatures(index))root.add(warpCourse(mesh));
 
     for (const item of encounters) {
       const { x, along, width, length, height, kind } = item;
@@ -313,9 +357,9 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
       // Rapier builds the triangle mesh's acceleration structure synchronously. Do not stack
       // that indivisible operation onto geometry work already done in this display frame.
       yield 'frame';
-      // Side banks twist across a triangle grid. Weld shared edges so CCD cannot treat a
-      // riding-surface seam as a vertical obstruction and eject the rider on departure.
-      const flags=encounters.some(item=>item.kind==='bank')?RAPIER.TriMeshFlags.FIX_INTERNAL_EDGES:undefined;
+      // The valley is rideable now too. Weld its grid edges so CCD cannot turn
+      // a terrain seam into an obstruction when carving outside the road.
+      const flags=RAPIER.TriMeshFlags.FIX_INTERNAL_EDGES;
       addCollider(RAPIER.ColliderDesc.trimesh(solid.vertices,solid.indices,flags),new THREE.Vector3());
       root.userData.solidMeshes = solid.meshCount; root.userData.collisionTriangles = solid.indices.length/3;
       yield 'frame';
@@ -399,7 +443,8 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
     for(const cone of chunk.cones)cone.shift(shift);
   }
 
-  function refreshRails() { grindRails = [...chunks.values()].flatMap(chunk => chunk.rails.map(rail => ({
+  function refreshRails() {
+    grindRails = [...chunks.values()].flatMap(chunk => chunk.rails.map(rail => ({
         id: rail.id,
         normal: rail.normal?.clone().applyQuaternion(q),
         start: worldFromLocal(rail.start.clone().add(chunk.root.position)),
@@ -461,13 +506,15 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
     while (deferredDestroy.length > 2) flushDeferredDestroy(0);
     // If preload slipped, finish at most one missing live chunk without stalling the whole window.
     // The ground under and just ahead of the rider is never optional, however far the origin moved.
-    let spare = 1, rebuilt = false;
+    let spare = 1;
     for (let i = cursor - RAMP.chunksBehind; i <= cursor + RAMP.chunksAhead; i++) {
       if (chunks.has(i)) continue;
       if (i !== cursor && i !== cursor + 1) { if (spare === 0) continue; spare--; }
-      buildChunk(i); rebuilt = true;
+      buildChunk(i);
     }
-    if (rebuilt) refreshRails();
+    // Cached interaction positions must follow every origin rebase, including scrolls
+    // served entirely by preloaded chunks.
+    refreshRails();
     world.propagateModifiedBodyPositionsToColliders();
     return forward
       .clone()
@@ -498,14 +545,12 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
     spawn,
     startPlatform: options.startPlatform===false ? undefined : START_PLATFORM,
     boostAt(position) {
-      if(options.startPlatform===false)return 0;
       const dx=position.x-anchor.x,dy=position.y-anchor.y,dz=position.z-anchor.z;
       const along=distance+dx*forward.x+dy*forward.y+dz*forward.z;
-      if(Math.abs(along-START_BOOST.along)>START_BOOST.length/2)return 0;
       const offset=position.x-(courseX(along)-courseX(distance));
-      if(Math.abs(Math.abs(offset)-START_BOOST.x)>START_BOOST.width/2)return 0;
       const clearance=dx*surfaceNormal.x+dy*surfaceNormal.y+dz*surfaceNormal.z-courseHeight(along)+courseHeight(distance);
-      return clearance>=0 && clearance<0.8 ? START_BOOST.speed : 0;
+      if(options.startPlatform!==false && Math.abs(along-START_BOOST.along)<=START_BOOST.length/2 && Math.abs(Math.abs(offset)-START_BOOST.x)<=START_BOOST.width/2 && clearance>=0 && clearance<.8)return START_BOOST.speed;
+      return bankBoostSpeed(along,offset,clearance);
     },
     anchor,
     surfaceOrigin,

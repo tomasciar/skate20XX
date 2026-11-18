@@ -4,6 +4,7 @@ import {seededRandom} from './generation.ts';
 import type {District} from './environments/catalog.ts';
 import {ENVIRONMENT_BY_ID} from './environments/catalog.ts';
 import {addAssetDetails} from './assetDetails.ts';
+import {landscapePaletteAt} from './environments/palettes.ts';
 
 type PaletteRole='paint'|'roof'|'wood'|'cutwood'|'stone'|'foliage'|'autumn'|'flower'|'glass'|'trim'|'accent'|'metal'|'straw';
 const PALETTES:Record<PaletteRole,readonly number[]>={
@@ -111,6 +112,7 @@ export function makeTerminalVariant(kind:TerminalVariant) {
   return root;
 }
 
+const CONIFER_GREENS=[0x244c3d,0x315b44,0x365e52,0x496946];
 function hash(value:string) {let result=0;for(let i=0;i<value.length;i++)result=Math.imul(result,31)^value.charCodeAt(i);return result;}
 
 /** A separate stream preserves all placement decisions and gameplay encounter IDs. */
@@ -123,9 +125,10 @@ export function varyScenery(original:THREE.Object3D,district:District,index:numb
   if(family==='city-parking-meter')root=makeTerminalVariant(TERMINAL_VARIANTS[Math.floor(details()*TERMINAL_VARIANTS.length)]!);
   if(!root.userData.assetVariant)root.userData.assetVariant=variant;
   const colors=new Map<PaletteRole,number>();
+  const colourway=landscapePaletteAt(index);
   const paints=ENVIRONMENT_BY_ID.get(district)!.paint ?? PALETTES.paint;
   for(const name of Object.keys(PALETTES) as PaletteRole[]) {
-    const palette=name==='paint'?paints:PALETTES[name];colors.set(name,palette[Math.floor(rng()*palette.length)]!);
+    const palette=name==='paint'?paints:name==='autumn'?colourway.autumn:name==='foliage'?colourway.foliage:PALETTES[name];colors.set(name,palette[Math.floor(rng()*palette.length)]!);
   }
   // Compact/tall/low-pitched variants retain the existing reserved footprint.
   if(root.userData.placement==='pad' && !root.userData.collisionFamily && family!=='city-hydrant' && family!=='parking-meter') {
@@ -136,6 +139,9 @@ export function varyScenery(original:THREE.Object3D,district:District,index:numb
     if(!(object instanceof THREE.Mesh) || Array.isArray(object.material))return;
     const mat=object.material as THREE.MeshStandardMaterial,name=mat.userData.paletteRole as PaletteRole|undefined;
     if(name && object.userData.sceneryTint===undefined)object.userData.sceneryTint=colors.get(name);
+    if(name==='foliage' && family==='tree' && (root.userData.treeStyle==='pine' || root.userData.treeStyle==='cedar')) {
+      object.userData.sceneryTint=CONIFER_GREENS[variant%CONIFER_GREENS.length];
+    }
     if(name==='paint' && root.userData.assetVariant==='stone-planter')object.userData.sceneryTint=colors.get('stone');
     if(name==='paint' && (root.userData.assetVariant==='market-crate' || root.userData.assetVariant==='storage-chest'))object.userData.sceneryTint=colors.get('wood');
     if(name==='paint' && root.userData.assetVariant==='equipment-case')object.userData.sceneryTint=colors.get('metal');

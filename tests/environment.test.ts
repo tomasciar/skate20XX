@@ -82,7 +82,9 @@ test('generated trees stop physical objects and rich scenery keeps a bounded phy
   const live=RAMP.chunksBehind+1+RAMP.chunksAhead, full=live+RAMP.prepareLead;
   const staticColliders=()=>{let count=0;world.colliders.forEach(c=>{if(c.parent()?.isFixed())count++;});return count;};
   assert.equal(staticColliders(),full);
-  assert.ok(ramp.mesh.children.every(chunk=>chunk.userData.solidMeshes>100));
+  // Clearings intentionally trade dense prop counts for riding space; keep the collision
+  // budget bounded while the physical tree impact below verifies that scenery stays solid.
+  assert.ok(ramp.mesh.children.every(chunk=>chunk.userData.collisionTriangles<30_000));
   const chunk = ramp.mesh.children.find(c=>c.position.z===0)!;
   const trunks = chunk.children.find(o=>o instanceof THREE.Mesh && (o.material as THREE.MeshStandardMaterial).color.getHex()===0x5a4030) as THREE.Mesh;
   assert.ok(trunks);

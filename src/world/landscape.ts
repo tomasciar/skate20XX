@@ -2,16 +2,29 @@ import * as THREE from 'three';
 import { courseHeight, courseX, courseCurveSlope, COURSE_STEP } from './course.ts';
 import { CHUNK_LENGTH, districtAt } from './generation.ts';
 import {ENVIRONMENTS} from './environments/catalog.ts';
+import {landscapePaletteAt} from './environments/palettes.ts';
+import {sideRouteCenter,sideBuildingBank,sideBuildingAt} from './exploration.ts';
+import {terrainBankAt,terrainBankHeight} from './terrainBanks.ts';
 export const LANDSCAPE_HALF_WIDTH = 260;
-export const LANDSCAPE_X = [-260,-220,-180,-145,-115,-90,-70,-52,-38,-26,-18,-12,-8.3,0,8.3,12,18,26,38,52,70,90,115,145,180,220,260];
+export const LANDSCAPE_X = [-260,-220,-180,-145,-115,-90,-84,-74,-70,-62,-52,-46,-38,-30,-26,-22,-18,-12,-11.4,-9.6,-8.3,0,8.3,9.6,11.4,12,18,22,26,30,38,46,52,62,70,74,84,90,115,145,180,220,260];
 const STEP = COURSE_STEP;
 function elevation(x: number, along: number, roadHeight: number) {
   const side = Math.sign(x), distance = Math.abs(x);
   const blend = THREE.MathUtils.smoothstep(distance,12,70);
   // The valley slowly changes shape: one flank rises into a hillside while the other opens out, then they trade.
   const flank = side < 0 ? 5 + 7 * Math.sin(along * 0.0021 + 0.9) : -3 + 7 * Math.sin(along * 0.0016 + 3.6);
-  return roadHeight + 0.16 + blend * (flank + Math.sin(along * 0.008 + side) * 5
+  const wild = blend * (flank + Math.sin(along * 0.008 + side) * 5
     + Math.sin(distance * 0.026 + along * 0.005) * 6 + Math.sin(along * 0.021 + distance * 0.019) * 2.5);
+  const rolling=blend*(1.3*Math.sin(along*.009+side)+.7*Math.sin(along*.017+distance*.085)+.4*Math.sin(distance*.075));
+  let height=.46+THREE.MathUtils.lerp(rolling,wild,THREE.MathUtils.smoothstep(distance,85,170));
+  const trail=1-THREE.MathUtils.smoothstep(Math.abs(x-sideRouteCenter(along,side)),4,11);
+  const trailHeight=.46+blend*(.65*Math.sin(along*.009+side)+.2*Math.sin(along*.021));
+  height=THREE.MathUtils.lerp(height,trailHeight,trail*.7);
+  const bank=sideBuildingBank(x,along);
+  if(bank>0)height=THREE.MathUtils.lerp(height,.46,bank/sideBuildingAt(along)!.height);
+  const standalone=terrainBankAt(x,along),mound=standalone?terrainBankHeight(standalone,x,along):0;
+  if(standalone && mound>0)height=THREE.MathUtils.lerp(height,.46,mound/standalone.height);
+  return roadHeight+height+bank+mound;
 }
 // Placement and normal sampling repeatedly visit the same grid vertices. Keep a bounded
 // set of height rows around streamed chunks instead of recomputing their terrain noise.
@@ -29,7 +42,16 @@ function heightRow(along: number) {
 const ground = (left: number, right: number, rock = 0) => ({ left: new THREE.Color(left), right: new THREE.Color(right), rock });
 /** Ground cover per district: uphill flank, downhill flank, and how readily bare rock shows through. */
 const GROUND = new Map(ENVIRONMENTS.map(({id,ground:palette})=>[id,ground(palette[0],palette[1],palette[2])]));
-const VERGE = new THREE.Color(0x7d7f58);
+const colourways=new Map<string,ReturnType<typeof ground>>();
+function groundAt(index:number) {
+  const definition=GROUND.get(districtAt(index).district)!,palette=landscapePaletteAt(index);
+  // Terrain stays living grass in every district; urban paving belongs to actual structures.
+  const key=`${palette.id}:${definition.rock}`;
+  let result=colourways.get(key);
+  if(!result){result=ground(palette.ground[0],palette.ground[1],definition.rock);colourways.set(key,result);}
+  return result;
+}
+const VERGE = new THREE.Color(0x969b48);
 /** Uses the same triangles as the mesh, so scenery sits exactly on its supporting ground. */
 export function landscapeHeight(x: number, along: number) {
   x = THREE.MathUtils.clamp(x,-LANDSCAPE_HALF_WIDTH,LANDSCAPE_HALF_WIDTH);
@@ -48,8 +70,8 @@ export function landscapeWorldHeight(x: number, along: number) {
 export function makeLandscape(index: number, material: THREE.Material, originHeight = 0, originX = 0) {
   const columns = LANDSCAPE_X.length, rows = 15;
   const positions = new Float32Array(columns * rows * 3), normals = positions.slice(), colors = positions.slice(), uv = new Float32Array(columns * rows * 2);
-  const indices: number[] = [], normal = new THREE.Vector3(), color = new THREE.Color(), rock = new THREE.Color(0x929585);
-  const here = GROUND.get(districtAt(index).district)!, before = GROUND.get(districtAt(index-1).district)!, left = new THREE.Color(), right = new THREE.Color();
+  const indices: number[] = [], normal = new THREE.Vector3(), color = new THREE.Color(), rock = new THREE.Color(0xb29b4e);
+  const here = groundAt(index), before = groundAt(index-1), left = new THREE.Color(), right = new THREE.Color();
   for (let row = 0; row < rows; row++) for (let col = 0; col < columns; col++) {
     const x = LANDSCAPE_X[col]!, along = index * CHUNK_LENGTH + row * STEP, y = landscapeHeight(x,along), i = row*columns+col;
     positions.set([x+courseX(along)-originX,y-originHeight,-row*STEP],i*3); uv.set([x/20,along/20],i*2);
@@ -64,6 +86,10 @@ export function makeLandscape(index: number, material: THREE.Material, originHei
     // Broad mottling plus a worn verge beside the footpath.
     color.multiplyScalar(0.94 + Math.sin(x*0.05+along*0.013)*0.04 + Math.sin(x*0.19-along*0.071)*0.03);
     if (Math.abs(x) <= 12) color.lerp(VERGE,0.35);
+    else {
+      const trail=1-THREE.MathUtils.smoothstep(Math.abs(x-sideRouteCenter(along,Math.sign(x))),2.5,7);
+      color.lerp(VERGE,trail*.27);
+    }
     color.toArray(colors,i*3);
     if (row < rows-1 && col < columns-1) { const a=i,b=i+1,c=i+columns,d=c+1; indices.push(a,b,c,b,d,c); }
   }

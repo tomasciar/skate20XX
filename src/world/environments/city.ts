@@ -2,6 +2,7 @@ import {makeCar,makeBench,makePlanter,makeBusStop,makePaving,makeLamp} from '../
 import {makeCityBuilding,makeCityHydrant,makeCityBin,makeParkingMeter} from './cityProps.ts';
 import {facing,ALONG} from './layout.ts';
 import type {LayoutContext} from './layout.ts';
+import {makeArchitecture,ARCHITECTURE_STYLES} from './architecture.ts';
 
 /** Terraced street frontages, pocket plazas, and a second skyline row share the existing road. */
 export function populateCity({index,rng,place,tree}:LayoutContext) {
@@ -16,7 +17,8 @@ export function populateCity({index,rng,place,tree}:LayoutContext) {
         place(tree('broadleaf',1.1),side*24,along,0,1.5);
       } else {
         const style=rng()<0.3?'office':rng()<0.3?'shop':'apartment';
-        place(()=>makeCityBuilding(rng,style),side*21,along,facing(side),7.5);
+        const variant=(index+along+(side>0?2:0))%7;
+        place(()=>variant<5?makeArchitecture(rng,ARCHITECTURE_STYLES[variant]!):makeCityBuilding(rng,style),side*21,along,facing(side),7.5);
         // A small paved forecourt joins each storefront to the roadside footpath.
         place(()=>makePaving(4.4,7.5),side*13.8,along,0);
       }

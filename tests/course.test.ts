@@ -146,7 +146,7 @@ test('furniture and parking foundations stay level and cover their terrain footp
         const top=root.localToWorld(new THREE.Vector3(x,0,z));
         const bottom=root.localToWorld(new THREE.Vector3(x,-root.userData.padDepth,z));
         const ground=landscapeWorldHeight(top.x,start-top.z);
-        assert.ok(top.y+base>=ground-0.001,'pad is buried');
+        assert.ok(top.y+base>=ground-0.001,`pad is buried at ${along}, yaw ${yaw}, depth ${ground-top.y-base}`);
         assert.ok(bottom.y+base<=landscapeWorldHeight(bottom.x,start-bottom.z),`pad floats above terrain at ${along}, yaw ${yaw}, gap ${bottom.y+base-landscapeWorldHeight(bottom.x,start-bottom.z)}`);
         levels.push(top.clone().applyQuaternion(hillRotation).y);
       }

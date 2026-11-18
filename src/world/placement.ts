@@ -10,22 +10,31 @@ export function placeScenery(object: THREE.Object3D, x: number, along: number, c
   yaw+=courseHeading(globalAlong,hillAngle);
   const rotation=new THREE.Quaternion().setFromEuler(new THREE.Euler(hillAngle,yaw,0));
   if (object.userData.placement === 'pad') {
-    const bounds=new THREE.Box3().setFromObject(object), corners: THREE.Vector3[]=[];
+    const bounds=new THREE.Box3().setFromObject(object), support: THREE.Vector3[]=[];
     let floor=-Infinity;
     const margin=0.2;
-    for (const px of [bounds.min.x-margin,bounds.max.x+margin]) for (const pz of [bounds.min.z-margin,bounds.max.z+margin]) {
+    const samples=(min:number,max:number)=>{
+      const values=new Set([min,(min+max)/2,max]);
+      if(min<=0 && max>=0)values.add(0);
+      const steps=Math.ceil((max-min)/2.5);
+      for(let i=1;i<steps;i++)values.add(min+(max-min)*i/steps);
+      return [...values];
+    };
+    // Convex banks can peak inside a lot rather than at a corner. Include the center,
+    // edge midpoints and a small interior grid so furniture and foundations stay exposed.
+    for (const px of samples(bounds.min.x-margin,bounds.max.x+margin)) for (const pz of samples(bounds.min.z-margin,bounds.max.z+margin)) {
       const corner=new THREE.Vector3(px,0,pz).applyQuaternion(rotation);
-      corners.push(corner);
+      support.push(corner);
       floor=Math.max(floor,landscapeWorldHeight(x+corner.x,globalAlong-corner.z)-corner.y);
     }
-    floor+=0.015;
+    floor+=0.025;
     let depth=0.12;
     const upY=Math.cos(hillAngle),upZ=Math.sin(hillAngle);
     // A level foundation extends downhill in the tilted hill frame as it gets deeper.
     // Recheck its bottom footprint so steep terrain cannot leave a gap underneath it.
     for(let pass=0;pass<6;pass++) {
       let nextDepth=depth;
-      for(const corner of corners) {
+      for(const corner of support) {
         const ground=landscapeWorldHeight(x+corner.x,globalAlong-corner.z+depth*upZ);
         nextDepth=Math.max(nextDepth,depth+(floor+corner.y-depth*upY-ground+0.12)/upY);
       }

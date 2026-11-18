@@ -1,6 +1,7 @@
 import {makeBush,makeHouse,makeShop,makeChapel,makeCar,makeBench,makePlanter,makeBusStop,makeWell,makeShed,makeHedge,makePaving,makeFence,makeLamp} from '../scenery.ts';
 import {facing,ALONG} from './layout.ts';
 import type {LayoutContext} from './layout.ts';
+import {makeArchitecture} from './architecture.ts';
 
 export function populateVillage({index,rng,free,place,scatter,tree,forest,side}:LayoutContext) {
   let chapel = index%3 !== 0;
@@ -25,7 +26,8 @@ export function populateVillage({index,rng,free,place,scatter,tree,forest,side}:
         for (const d of [-7.5,7.5]) place(tree(rng() < 0.5 ? 'autumn' : 'broadleaf'), s*(22+rng()*4), lot+d, rng()*6, 1.6);
         place(() => makePaving(7,1.4), s*14.9, lot);
       } else {
-        place(() => makeHouse(rng), s*20.3, lot, facing(s), 6.2);
+        const variant=(index+lot+(s>0?1:0))%4;
+        place(() => variant===0?makeArchitecture(rng,'rowhouse'):variant===1?makeArchitecture(rng,'arcade'):makeHouse(rng), s*20.3, lot, facing(s), 6.2);
         place(() => makePaving(5,1.3), s*13.9, lot);
         const drive = rng() < 0.55 ? side() : 0;
         for (const d of [-1,1]) {

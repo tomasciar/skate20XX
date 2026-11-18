@@ -120,6 +120,7 @@ export function makeCone() {
 export const treeStyleFor = (district: District, rng: () => number) => pick(ENVIRONMENT_BY_ID.get(district)!.trees, rng);
 export function makeTree(rng: () => number, style: TreeStyle = 'broadleaf') {
   const tree = group();
+  tree.userData.treeStyle=style;
   tree.userData.shadow = style === 'snag' ? 'box' : 'round';
   const trunk = (mat: THREE.Material, height = 1.6, width = 1) => {
     const m = new THREE.Mesh(treeTrunk, mat); m.scale.set(width,height/1.6,width); m.position.y = height/2; m.castShadow = true; tree.add(m); return m;
