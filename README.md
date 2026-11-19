@@ -162,6 +162,15 @@ The renderer caps its initial drawing buffer at about two million pixels, with a
 
 Character attachments are built on selection and share cached geometry/materials. Inactive variants stay outside the animated scene graph. Physics alignment, ray queries and limb posing reuse per-player math workspaces. `npm run bench:rider` measures rider construction, animation/matrix work and attached object counts, including after visiting every character. These are CPU measurements, not browser FPS.
 
+The surroundings include composed areas with connected optional lines: a banked
+terraced plaza on the left from 420 m, a high-rise street with linked parking-deck
+roofs on the right from 1,390 m, and an industrial roof/loading yard on the left
+from 2,020 m. Enter from the shoulder before the structures; broad banks lead up
+and back down, and bridges leave ground routes open underneath. Later areas have
+seeded spacing and replace filler scenery rather than adding a dense object layer.
+City and village lot spacing and setbacks also vary. The main road stays open,
+and every area supports skate and snow mode.
+
 See [environment authoring](docs/environments.md) for adding districts and props that share layouts, collision, and seasonal appearance across skate and snowboard modes.
 
 `npm run bench:world` measures environment density, render/collision triangles, static batches, and CPU chunk preparation. Scenery variants use seeded shared pieces and compact vertex colours across all six districts, including winter mode; the benchmark excludes browser/GPU rendering.

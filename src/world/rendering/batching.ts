@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import type {createWorldAppearance} from './appearance.ts';
+import {writeArchitectureUV} from './architectureFinish.ts';
 import {applySceneryTint} from '../props/variety.ts';
 
 /** Merge static props by material: scenery variety should not mean thousands of draw calls. */
@@ -21,9 +22,10 @@ export function* batchChunk(root: THREE.Group,appearance:ReturnType<typeof creat
     // Keep shared vertices through batching to reduce upload size and vertex/shadow work.
     if (!geometry.index) geometry.setIndex(Array.from({length:geometry.getAttribute('position').count},(_,i)=>i));
     if (!geometry.getAttribute("uv")) geometry.setAttribute("uv", new THREE.BufferAttribute(new Float32Array(geometry.getAttribute("position").count * 2), 2));
+    const material=obj.material as THREE.Material;
+    if(material.userData.architectureFinish && material.userData.architectureFinish!=='asphalt' && !obj.userData.architectureUV)writeArchitectureUV(geometry,obj.matrix);
     applySceneryTint(geometry,obj);
     geometry.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inverse, obj.matrixWorld));
-    const material = obj.material as THREE.Material;
     const list = batches.get(material) ?? [];
     list.push(geometry); batches.set(material, list);
     if (!obj.geometry.userData.shared) obj.geometry.dispose();

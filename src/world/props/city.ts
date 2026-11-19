@@ -1,19 +1,21 @@
 import * as THREE from 'three';
 import {surface,facadeMaterial} from '../rendering/appearance.ts';
+import {architecturalFinish,prepareArchitectureFinish} from '../rendering/architectureFinish.ts';
 import {sceneryMaterial,markAsset} from './variety.ts';
 
 const shared=<T extends THREE.BufferGeometry>(geometry:T)=>{geometry.userData.shared=true;return geometry;};
 const cube=shared(new THREE.BoxGeometry()),plane=shared(new THREE.PlaneGeometry()),cylinder=shared(new THREE.CylinderGeometry(0.5,0.5,1,8));
 const material=(color:number,metalness=0)=>sceneryMaterial(color,metalness,0.82);
-const walls=[0xb87055,0xd8c6a4,0x81949c,0x687985].map(color=>material(color));
-const trim=material(0xe5e0d2),dark=material(0x263e49),glass=material(0x477789,0.25),litGlass=facadeMaterial(material(0xe4c58b));
-const teal=material(0x288d8b),red=material(0xdb6546),concrete=material(0x969e9d),steel=material(0x53636e,0.45);
+const walls=[0xb87055,0xd8c6a4,0x81949c,0x687985].map((color,i)=>architecturalFinish(material(color),i===0?'brick':'concrete'));
+const trim=architecturalFinish(material(0xe5e0d2),'stone'),dark=material(0x263e49),glass=architecturalFinish(material(0x477789,0.25),'glass'),litGlass=facadeMaterial(architecturalFinish(material(0xe4c58b),'glass'));
+const teal=material(0x288d8b),red=material(0xdb6546),concrete=architecturalFinish(material(0x969e9d),'concrete'),steel=architecturalFinish(material(0x53636e,0.45),'metal');
 const pick=<T>(values:readonly T[],rng:()=>number)=>values[Math.floor(rng()*values.length)]!;
 
 function group(kind:string) {
   const root=new THREE.Group();root.name=`city-${kind}`;root.userData.cityKind=kind;root.userData.placement='pad';return markAsset(root,`city-${kind}`);
 }
 function part(root:THREE.Object3D,geometry:THREE.BufferGeometry,mat:THREE.Material,size:number[],at:number[],decoration=false) {
+  if(mat instanceof THREE.MeshStandardMaterial)prepareArchitectureFinish(mat);
   const mesh=new THREE.Mesh(geometry,mat);mesh.scale.set(size[0]!,size[1]!,size[2]!);mesh.position.set(at[0]!,at[1]!,at[2]!);
   if(decoration)mesh.userData.collision=false;
   root.add(mesh);return mesh;
@@ -21,7 +23,7 @@ function part(root:THREE.Object3D,geometry:THREE.BufferGeometry,mat:THREE.Materi
 const box=(root:THREE.Object3D,mat:THREE.Material,size:number[],at:number[],decoration=false)=>part(root,cube,mat,size,at,decoration);
 
 let signs:{material:THREE.Material;geometry:THREE.BufferGeometry[]} | undefined;
-function shopSign(root:THREE.Object3D,choice:number,width:number,y:number,z:number) {
+export function makeShopSign(choice:number,width:number) {
   if(!signs) {
     const canvas=document.createElement('canvas');canvas.width=512;canvas.height=512;
     const context=canvas.getContext('2d')!;
@@ -38,7 +40,10 @@ function shopSign(root:THREE.Object3D,choice:number,width:number,y:number,z:numb
       signs.geometry.push(geometry);
     }
   }
-  part(root,signs.geometry[choice%16]!,signs.material,[width,0.75,1],[0,y,z],true);
+  const mesh=new THREE.Mesh(signs.geometry[choice%16]!,signs.material);mesh.scale.set(width,.75,1);mesh.userData.collision=false;mesh.userData.shopLabel=true;return mesh;
+}
+function shopSign(root:THREE.Object3D,choice:number,width:number,y:number,z:number) {
+  const mesh=makeShopSign(choice,width);mesh.position.set(0,y,z);root.add(mesh);
 }
 
 export type CityBuildingStyle='apartment'|'office'|'shop'|'tower';

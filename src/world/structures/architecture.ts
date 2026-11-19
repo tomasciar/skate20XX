@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {sceneryMaterial,markAsset} from '../props/variety.ts';
+import {architecturalFinish,prepareArchitectureFinish} from '../rendering/architectureFinish.ts';
 import {facadeMaterial} from '../rendering/appearance.ts';
 
 const shared=<T extends THREE.BufferGeometry>(geometry:T)=>{geometry.userData.shared=true;return geometry;};
@@ -31,6 +32,7 @@ export type ArchitectureStyle=typeof ARCHITECTURE_STYLES[number];
 
 /** New silhouettes occupy the existing frontage slots and share seven tintable materials. */
 export function makeArchitecture(rng:()=>number,style:ArchitectureStyle) {
+  for(const [material,finish] of [[wall,'brick'],[trim,'stone'],[roofing,'metal'],[stone,'concrete'],[glass,'glass'],[metal,'metal']] as const) {architecturalFinish(material,finish);prepareArchitectureFinish(material);}
   const root=markAsset(new THREE.Group(),'architecture');root.name=`architecture-${style}`;
   root.userData.placement='pad';root.userData.frontage=true;root.userData.cityKind='building';root.userData.assetVariant=style;
   const width=style==='warehouse'?9:style==='loft'?7.2:8.2,depth=style==='warehouse'?7.4:6.4;

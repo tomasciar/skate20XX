@@ -1,21 +1,25 @@
 import * as THREE from 'three';
 import {sceneryMaterial} from '../props/variety.ts';
+import {architecturalFinish,prepareArchitectureFinish} from '../rendering/architectureFinish.ts';
 import {COURSE_STEP} from '../terrain/course.ts';
 
 export const sharedGeometry=<T extends THREE.BufferGeometry>(geometry:T)=>{geometry.userData.shared=true;return geometry;};
 const cube=sharedGeometry(new THREE.BoxGeometry());
 export const LANDMARK_MATERIALS={
-  brick:sceneryMaterial(0xb57457,0,.95,'paint'),
-  concrete:sceneryMaterial(0xaaa99c,0,.92,'stone'),
-  trim:sceneryMaterial(0xe5decc,0,.85,'trim'),
-  steel:sceneryMaterial(0x40525b,.35,.7,'metal'),
-  roof:sceneryMaterial(0x596c70,.15,.85,'roof'),
-  glass:sceneryMaterial(0x467685,.25,.42,'glass'),
+  brick:architecturalFinish(sceneryMaterial(0xb57457,0,.95,'paint'),'brick'),
+  concrete:architecturalFinish(sceneryMaterial(0xaaa99c,0,.92,'stone'),'concrete'),
+  trim:architecturalFinish(sceneryMaterial(0xe5decc,0,.85,'trim'),'stone'),
+  steel:architecturalFinish(sceneryMaterial(0x40525b,.35,.7,'metal'),'metal'),
+  roof:architecturalFinish(sceneryMaterial(0x596c70,.15,.85,'roof'),'metal'),
+  glass:architecturalFinish(sceneryMaterial(0x467685,.25,.42,'glass'),'glass'),
+  paint:sceneryMaterial(0x587b78,0,.88,'paint'),
+  asphalt:architecturalFinish(sceneryMaterial(0xffffff,0,.94,'stone'),'asphalt'),
   dark:sceneryMaterial(0x34494e,0,.86,'accent'),
 };
 
 /** Curated finishes survive visual variation, then join the ordinary tint/material batches. */
 export function landmarkPart(geometry:THREE.BufferGeometry,material:THREE.MeshStandardMaterial,decorative=false) {
+  prepareArchitectureFinish(material);
   const mesh=new THREE.Mesh(geometry,material);mesh.userData.sceneryTint=material.color.getHex();
   if(decorative)mesh.userData.collision=false;return mesh;
 }

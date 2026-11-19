@@ -6,11 +6,13 @@ import {facing,ALONG} from './layout.ts';
 import type {LayoutContext} from './layout.ts';
 import {makeArchitecture} from '../structures/architecture.ts';
 
-export function populateVillage({index,rng,free,place,scatter,tree,forest,side}:LayoutContext) {
-  let chapel = index%3 !== 0;
+export function populateVillage({rng,free,place,scatter,tree,forest,side}:LayoutContext) {
+  let chapel = rng()<.67;
+  const lots=[[10,33,60],[15,37,61],[8,30,56],[12,40,60]];
   for (const s of [-1,1]) {
     for (const along of s < 0 ? [12,47] : [29.5,64.5]) place(() => makeLamp(s, rng), s*9, along);
-    for (const lot of [12,34,56]) {
+    for (const center of lots[Math.floor(rng()*lots.length)]!) {
+      const lot=center+(rng()-.5)*2;
       const roll = rng();
       if (roll < 0.14 && !chapel) {
         chapel = true;
@@ -29,7 +31,7 @@ export function populateVillage({index,rng,free,place,scatter,tree,forest,side}:
         for (const d of [-7.5,7.5]) place(tree(rng() < 0.5 ? 'autumn' : 'broadleaf'), s*(22+rng()*4), lot+d, rng()*6, 1.6);
         place(() => makePaving(7,1.4), s*14.9, lot);
       } else {
-        const variant=(index+lot+(s>0?1:0))%4;
+        const variant=Math.floor(rng()*4);
         place(() => variant===0?makeArchitecture(rng,'rowhouse'):variant===1?makeArchitecture(rng,'arcade'):makeHouse(rng), s*20.3, lot, facing(s), 6.2);
         place(() => makePaving(5,1.3), s*13.9, lot);
         const drive = rng() < 0.55 ? side() : 0;

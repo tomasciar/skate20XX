@@ -7,14 +7,14 @@ import {facing,ALONG} from './layout.ts';
 import type {LayoutContext} from './layout.ts';
 import {makeArchitecture} from '../structures/architecture.ts';
 
-export function populateMill({index,rng,free,place,scatter,tree,forest}:LayoutContext) {
-  const yard = index%2 ? 1 : -1, clear = -yard;
+export function populateMill({rng,free,place,scatter,tree,forest}:LayoutContext) {
+  const yard = rng()<.5 ? 1 : -1, clear = -yard;
   for (const along of [10,45]) place(() => makePowerPole(), clear*12.9, along, 0, 0.8);
   for (const along of [27,62]) place(() => makeLamp(yard, rng), yard*9, along);
   for (let i = 0; i < 8; i++) if (i !== 3 && i !== 4) place(() => makeYardFence(8.75), yard*13.1, 4.4+i*8.75, ALONG);
   place(() => makePaving(9,7,undefined), yard*16, 35);
   if (rng() < 0.5) place(() => makeSawmill(rng), yard*21.5, 17, facing(yard), 8.5);
-  else place(() => index%2?makeArchitecture(rng,'warehouse'):makeWarehouse(rng), yard*22.5, 17, facing(yard), 8.5);
+  else place(() => rng()<.5?makeArchitecture(rng,'warehouse'):makeWarehouse(rng), yard*22.5, 17, facing(yard), 8.5);
   if (rng() < 0.55) place(() => makeLogTruck(rng), yard*17.2, 37+rng()*3, rng() < 0.5 ? 0 : Math.PI, 4.2);
   for (const along of [48,55,62]) place(() => makeLogPile(rng, 0.7, 6), yard*18.5, along+rng(), (rng()-0.5)*0.2, 3.2);
   for (const along of [47,52.5,58,63.5]) if (rng() < 0.8) place(() => makeLumberStack(rng), yard*27.5, along, ALONG, 2);

@@ -37,7 +37,9 @@ create their own streaming windows or register untracked physics bodies.
 - Reuse materials, primitive geometry and builder helpers from `props/parts.ts`.
   Rideable architecture has its own shared parts in `structures/parts.ts`.
 - Put new route/site rules in `planning/` and their visible meshes in
-  `structures/`. Reserve approaches, footprints and landing space before ordinary
+  `structures/`. Multi-chunk areas use `planning/places.ts` and
+  `structures/places.ts`; each chunk owns only its own surface slices. Reserve
+  approaches, footprints and landing space before ordinary
   scenery placement. Build terrain banks into the sampled landscape when possible.
 - Put district composition in `environments/`, independently of riding mode.
   See [the environment guide](../../docs/environments.md) for catalog registration,
@@ -47,6 +49,12 @@ Shared source geometries remain immutable. Course warping clones both their
 geometry and ownership metadata. Collision is baked before rendering batches are
 merged; decorative meshes opt out through `userData.collision = false`. Keep
 shared material identity and placement RNG order stable when reorganizing builders.
+`structures/placeDetails.ts` and `placeFurnishings.ts` add facade-scale detail and
+recognizable furnishings. `rendering/architectureFinish.ts` caches their shared
+surface tiles and projects UVs in metres without expanding indexed geometry.
+Traffic surfaces share the main road material; plaza paving has its own finish.
+Tall buildings can carry a shared `levelBase` course anchor; chunk warping then
+keeps walls vertical and floors level, including across chunk boundaries.
 
 ## Checks
 

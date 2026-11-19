@@ -99,3 +99,89 @@ Taller buildings branch toward their crest before the steep part of the hill. Ap
 The `cliff` entry in `ridingSites.ts` sweeps a 12 m shelf through a sharper S-turn, fully beside the main road. `ridingPathX` supplies the curve for both geometry and scenery reservations. The surface is gently banked toward the turn, with eased entry/exit ramps and closed stone sides. Shared low-poly outcrops sit outside its riding width. The source chunk remains retained past the end of the shelf.
 
 When warping shared geometry, clone its `userData` too before changing ownership flags: Three.js `BufferGeometry.clone()` retains the metadata object by reference. Removing `shared` from that object corrupts ownership of later instances. `tests/terrainAdventure.test.ts` verifies unchanged shared templates and finite streamed geometry through resets, complete rides on the banks, the early taller roof and the sharper shelf in both modes, along with boost detection and terrain continuity.
+
+## Composed places
+
+`planning/places.ts` adds occasional areas across several chunks: a terraced plaza,
+an asymmetric high-rise street with connected parking roofs, and an industrial
+loading yard with a roof bridge and an open banked channel. They are independent
+of district and riding mode. Their silhouettes, open ground and connected lines
+provide larger contrasts than individual prop variations. City and village
+frontages also use several seeded lot arrangements, setbacks and small offsets;
+ordinary street density stays bounded.
+
+The first examples start at 420 m on the left, 1,390 m on the right, and 2,020 m on
+the left. Approaches begin earlier. Later locations use seeded offsets in broad
+sectors, alternate area types, and skip candidates that conflict with existing
+building approaches, banks or riding structures. A bounded planning cache avoids
+repeating those checks for every terrain sample. Skipped candidates leave ordinary
+landscape rather than forcing a dense encounter.
+
+`structures/places.ts` supplies the geometry. A place's surfaces are sliced into
+ordinary 70 m chunks on a shared 5 m longitudinal lattice, including the existing
+course seams. Ground grading, scenery clearances and surface patches follow the
+same plan. Terraces have eased banks; roof entries and exits are broad, and a long
+crossing connects the two roofs. Bridges and parking decks are slabs with open
+space below. The industrial roof kicker has a flat bypass. The main road remains
+available beside every route; no automatic steering, scoring trigger or launch
+impulse is needed.
+
+Place clearings replace filler before its assets are constructed. Detail geometry
+uses shared architecture/prop materials and joins the existing static batches.
+There are no new lights, texture atlases, physics bodies or retention windows.
+Approach markings and surface finishes use depth bias against their solid backing.
+Tall towers carry a common `levelBase` anchor through course warping so their walls
+stay vertical and their floors remain level across chunks; foundations extend
+below the hill. Rideable banks and decks continue to follow the hill profile.
+
+Use `tests/places.test.ts` for long-run planning, complete terrace/roof/bridge rides
+in both modes, bridge underpasses, seasonal material sharing, tower alignment and
+content budgets. New compositions should reuse the existing patch and chunk
+ownership model; add a new abstraction only when a concrete layout needs it.
+
+The detail pass lives in `structures/placeDetails.ts`: the plaza has glazed
+shopfronts, coloured awnings, planted tree beds, paving joints, lamps and low
+skateable ledges. Parking decks have stall paint, capped edge walls, column
+markings, bridge ribs and rooftop air handlers. The industrial yard adds separate
+roller doors with ribs and jambs, bollards, drains, freight pallets and cylindrical
+pipes on a gantry. Equipment sits along roof margins and clear of the connected
+riding line. Towers include lobby glazing and entrance canopies, facade fins,
+window/floor divisions, front and rear windows and rooftop setbacks.
+
+Detail uses the existing materials; shop lettering reuses the city’s shared
+sixteen-label atlas through `makeShopSign`. Glazing and thin floor bands use only
+their visible outward faces, backed by solid walls. Ground-backed surface bases
+omit buried bottom faces; exposed bridge/deck undersides remain closed. These
+savings keep the more detailed place meshes under the existing 6,500-triangle
+budget per chunk. Solid equipment, ledges, awnings and pipe supports enter the
+normal chunk collider; paint, window panels and thin trim remain decorative.
+
+`placeFurnishings.ts` adds the larger silhouettes: stone arches with an open riding
+lane below, a gabled café kiosk and outdoor seating, planted borders, a parking
+stair house, stacked shipping containers and capped storage silos. Towers also
+have projecting balconies and a supported rooftop water tank. Furnishings keep
+ordinary chunk ownership and solid collision, and stay clear of the connected
+roof and terrace lines.
+
+`rendering/architectureFinish.ts` supplies shared 256-pixel brick, concrete,
+stone/paving, sheet-metal and window-interior tiles. City buildings and the shared
+architectural families use the same tiles. Colours still come from the existing
+material/tint palettes; textures add mortar, panel joints, blinds and wear rather
+than another material for every colour. Finish maps are lazy and cached by type,
+retain mipmaps, and carry into the existing winter coating. Paint stays a separate
+untextured finish for awnings, chairs and plants.
+
+UVs use metres in the source structure before course warping, or the prop's local
+transform during batching. This preserves indexed geometry and anchors patterns
+through origin rebasing. `architectureUV` marks already-projected meshes so batching
+does not remap them. Sign-atlas and explicitly mapped asphalt UVs remain intact.
+The flat interiors of deck surfaces need only their across-width endpoints;
+terrace banks, channel transitions and swept exits retain their required samples.
+This saves triangles for the additional furnishings.
+
+Parking decks, their entry/exit banks and loading yards use the **same asphalt
+material as the main road**, retaining that road's seasonal treatment. Roof kickers
+also use asphalt, with a cached depth-biased finish for their flush entry. Pale
+stone paving is confined to plaza surfaces. `tests/places.test.ts` checks the road
+material contract in both seasons, shared texture ownership and metre-scale UVs,
+arch normals and physical headroom, full rides and the per-chunk geometry budget.

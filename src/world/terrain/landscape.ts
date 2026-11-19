@@ -5,6 +5,7 @@ import {ENVIRONMENTS} from '../environments/catalog.ts';
 import {landscapePaletteAt} from '../environments/palettes.ts';
 import {sideRouteCenter,sideBuildingBank,sideBuildingAt} from '../planning/exploration.ts';
 import {terrainBankAt,terrainBankHeight} from '../planning/terrainBanks.ts';
+import {placeAt,placeGrading} from '../planning/places.ts';
 export const LANDSCAPE_HALF_WIDTH = 260;
 export const LANDSCAPE_X = [-260,-220,-180,-145,-115,-90,-84,-74,-70,-62,-52,-46,-38,-30,-26,-22,-18,-12,-11.4,-9.6,-8.3,0,8.3,9.6,11.4,12,18,22,26,30,38,46,52,62,70,74,84,90,115,145,180,220,260];
 const STEP = COURSE_STEP;
@@ -24,7 +25,8 @@ function elevation(x: number, along: number, roadHeight: number) {
   if(bank>0)height=THREE.MathUtils.lerp(height,.46,bank/sideBuildingAt(along)!.height);
   const standalone=terrainBankAt(x,along),mound=standalone?terrainBankHeight(standalone,x,along):0;
   if(standalone && mound>0)height=THREE.MathUtils.lerp(height,.46,mound/standalone.height);
-  return roadHeight+height+bank+mound;
+  const place=placeAt(along),grading=place?placeGrading(place,x,along):0;
+  return roadHeight+THREE.MathUtils.lerp(height+bank+mound,.46,grading);
 }
 // Placement and normal sampling repeatedly visit the same grid vertices. Keep a bounded
 // set of height rows around streamed chunks instead of recomputing their terrain noise.

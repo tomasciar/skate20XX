@@ -113,7 +113,7 @@ test('sixteen storefront labels share the original atlas dimensions and one mate
   for(let seed=0;seed<80;seed++) {
     const building=makeCityBuilding(seededRandom(seed));
     building.traverse(object=>{
-      if(!(object instanceof THREE.Mesh) || !object.material.map)return;
+      if(!(object instanceof THREE.Mesh) || !object.userData.shopLabel)return;
       const texture=object.material.map as THREE.Texture;assert.equal(texture.image.width,512);assert.equal(texture.image.height,512);
       const uv=object.geometry.getAttribute('uv');cells.add(`${uv.getX(0)}:${uv.getY(0)}`);materials.add(object.material);
     });

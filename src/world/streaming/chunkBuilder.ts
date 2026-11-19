@@ -19,6 +19,9 @@ import {ridingSiteForChunk, ridingSiteExclusions} from '../planning/ridingSites.
 import {makeRidingStructure} from '../structures/ridingStructures.ts';
 import {makeBankFeatures} from '../structures/bankFeatures.ts';
 import {RAMP} from '../config.ts';
+import {placesForChunk,placeExclusions,placeHasSide} from '../planning/places.ts';
+import {writeArchitectureUV} from '../rendering/architectureFinish.ts';
+import {makePlaceMeshes} from '../structures/places.ts';
 import type {Chunk} from './types.ts';
 import type {makeSharedMaterials} from '../rendering/materials.ts';
 
@@ -38,7 +41,9 @@ export function* buildChunkContent({index,root,angle,sunOnHill,asphaltMaterial,m
   const rng=seededRandom(Math.imul(index,2654435761)^0x9e3779b9);
   const {district,entering,encounters}=planChunk(index);
   const baseHeight=courseHeight(index*RAMP.chunkLength),baseX=courseX(index*RAMP.chunkLength);
+  const cosine=Math.cos(angle),sine=Math.sin(angle);
   const coneMeshes:THREE.Group[]=[];
+  const places=placesForChunk(index);
 
   function warpCourse(mesh: THREE.Mesh) {
     if(mesh.geometry.userData.shared) {
@@ -48,11 +53,20 @@ export function* buildChunkContent({index,root,angle,sunOnHill,asphaltMaterial,m
       mesh.geometry=source.clone();mesh.geometry.userData={...source.userData};delete mesh.geometry.userData.shared;
     }
     mesh.updateMatrix();
-    const positions=mesh.geometry.getAttribute('position'), point=new THREE.Vector3();
+    const positions=mesh.geometry.getAttribute('position'),point=new THREE.Vector3();
+    const material=mesh.material as THREE.MeshStandardMaterial;
+    const mapped=material.userData.architectureFinish && material.userData.architectureFinish!=='asphalt';
+    if(mapped){writeArchitectureUV(mesh.geometry,mesh.matrix,index*RAMP.chunkLength);mesh.userData.architectureUV=true;}
+    const levelBase=mesh.userData.levelBase as number|undefined,levelHeight=levelBase===undefined?0:courseHeight(levelBase);
     for(let i=0;i<positions.count;i++) {
       point.fromBufferAttribute(positions,i).applyMatrix4(mesh.matrix);
-      point.y+=courseHeight(index*RAMP.chunkLength-point.z)-baseHeight;
-      point.x+=courseX(index*RAMP.chunkLength-point.z)-baseX;
+      const along=index*RAMP.chunkLength-point.z,height=courseHeight(along);
+      if(levelBase!==undefined) {
+        // Towers have level floors and vertical walls in world space, even on the tilted hill.
+        const rise=point.y-.46+cosine*(levelHeight-height)-sine*(levelBase-along);
+        point.y=.46+height-baseHeight+rise*cosine;point.z+=rise*sine;
+      } else point.y+=height-baseHeight;
+      point.x+=courseX(along)-baseX;
       positions.setXYZ(i,point.x,point.y,point.z);
     }
     mesh.position.set(0,0,0);mesh.rotation.set(0,0,0);mesh.scale.set(1,1,1);
@@ -69,7 +83,7 @@ export function* buildChunkContent({index,root,angle,sunOnHill,asphaltMaterial,m
 
   for (const side of [-1, 1] as const) {
     // Most edges are open to explore. Short ridge sections still mark exposed shoulders.
-    if(district==='ridge' && (index+(side>0?1:0))%2===0 && Math.abs(sideRouteCenter(index*RAMP.chunkLength+10,side))>14) {
+    if(!places.some(site=>placeHasSide(site,side)) && district==='ridge' && (index+(side>0?1:0))%2===0 && Math.abs(sideRouteCenter(index*RAMP.chunkLength+10,side))>14) {
       const rail = new THREE.Mesh(new THREE.BoxGeometry(0.28,0.5,20,1,1,4), mats.barrier);
       rail.position.set(side * (RAMP.width / 2 + 0.08), RAMP.thickness / 2 + 0.18, -10);
       root.add(warpCourse(rail));
@@ -128,8 +142,9 @@ export function* buildChunkContent({index,root,angle,sunOnHill,asphaltMaterial,m
   const warehouse=warehouseSiteAt(index);
   const sideBuilding=sideBuildingForChunk(index);
   const ridingSite=ridingSiteForChunk(index);
-  const rooftop=index===2 || (!warehouse && sideBuilding?.side!==1 && ridingSite?.side!==1 && index>2 && index%17===2 && encounters.every(item=>item.x<0));
+  const rooftop=index===2 || (!places.some(site=>placeHasSide(site,1)) && !warehouse && sideBuilding?.side!==1 && ridingSite?.side!==1 && index>2 && index%17===2 && encounters.every(item=>item.x<0));
   const exclusions:SceneryExclusion[]=explorationExclusions(index);
+  for(const place of places)exclusions.push(...placeExclusions(place,index));
   if(rooftop)exclusions.push({minX:7.6,maxX:17,start:10,end:ROOFTOP.end+3});
   if(warehouse)exclusions.push({minX:8.4,maxX:32,start:warehouse.owner===index?WAREHOUSE.rampStart-2:warehouse.start-index*RAMP.chunkLength-4,end:warehouse.end-index*RAMP.chunkLength+warehouse.clearance});
   if(ridingSite)exclusions.push(...ridingSiteExclusions(ridingSite,index));
@@ -154,6 +169,12 @@ export function* buildChunkContent({index,root,angle,sunOnHill,asphaltMaterial,m
     }
   }
   for(const mesh of makeBankFeatures(index))root.add(warpCourse(mesh));
+  for(const place of places) {
+    let processed=0;
+    for(const mesh of makePlaceMeshes(index,place,asphaltMaterial)) {
+      root.add(warpCourse(mesh));if(++processed%8===0)yield;
+    }
+  }
 
   for (const item of encounters) {
     const { x, along, width, length, height, kind } = item;
