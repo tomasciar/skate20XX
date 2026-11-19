@@ -1,3 +1,5 @@
+import type {TestContext} from 'node:test';
+import {AIR_YAW_SPEED} from '../src/player/movement/airRotation.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
@@ -200,10 +202,11 @@ const idle:PlayerIntent={grabModifier:false,grabDX:0,grabDY:0,push:0,steer:0,cro
   wantOllie:false,olliePower:0,reset:false,flickDX:0,flickDY:0,flickReady:false};
 const RAIL_Y=0.75;
 
-/** A rider dropped onto a 20 m rail, turned in the air by steering alone. `turn` counts ticks of full steer. */
-async function approach(turn:number,x:number,speed=15) {
+/** A rider dropped onto a 20 m rail, turned in the air by steering alone. `degrees` is the measured approach heading. */
+async function approach(t:TestContext,degrees:number,x:number,speed=15) {
   await RAPIER.init();
   const world=new RAPIER.World({x:0,y:-18,z:0});world.timestep=dt;
+  t.after(()=>world.free());
   const ground=world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0,-0.1,0));
   world.createCollider(RAPIER.ColliderDesc.cuboid(50,0.1,500),ground);
   const bar=world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0,RAIL_Y-0.07,-15));
@@ -228,7 +231,14 @@ async function approach(turn:number,x:number,speed=15) {
   const wheelOffset=board.position.y-player.position.y;
   player.body.setTranslation({x:0,y:30,z:0},true);player.body.setLinvel({x:0,y:0,z:0},true);
   tick();
-  for(let i=0;i<Math.abs(turn);i++)tick({...idle,steer:Math.sign(turn)});
+  const target=THREE.MathUtils.degToRad(degrees);
+  let turned=0,previousHeading=0;
+  for(let i=0;i<300 && Math.abs(target-turned)>1e-6;i++) {
+    tick({...idle,steer:THREE.MathUtils.clamp((target-turned)/(AIR_YAW_SPEED*dt),-1,1)});
+    const heading=Math.atan2(player.forward.x,-player.forward.z);
+    turned+=Math.atan2(Math.sin(heading-previousHeading),Math.cos(heading-previousHeading));previousHeading=heading;
+  }
+  assert.ok(Math.abs(target-turned)<1e-6,`could not steer to ${degrees} degrees`);
   // Place the visible trucks 10 cm above the rail, 3 m in, already travelling along it.
   player.body.setTranslation({x,y:RAIL_Y+GRIND_HEIGHT+0.1-wheelOffset,z:-8},true);
   player.body.setLinvel({x:0,y:-1.5,z:-speed},true);
@@ -239,24 +249,24 @@ async function approach(turn:number,x:number,speed=15) {
   return {world,player,tricks,board,tick,measure,nose,up,get worstJump(){return worstJump;},get worstTurn(){return worstTurn;}};
 }
 
-const turned=THREE.MathUtils.degToRad(10*5/120*180/Math.PI),truckReach=BOARD.truckZ*Math.sin(turned);
-// steer ticks, sideways offset, expected grind, contact point on the board (toward nose, below origin)
+const turned=THREE.MathUtils.degToRad(24),truckReach=BOARD.truckZ*Math.sin(turned);
+// approach angle in degrees, sideways offset, expected grind, contact point on the board (toward nose, below origin)
 const APPROACHES:[string,number,number,number,number][]=[
   ['50-50',0,0.12,0,GRIND_HEIGHT],
-  ['Nosegrind',10,-truckReach,BOARD.truckZ,GRIND_HEIGHT],
-  ['5-0',10,truckReach,-BOARD.truckZ,GRIND_HEIGHT],
-  ['Boardslide',38,0.08,0,GRIND.slideHeight],
-  ['Noseslide',38,-0.33,GRIND.slideEnd,GRIND.slideEndHeight],
-  ['Tailslide',38,0.33,-GRIND.slideEnd,GRIND.slideEndHeight],
-  ['50-50',75,-0.1,0,GRIND_HEIGHT],
-  ['Nosegrind',85,-truckReach,-BOARD.truckZ,GRIND_HEIGHT],
-  ['Boardslide',-38,0,0,GRIND.slideHeight],
+  ['Nosegrind',24,-truckReach,BOARD.truckZ,GRIND_HEIGHT],
+  ['5-0',24,truckReach,-BOARD.truckZ,GRIND_HEIGHT],
+  ['Boardslide',90,0.08,0,GRIND.slideHeight],
+  ['Noseslide',90,-0.33,GRIND.slideEnd,GRIND.slideEndHeight],
+  ['Tailslide',90,0.33,-GRIND.slideEnd,GRIND.slideEndHeight],
+  ['50-50',180,-0.1,0,GRIND_HEIGHT],
+  ['Nosegrind',204,-truckReach,-BOARD.truckZ,GRIND_HEIGHT],
+  ['Boardslide',-90,0,0,GRIND.slideHeight],
 ];
 const JUMP=0.02,TURN=THREE.MathUtils.degToRad(4);
 
-test('every grind is caught from the approach alone, settles on the rail and pops out without a jump',async()=>{
+test('every grind is caught from the approach alone, settles on the rail and pops out without a jump',async(t)=>{
   for(const [name,turn,x,reach,height] of APPROACHES) {
-    const f=await approach(turn,x),label=`${name} (turn ${turn})`;
+    const f=await approach(t,turn,x),label=`${name} (${turn} degrees)`;
     f.measure();
     let waited=0;
     while(!f.player.grind.active && waited++<20)f.tick();
@@ -294,9 +304,9 @@ test('every grind is caught from the approach alone, settles on the rail and pop
   }
 });
 
-test('riding off the end and losing balance leave the rail without a jump',async()=>{
+test('riding off the end and losing balance leave the rail without a jump',async(t)=>{
   for(const [name,turn,x] of APPROACHES.slice(0,6)) {
-    const end=await approach(turn,x,30);
+    const end=await approach(t,turn,x,30);
     end.measure();
     for(let i=0;i<110 && (i<5 || end.player.grind.active);i++)end.tick();
     for(let i=0;i<15;i++)end.tick();
@@ -305,7 +315,7 @@ test('riding off the end and losing balance leave the rail without a jump',async
     assert.ok(end.worstTurn<TURN,`${name} turned ${end.worstTurn} rad off the end`);
     assert.ok(end.player.velocity.z<-27,name);
 
-    const slip=await approach(turn,x);
+    const slip=await approach(t,turn,x);
     slip.measure();
     for(let i=0;i<30;i++)slip.tick();
     assert.ok(slip.player.grind.active,name);
@@ -318,10 +328,10 @@ test('riding off the end and losing balance leave the rail without a jump',async
   }
 });
 
-test('a near miss beside or above the rail is not pulled in, and a board trick must be caught first',async()=>{
-  const wide=await approach(0,0.45);
+test('a near miss beside or above the rail is not pulled in, and a board trick must be caught first',async(t)=>{
+  const wide=await approach(t,0,0.45);
   for(let i=0;i<12;i++) { wide.tick(); assert.equal(wide.player.grind.active,false); }
-  const spinning=await approach(0,0);
+  const spinning=await approach(t,0,0);
   spinning.tricks.state.active={id:'kickflip',name:'Kickflip',duration:0.45} as never;
   for(let i=0;i<3;i++) { spinning.tick(); assert.equal(spinning.player.grind.active,false); }
   spinning.tricks.state.active=null;

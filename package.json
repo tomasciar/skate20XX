@@ -8,6 +8,11 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "test:movement": "node scripts/testGroup.mjs movement",
+    "test:characters": "node scripts/testGroup.mjs characters",
+    "test:world": "node scripts/testGroup.mjs world",
+    "test:ui": "node scripts/testGroup.mjs ui",
+    "test:game": "node scripts/testGroup.mjs game",
     "bench": "node --experimental-strip-types scripts/benchmark.ts --split-render --prepare",
     "bench:rider": "node --experimental-strip-types scripts/benchmarkRider.ts",
     "bench:world": "node --experimental-strip-types scripts/benchmarkWorld.ts"

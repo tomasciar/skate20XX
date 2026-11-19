@@ -168,6 +168,22 @@ See [environment authoring](docs/environments.md) for adding districts and props
 
 ## Check
 
+Use the smallest group that covers a change:
+
+| Command | Checks |
+| --- | --- |
+| `npm run test:movement` | Riding controls, tricks, grinds, landings and crash recovery |
+| `npm run test:characters` | Models, pose animation, boards, weapons and portraits |
+| `npm run test:world` | Generation, scenery, collision, streaming and rideable routes |
+| `npm run test:ui` | Settings, audio, cameras, render quality and scoring |
+| `npm run test:game` | Seeded layouts, input and the long physics/streaming soak test |
+| `npm test` | Every test file, including new files not yet assigned to a focused group |
+
+Groups use Node's existing test runner. To narrow one further, pass its normal flags,
+for example `npm run test:movement -- --test-name-pattern="rail slides"`.
+The file lists are in `scripts/testGroup.mjs`; add a new test to its relevant group.
+Run the full suite after changes that cross several systems or before merging.
+
 ```bash
 npm test
 npm run build

@@ -49,7 +49,13 @@ for(const mode of ['skate','snowboard'] as const) {
     const scene=new THREE.Scene(),world=new RAPIER.World({x:0,y:-18,z:0});world.timestep=dt;
     const ramp=createRamp(scene,world,{startPlatform:false,mode}),player=createBoardPlayer(scene,world,ramp,mode),tricks=createTrickSystem();
     try {
-      const mesh=scene.getObjectByName('loose-cone');assert.ok(mesh,'test course needs generated cones');
+      const cones:THREE.Object3D[]=[];
+      scene.traverse(object=>{if(object.name==='loose-cone')cones.push(object);});
+      // Hit the first cone along the course, rather than passing through the rest of
+      // its row before reaching a target that scene insertion order happened to choose.
+      const progress=(object:THREE.Object3D)=>object.getWorldPosition(new THREE.Vector3()).sub(ramp.anchor).dot(ramp.forward);
+      cones.sort((a,b)=>progress(a)-progress(b));
+      const mesh=cones[0];assert.ok(mesh,'test course needs generated cones');
       const ownerIndex=Math.round(-mesh.parent!.position.z/RAMP.chunkLength);
       const initial=mesh.getWorldPosition(new THREE.Vector3());
       let target:RAPIER.RigidBody|undefined;

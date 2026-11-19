@@ -71,9 +71,10 @@ test('input edges survive render-only frames and are consumed once', () => {
 const context = new Proxy({}, { get: () => () => {} });
 Object.assign(globalThis, { document: { createElement: () => ({ width: 0, height: 0, getContext: () => context }) } });
 
-test('two minutes of downhill physics stream continuously with bounded scene and colliders', async () => {
+test('two minutes of downhill physics stream through jumps and local crash recovery with bounded scene and colliders', async (t) => {
   await RAPIER.init();
   const scene = new THREE.Scene(), world = new RAPIER.World({ x: 0, y: -18, z: 0 });
+  t.after(()=>world.free());
   const ramp = createRamp(scene, world, {startPlatform:false}), player = createBoardPlayer(scene, world, ramp);
   const fog = scene.fog as THREE.Fog;
   assert.equal(fog.near, 120); assert.equal(fog.far, 300);
@@ -84,6 +85,7 @@ test('two minutes of downhill physics stream continuously with bounded scene and
   const dt = 1 / 120;
   world.timestep = dt;
   let previous = 0, jumps = 0, maxStaticColliders = 0, maxColliders = 0, contactChecks = 0;
+  let lastReset=player.resetCount,wasCrashed=false,crashDistance:number|null=null,recoveries=0;
   function verifyWheelContacts() {
     if (!player.grounded) return;
     player.mesh.updateMatrixWorld(true);
@@ -99,6 +101,8 @@ test('two minutes of downhill physics stream continuously with bounded scene and
     }
   }
   for (let i = 0; i < 14400; i++) {
+    // Exercise recovery even if a future terrain update makes this seeded route easier.
+    if(i===7200)tricks.state.bail=true;
     const intent = { ...idle, steer:steerAlongCourse(player,ramp),wantOllie: i % 600 === 360 && canJumpOnCourse(player,ramp), olliePower: 0.5 };
     player.update(dt, intent, tricks.state);
     try { world.step(); } catch (err) { throw new Error(`physics failed at frame ${i}, distance ${previous}, position ${player.position.toArray()}`, { cause: err }); }
@@ -106,7 +110,15 @@ test('two minutes of downhill physics stream continuously with bounded scene and
     assert.ok(Number.isFinite(player.position.y));
     assert.ok(player.mesh.matrix.compose(player.position, player.mesh.quaternion, new THREE.Vector3(1,1,1)).determinant() > 0.999);
     const distance = ramp.distance + player.position.clone().sub(ramp.anchor).dot(ramp.forward);
-    assert.ok(distance >= previous - 0.05, `unexpected reset at frame ${i}, ${previous} -> ${distance}`);
+    if(player.crashed && !wasCrashed)crashDistance=previous;
+    if(player.resetCount!==lastReset) {
+      assert.notEqual(crashDistance,null,'only crash recovery may reset this run');
+      assert.ok(Math.abs(distance-crashDistance!)<2,`recovery left the crash site: ${crashDistance} -> ${distance}`);
+      recoveries++;lastReset=player.resetCount;
+    } else if(!player.crashed && !wasCrashed) {
+      assert.ok(distance>=previous-.05,`unexpected rewind at frame ${i}, ${previous} -> ${distance}`);
+    }
+    wasCrashed=player.crashed;
     previous = distance;
     if (!player.grounded) jumps++;
     let staticColliders=0;world.colliders.forEach(c=>{if(c.parent()?.isFixed())staticColliders++;});
@@ -114,6 +126,7 @@ test('two minutes of downhill physics stream continuously with bounded scene and
     maxColliders = Math.max(maxColliders, world.colliders.len());
   }
   assert.ok(previous > 1000, `only traveled ${previous}`); assert.ok(jumps > 20);
+  assert.ok(recoveries>0,'the seeded soak route must exercise local recovery');
   assert.ok(player.ollieCount>0,'successful ollies must be reported to audio');
   const live = RAMP.chunksBehind + 1 + RAMP.chunksAhead, full = live + RAMP.prepareLead;
   assert.ok(maxStaticColliders <= full + 3, `unbounded static colliders: ${maxStaticColliders}`);
@@ -148,8 +161,8 @@ test('two minutes of downhill physics stream continuously with bounded scene and
   const coastSounds=createSoundEvents();
   for (let i = 0; i < 60 * 120; i++) {
     player.update(dt, { ...idle, push: 1,steer:steerAlongCourse(player,ramp) }, tricks.state); world.step(); player.sync();
-    const sounds=coastSounds.step(dt,{speed:player.speed,grounded:player.grounded,grinding:player.grind.active,
-      verticalSpeed:player.velocity.dot(ramp.surfaceNormal),ollieCount:player.ollieCount,resetCount:player.resetCount,
+    const sounds=coastSounds.step(dt,{speed:player.speed,grounded:!player.airborne,grinding:player.grind.active,
+      landings:player.landingCount,landingImpact:player.landingImpact,verticalSpeed:player.surfaceVerticalSpeed,ollieCount:player.ollieCount,resetCount:player.resetCount,
       braking:false,steer:0,pumpPhase:player.pump.phase,pumpStarts:player.pump.starts,trick:null,bail:player.crashed});
     assert.ok(sounds.every(sound=>sound.kind!=='ollie' && sound.kind!=='land'),`false jump/landing sound while coasting at frame ${i}`);
     assert.ok(Number.isFinite(player.speed) && player.speed>=0);
@@ -218,11 +231,11 @@ test('two minutes of downhill physics stream continuously with bounded scene and
   const landing = rail.start.clone().addScaledVector(railForward, 2).addScaledVector(ramp.surfaceNormal, -0.05);
   player.reset(landing);
   player.body.setLinvel(railForward.clone().multiplyScalar(15).addScaledVector(ramp.surfaceNormal, -1), true);
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 60; i++) {
     player.update(dt, idle, tricks.state); world.step(); player.sync();
     assert.ok(player.grind.active, `failed to stay locked at frame ${i}`);
-    assert.ok(player.forward.dot(railForward)>0.9999,'board must align with an angled rail');
   }
+  assert.ok(player.forward.dot(railForward)>0.9999,'board must settle into alignment with an angled rail');
   player.update(dt, { ...idle, wantOllie: true }, tricks.state); world.step(); player.sync();
   assert.equal(player.grind.active, false);
   assert.equal(player.ollieCount,1,'ollie exits from rails must report one pop');
@@ -271,5 +284,4 @@ test('two minutes of downhill physics stream continuously with bounded scene and
     assert.equal(chunk.matrixAutoUpdate, false);
     assert.equal(chunk.matrix.elements[14], chunk.position.z, 'static chunk matrix must follow origin shifts');
   }
-  world.free();
 });

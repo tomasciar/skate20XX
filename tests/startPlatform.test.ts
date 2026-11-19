@@ -1,3 +1,4 @@
+import {planChunk} from '../src/world/planning/generation.ts';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
@@ -73,7 +74,12 @@ test('rolling or ollieing off the platform lands on the hill and keeps the downh
       assert.ok(airborne && landed,`${launch}: should drop and touch down on the road`);
       assert.equal(f.player.ollieCount,launch==='ollie'?1:0);
       assert.ok(f.player.velocity.dot(f.ramp.forward)>5,'landing must retain downhill momentum');
-      assert.equal(f.world.colliders.len(),RAMP.chunksBehind+1+RAMP.chunksAhead+RAMP.prepareLead+1);
+      const chunks=f.ramp.mesh.children;
+      const coneColliders=chunks.reduce((count,chunk)=>{
+        const index=Math.round(f.ramp.distance/RAMP.chunkLength-chunk.position.z/RAMP.chunkLength);
+        return count+planChunk(index).encounters.filter(item=>item.kind==='cones').length*3;
+      },0);
+      assert.equal(f.world.colliders.len(),chunks.length+coneColliders+1,'one terrain collider per chunk, planned cones, and the player');
       if(launch==='ollie') {
         // A second 14 m drop would fit the intro's allowance, but must use normal crash rules.
         f.player.body.setTranslation(f.ramp.anchor.clone().addScaledVector(f.ramp.forward,40).addScaledVector(f.ramp.surfaceNormal,14),true);
