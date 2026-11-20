@@ -163,9 +163,9 @@ The renderer caps its initial drawing buffer at about two million pixels, with a
 Character attachments are built on selection and share cached geometry/materials. Inactive variants stay outside the animated scene graph. Physics alignment, ray queries and limb posing reuse per-player math workspaces. `npm run bench:rider` measures rider construction, animation/matrix work and attached object counts, including after visiting every character. These are CPU measurements, not browser FPS.
 
 The surroundings include composed areas with connected optional lines: a banked
-terraced plaza on the left from 420 m, a high-rise street with linked parking-deck
-roofs on the right from 1,390 m, and an industrial roof/loading yard on the left
-from 2,020 m. Enter from the shoulder before the structures; broad banks lead up
+terraced plaza on the left from about 570 m, a high-rise street with linked parking-deck
+roofs on the right from about 1,890 m, and an industrial roof/loading yard on the left
+from about 2,750 m. Enter from the shoulder before the structures; broad banks lead up
 and back down, and bridges leave ground routes open underneath. Later areas have
 seeded spacing and replace filler scenery rather than adding a dense object layer.
 City and village lot spacing and setbacks also vary. The main road stays open,
@@ -203,3 +203,21 @@ Tests cover 10,000 generated layouts, district run lengths and ordering, street-
 Player code organization and the character extension workflow are documented in [src/player/README.md](src/player/README.md).
 
 The **Show held weapons** toggle in the start/pause display options shows or hides Finn’s sword and Triple T’s bat. The preference is saved across sessions and applies during crashes and board-mode changes. These props have no hitboxes and do not affect movement or collision.
+
+## Surface handling and measurements
+
+Sidewalks have opt-in eased collision shoulders beneath their sharp visual edges.
+Small openings, doorways, underpasses, rails and jump lips keep their exact shape.
+Board support avoids abrupt corner tilts. Banked launches hold their takeoff angle
+briefly, then gently recover inherited pitch and roll during ordinary jumps and
+spins. Using flip mode keeps that air fully manual, including when flips are paused.
+
+At over 35 mph, a jump or steep-bank approach can catch a broad wall at a glancing
+angle. Wall rides are brief, keep gravity active, and release at openings, on an
+ollie or as support fades. Head-on walls remain obstacles.
+
+Speed and distance use the default boy's 1.75 m standing height as a fixed scale
+reference. This corrects MPH, metres and distance-based scoring without changing
+world geometry or the established boost/acceleration tuning. The 20-mph push
+cutoff follows the calibrated readout. See [riding surfaces and world scale](docs/physics-surfaces.md)
+for the collision authoring rules, wall behavior and unit conversions.

@@ -9,11 +9,12 @@ export function* batchChunk(root: THREE.Group,appearance:ReturnType<typeof creat
   root.updateMatrixWorld(true);
   const inverse = root.matrixWorld.clone().invert();
   const batches = new Map<THREE.Material, THREE.BufferGeometry[]>();
-  const meshes: THREE.Mesh[] = [];
+  const meshes: THREE.Mesh[] = [],proxies:THREE.Mesh[]=[];
   const movable=root.children.filter(object=>object.userData.looseProp);
   root.traverse(obj => {
     if(!(obj instanceof THREE.Mesh) || Array.isArray(obj.material))return;
     for(let ancestor:THREE.Object3D|null=obj;ancestor && ancestor!==root;ancestor=ancestor.parent)if(ancestor.userData.looseProp)return;
+    if(obj.userData.collisionProxy){proxies.push(obj);return;}
     meshes.push(obj);
   });
   let processed = 0;
@@ -31,6 +32,7 @@ export function* batchChunk(root: THREE.Group,appearance:ReturnType<typeof creat
     if (!obj.geometry.userData.shared) obj.geometry.dispose();
     if (++processed % 8 === 0) yield;
   }
+  for(const proxy of proxies)if(!proxy.geometry.userData.shared)proxy.geometry.dispose();
   root.clear();
   if(movable.length)root.add(...movable);
   for (const [material, geometries] of batches) {

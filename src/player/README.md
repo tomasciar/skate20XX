@@ -99,3 +99,7 @@ Physics rays, board-alignment math and rendered limb targets use per-player work
 ## Held weapon visibility
 
 Weapon roots carry `userData.heldWeapon` and their normal character-selection tag. `characters/weapons.ts` combines the saved shown/hidden preference with character selection, so selecting a rider or cloning a crash cannot resurrect a hidden prop. The menu control is in `src/ui/weapons.ts`; it applies the preference to live riders and crash clones when the option changes. Weapon meshes do not create collider shapes or additional physics bodies.
+
+Support normals, angled launches and wall catches follow the shared
+[surface handling policy](../../docs/physics-surfaces.md). Physics stays in source
+world units; presentation and distance-based scoring convert through `src/units.ts`.

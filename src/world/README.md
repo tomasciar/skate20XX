@@ -63,3 +63,8 @@ checks preparation boundaries; environment, variety and riding tests cover share
 materials, seasonal compatibility, collision, rebasing and complete route rides.
 Run `npm run build` to check imports and TypeScript. `npm run bench:world` reports
 CPU preparation cost and content counts, independently of browser/GPU rendering.
+
+Collision smoothing is an explicit authoring choice, not a default inflation of
+scenery. Keep entryways and small gaps exact. Follow the
+[surface and measurement policy](../../docs/physics-surfaces.md) for support
+proxies, passage clearance, wall riding and source world units.

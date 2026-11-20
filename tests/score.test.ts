@@ -1,3 +1,4 @@
+import {worldUnits} from '../src/units.ts';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createTrickSystem} from '../src/player/tricks/tricks.ts';
@@ -13,11 +14,11 @@ function createRun() {
   const tricks=createTrickSystem(),score=createScore();
   let distance=0;
   function tick(ride:Partial<RideSample>={},speed=0) {
-    const sample={distance:distance+=speed*dt,grounded:true,crashed:false,...ride};
+    const sample={distance:distance+=worldUnits(speed)*dt,grounded:true,crashed:false,...ride};
     const landing=sample.landing ?? null;
     tricks.state.landing=landing;
-    if(!sample.crashed)tricks.update(dt,sample.grounded || !!sample.grind?.active,1,speed);
-    score.step(tricks.state,{...sample,landing});
+    if(!sample.crashed)tricks.update(dt,sample.grounded || !!sample.grind?.active,1,worldUnits(speed));
+    score.step(tricks.state,{...sample,grind:sample.grind?{...sample.grind,meters:worldUnits(sample.grind.meters)}:undefined,landing});
     if(tricks.state.bail)tricks.clearBail();
   }
   /** Flick in the air and stay up until the board is caught. */
@@ -105,7 +106,7 @@ test('a crash drops tricks that were not landed yet',()=>{
 
 test('distance contributes from where the run started and never runs backwards',()=>{
   const score=createScore(),tricks=createTrickSystem().state;
-  const at=(distance:number)=>score.step(tricks,{distance,grounded:true,crashed:false});
+  const at=(distance:number)=>score.step(tricks,{distance:worldUnits(distance),grounded:true,crashed:false});
   at(40);assert.equal(score.total,0);
   at(140.9);assert.equal(score.total,Math.floor(100.9*SCORE.distance));
   at(120);assert.equal(score.total,Math.floor(100.9*SCORE.distance));

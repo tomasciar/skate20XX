@@ -1,5 +1,5 @@
-import { MPH_PER_MPS } from './speed.ts';
-export const PUSH_SPEED_LIMIT = 20 / MPH_PER_MPS;
+import {speedFromMph} from '../../units.ts';
+export const PUSH_SPEED_LIMIT = speedFromMph(20);
 export const PUSH_DURATION = 1.2;
 export type PumpState = { active: boolean; phase: number; weight: number; starts: number };
 

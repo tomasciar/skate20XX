@@ -1,6 +1,5 @@
 import {CHUNK_LENGTH} from './generation.ts';
 import type {SceneryExclusion} from '../environments/layout.ts';
-import {MPH_PER_MPS} from '../../player/movement/speed.ts';
 
 export type TerrainBank={owner:number;kind:'boost'|'launch'|'plain';side:-1|1;x:number;width:number;height:number;start:number;crestStart:number;crestEnd:number;end:number;branchStart:number;clearEnd:number};
 const PERIOD=56*CHUNK_LENGTH;
@@ -53,4 +52,4 @@ export function terrainBankExclusions(index:number,route:(along:number,side:numb
   }
   return areas;
 }
-export const BANK_BOOST={width:5.6,length:16,speed:95/MPH_PER_MPS} as const;
+export const BANK_BOOST={width:5.6,length:16,speed:42.4688} as const;

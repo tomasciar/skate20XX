@@ -4,10 +4,10 @@ import { dragSpeed } from './speed.ts';
 
 export type GrindRail = { id: string; start: THREE.Vector3; end: THREE.Vector3; normal?: THREE.Vector3 };
 export type GrindName = '50-50' | '5-0' | 'Nosegrind' | 'Boardslide' | 'Noseslide' | 'Tailslide';
-/** `name` and `meters` keep describing the last grind after it ends, until the next catch or a reset. */
+/** `meters` is a source world-unit counter. `name` and `meters` keep describing the last grind after it ends, until the next catch or a reset. */
 export type GrindState = { active: boolean; name: GrindName | ''; balance: number; meters: number; message: string | null };
 
-/** Catch window and grind poses; distances in meters from the visible board's origin, angles in radians. */
+/** Catch window and grind poses; distances in world units from the visible board's origin, angles in radians. */
 export const GRIND = {
   side: 0.36,        // a truck may be this far beside the rail and still be drawn onto it
   truckOn: 0.16,     // a truck this close is already over the rail (rail and hanger half-widths)

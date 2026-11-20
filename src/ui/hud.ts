@@ -1,3 +1,4 @@
+import {metres,mph} from '../units.ts';
 import type { GrindState } from "../player/movement/grind";
 import type { TrickState } from "../player/tricks/tricks";
 import type { AirRotationState } from "../player/movement/airRotation";
@@ -28,9 +29,9 @@ export function createHud() {
   function newRun() { flipHints=0;flipHintAir=wasEngaged=false;airMode.hidden=true; }
 
   function update(speed: number, tricks: TrickState, distance = 0, grind?: GrindState, aerial?: AirRotationState) {
-    // SI velocity to miles per hour.
-    speedEl.textContent = String(Math.round(speed * 2.23694));
-    distanceEl.textContent = String(Math.round(distance));
+    // Simulation distances use the fixed default-rider calibration.
+    speedEl.textContent = String(Math.round(mph(speed)));
+    distanceEl.textContent = String(Math.round(metres(distance)));
     // The flip-mode reminder is a hint, not a readout: it shows for the first airs of a run that use flip mode.
     const engaged=!!aerial?.engaged;
     if(engaged && !wasEngaged) flipHintAir=flipHints++<FLIP_HINTS;
@@ -42,7 +43,7 @@ export function createHud() {
       : 'STEERING · A/D turn · Space to flip';
 
     if (grind?.active) {
-      trickEl.textContent = `${/\d$/.test(grind.name) ? `${grind.name} GRIND` : grind.name.toUpperCase()} · ${Math.floor(grind.meters)} m`;
+      trickEl.textContent = `${/\d$/.test(grind.name) ? `${grind.name} GRIND` : grind.name.toUpperCase()} · ${Math.floor(metres(grind.meters))} m`;
       trickEl.classList.add("show"); trickEl.classList.remove("bail");
       const balance = document.getElementById("grind-balance")!;
       balance.hidden = false;
@@ -54,7 +55,7 @@ export function createHud() {
     if (grind?.active) return;
     if (tricks.ground) {
       trickEl.textContent=tricks.ground.manual
-        ? `${tricks.ground.name} · ${Math.floor(tricks.groundMeters)} m` : tricks.ground.name;
+        ? `${tricks.ground.name} · ${Math.floor(metres(tricks.groundMeters))} m` : tricks.ground.name;
       trickEl.classList.add('show');trickEl.classList.remove('bail');return;
     }
     if (tricks.message) {

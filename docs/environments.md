@@ -1,5 +1,10 @@
 # Adding an environment
 
+Authoring coordinates below are source world units; the HUD uses the fixed
+1.75 m rider calibration. See [riding surfaces and world scale](physics-surfaces.md)
+for unit conversions and the opt-in collision policy. Keep small openings and
+entryways exact when adding forgiving collision support.
+
 Build each environment once. Its layout, props, collision, and gameplay encounters are shared by skateboarding and snowboarding. The shared appearance system supplies summer and winter materials; layout builders do not receive a riding mode or season.
 
 See the [world code guide](../src/world/README.md) for the directory map and chunk construction flow. Runtime layouts import prop builders directly from their family modules; `props/scenery.ts` remains an aggregate API for tools.

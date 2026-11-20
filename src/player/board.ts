@@ -8,6 +8,7 @@ import {createSkaterVisual} from './visuals/skaterVisual.ts';
 import {createSurfaceSupport} from './visuals/surfaceSupport.ts';
 import {createBoardBody} from './movement/boardPhysics.ts';
 import {createDeckFrame} from './movement/deckFrame.ts';
+import {createWallRide,WALL_RIDE} from './movement/wallRide.ts';
 import {createSuspension} from './movement/suspension.ts';
 import {createCrashDetection} from './movement/crashDetection.ts';
 import {createCrashPhysics} from './movement/crashPhysics.ts';
@@ -89,8 +90,13 @@ export function createBoardPlayer(
   const landingHeading = new THREE.Vector3();
   const impactVelocity = new THREE.Vector3();
   let followSurface = false;
-  let wasOnKicker = false;
-  const surfaceUp = ramp.surfaceNormal.clone();
+  let wasOnKicker = false,rebaseContactGrace=0;
+  const surfaceUp = ramp.surfaceNormal.clone(),surfaceTurn=new THREE.Quaternion(),identityTurn=new THREE.Quaternion();
+  function followNormal(n:THREE.Vector3,dt:number) {
+    const angle=surfaceUp.angleTo(n);if(angle<1e-6){surfaceUp.copy(n);return;}
+    surfaceTurn.setFromUnitVectors(surfaceUp,n).slerp(identityTurn,1-Math.min(1,WALL_RIDE.normalRate*dt/angle));
+    surfaceUp.applyQuaternion(surfaceTurn).normalize();
+  }
   const renderQuat = new THREE.Quaternion();
   let poseDt = 0;
   let posePush = 0;
@@ -104,6 +110,7 @@ export function createBoardPlayer(
   const crash=createCrashPhysics({scene,world,normal:ramp.surfaceNormal,body,collider:boardCollider,visual});
   const suspension=createSuspension(world,body,ramp.surfaceNormal,{position,rotation:quat,up:boardUp,forward});
   const deckFrame=createDeckFrame(body,ramp.forward,ramp.surfaceNormal,air.rotation,{position,rotation:quat,up:boardUp,forward,airOffset});
+  const wall=createWallRide(world,body,ramp.surfaceNormal,{position,forward,up:boardUp});
   const support=createSurfaceSupport(world,body,ramp.surfaceNormal);
   const crashDetection=createCrashDetection(world,body,boardCollider,ramp.surfaceNormal,position,velocity);
 
@@ -116,7 +123,7 @@ export function createBoardPlayer(
   }
 
   function holdDeck(up:THREE.Vector3=ramp.surfaceNormal) {
-    deckFrame.apply(yaw,up,air.state.engaged && !grounded && !grind.state.active);
+    deckFrame.apply(yaw,up,air.state.engaged && !grounded && !grind.state.active,wall.state.active?wall.state.heading:undefined);
   }
 
   function readPose() {
@@ -146,7 +153,7 @@ export function createBoardPlayer(
     rideContact.reset();surfaceUp.copy(ramp.surfaceNormal);
     slide.reset();
     air.reset();airOffset.set(0,0,0);previousAirOffset.set(0,0,0);
-    grind.reset();deckFrame.reset();
+    grind.reset();deckFrame.reset();wall.reset();
     visual.resetPose();
     support.reset();
     poseDt = posePush = 0;
@@ -172,7 +179,7 @@ export function createBoardPlayer(
     ollieGrace = pendingOllie = pendingOlliePower = 0;
     nearGround = false;
     ollieNormal.copy(ramp.surfaceNormal);
-    wasOnKicker = false;
+    wasOnKicker = false;rebaseContactGrace=0;
     followSurface = false;
     lean = 0;
     wheelRoll = 0;
@@ -240,7 +247,7 @@ export function createBoardPlayer(
     // Capture the current articulated pose rather than spawning a different crash model.
     render(1, 0);
     crash.capture(momentum);
-    pump.reset(); grind.reset(); crashElapsed = 0; grounded = false; followSurface = false;
+    pump.reset(); grind.reset();wall.release(); crashElapsed = 0; grounded = false; followSurface = false;
     slide.reset();
     ollieGrace = pendingOllie = 0; nearGround = false;
     air.reset();airOffset.set(0,0,0);previousAirOffset.set(0,0,0);
@@ -274,9 +281,17 @@ export function createBoardPlayer(
     readPose();
     previousPosition.copy(position); previousQuat.copy(quat);
     previousAirOffset.copy(airOffset);
-    deckFrame.step(dt);
+    deckFrame.step(dt,!air.state.engaged && !intent.toggleAirFlip);
+    if(originShift.lengthSq()>0 && !rideContact.airborne && leaveGround<=0 && !wasOnKicker)rebaseContactGrace=.025;
+    rebaseContactGrace=Math.max(0,rebaseContactGrace-dt);
     if (tricks.bail) { startCrash(tricks, velocity, 'trick'); return; }
-    if (crashDetection.obstacleAhead(dt,speed)) { startCrash(tricks, velocity, 'obstacle'); return; }
+    const queriesReady=originShift.lengthSq()===0,wasOnWall=wall.state.active;
+    wall.update(dt,velocity,(leaveGround<=0 || (ollieNormal.dot(ramp.surfaceNormal)>.4 && ollieCooldown<.22)) && !air.state.engaged && !grind.state.active && !intent.wantOllie,queriesReady);
+    if(wall.entering){deckFrame.land();surfaceUp.copy(boardUp);wasOnKicker=false;leaveGround=0;}
+    if(wall.state.active){followNormal(wall.state.normal,dt);followSurface=true;holdDeck(surfaceUp);}
+    else if(wall.state.floorExit){deckFrame.land();followNormal(wall.state.floorNormal,dt);followSurface=true;holdDeck(surfaceUp);}
+    else if(wasOnWall){deckFrame.preserveLaunchAngle();}
+    if (crashDetection.obstacleAhead(dt,speed,wall.allows)) { startCrash(tricks, velocity, 'obstacle'); return; }
     ramp.directionAt?.(position,courseForward);
     const courseYaw=Math.atan2(-courseForward.x,courseForward.dot(ramp.forward));
     const carveSensitivity=clampSensitivity(intent.carveSensitivity??1);
@@ -285,7 +300,7 @@ export function createBoardPlayer(
     const wantSlide=intent.wantSlide ?? intent.push<0;
     const boostSpeed=ramp.boostAt?.(position) ?? 0;
     if(!boostSpeed)boostEntered=false;
-    air.update(dt,intent.toggleAirFlip ?? false,intent.push,intent.steer,rideContact.airborne && !grind.state.active,yaw-courseYaw,flipSensitivity);
+    air.update(dt,intent.toggleAirFlip ?? false,intent.push,intent.steer,rideContact.airborne && !wall.state.active && !grind.state.active,yaw-courseYaw,flipSensitivity);
     aeroTuck=THREE.MathUtils.damp(aeroTuck,THREE.MathUtils.clamp(intent.crouchHold,0,1),12,dt);
     pump.update(dt, intent.push > 0, speed, !rideContact.airborne && !wantSlide && !grind.state.active && !slide.state.active && !tricks.ground && !intent.crouch && !intent.wantOllie && !tricks.bail);
     ollieCooldown = Math.max(0, ollieCooldown - dt);
@@ -305,8 +320,9 @@ export function createBoardPlayer(
     // On the road the trucks turn as weight shifts onto an edge; in the air the rider spins freely.
     const previousYaw=yaw;
     if (slide.state.active) yaw=slideYaw;
-    else yaw = slideYaw - (!rideContact.airborne ? lean * carveTurnRate(speed)*carveSensitivity : steering * AIR_YAW_SPEED*turnSensitivity)*dt;
+    else yaw = slideYaw - ((!rideContact.airborne || wall.state.active) ? lean * carveTurnRate(speed)*carveSensitivity : steering * AIR_YAW_SPEED*turnSensitivity)*dt;
     yaw = Math.atan2(Math.sin(yaw), Math.cos(yaw));
+    wall.steer(Math.atan2(Math.sin(yaw-previousYaw),Math.cos(yaw-previousYaw)));
     yawVelocity=rideContact.airborne&&!grind.state.active&&dt>0?Math.atan2(Math.sin(yaw-previousYaw),Math.cos(yaw-previousYaw))/dt:0;
 
     const wasGrinding = grind.state.active;
@@ -331,14 +347,15 @@ export function createBoardPlayer(
     }
 
     if(air.state.engaged)holdDeck();
-    if(air.state.engaged && crashDetection.invertedLanding(quat,boardUp)) { startCrash(tricks,velocity,'inverted');return; }
+    if((air.state.engaged || (rideContact.airborne && boardUp.dot(ramp.surfaceNormal)<.65)) && !wall.state.active && !wall.state.floorExit && crashDetection.invertedLanding(quat,boardUp)) { startCrash(tricks,velocity,'inverted');return; }
 
-    const {wheelsDown,nearbyWheels,rollingWheels,normal:contactN,nearbyNormal,rollingNormal}=suspension.sample(dt,leaveGround,slide.state.amount);
+    const {wheelsDown,wallWheels,nearbyWheels,rollingWheels,normal:contactN,nearbyNormal,rollingNormal}=suspension.sample(dt,queriesReady?leaveGround:Math.max(leaveGround,dt),slide.state.amount,wall.state.active?wall.state.normal:undefined);
+    if(queriesReady)wall.pull(dt,wallWheels);
     const supported=leaveGround<=0 && wheelsDown>=2;
-    const nearRoad=leaveGround<=0 && rollingWheels>=2 && boardUp.dot(rollingNormal)>.8 &&
-      Math.abs(velocity.dot(rollingNormal))<RIDE_CONTACT.normalSpeed;
+    const nearRoad=leaveGround<=0 && ((rollingWheels>=2 && boardUp.dot(rollingNormal)>.8 &&
+      Math.abs(velocity.dot(rollingNormal))<RIDE_CONTACT.normalSpeed) || (wall.state.active && wall.state.age<.2) || wall.state.floorExit || rebaseContactGrace>0);
     let clearDeparture=false;
-    if(!supported && rollingWheels<2 && !rideContact.airborne) {
+    if(!supported && rollingWheels<2 && !rideContact.airborne && rebaseContactGrace<=0) {
       clearDeparture=suspension.isDeparting(surfaceUp);
     }
     const wasAirborne=rideContact.airborne;
@@ -373,6 +390,12 @@ export function createBoardPlayer(
 
     // Wheel grip and pushing still require real suspension contact.
     if (grounded) {
+      if(wasAirborne && !air.state.engaged) {
+        // Keep the recovered launch heading when its aerial offset is cleared.
+        const yawStep=Math.atan2(Math.sin(yaw-previousYaw),Math.cos(yaw-previousYaw));
+        courseRight.crossVectors(ramp.forward,ramp.surfaceNormal);
+        yaw=Math.atan2(-forward.dot(courseRight),forward.dot(ramp.forward))+yawStep;
+      }
       // The launch offset belongs to the airborne frame. Do not apply it again on the landing plane.
       deckFrame.land();
       if(air.state.engaged) {
@@ -382,11 +405,12 @@ export function createBoardPlayer(
         if(landedFlip) { tricks.lastLanded=landedFlip;tricks.message=tricks.landing ? `${landedFlip} · ${tricks.landing}` : landedFlip;tricks.messageAge=0; }
         air.reset();airOffset.set(0,0,0);
       }
-      const n = contactN.lengthSq() > 0.5 ? contactN : ramp.surfaceNormal;
+      if(!wall.state.active)followNormal(contactN.lengthSq()>.5?contactN:ramp.surfaceNormal,dt);
+      const n=surfaceUp;
       const coursePitch = Math.atan(courseSlope(ramp.distance + courseProgress.copy(position).sub(ramp.anchor).dot(ramp.forward)));
       courseUp.copy(ramp.surfaceNormal).multiplyScalar(Math.cos(coursePitch)).addScaledVector(ramp.forward,-Math.sin(coursePitch));
       const onKicker = n.dot(courseUp) < 0.97;
-      if (wasOnKicker && !onKicker) {
+      if (wasOnKicker && !onKicker && !wall.state.active && velocity.dot(contactN)>1.5) {
         // Keep the speed you had going up the face, so the lip throws you.
         wasOnKicker = false;
         leaveGround = 0.35;
@@ -398,7 +422,7 @@ export function createBoardPlayer(
         holdDeck();
       } else {
         wasOnKicker = onKicker;
-        const travel = groundTravel.copy(ramp.forward).applyAxisAngle(ramp.surfaceNormal, yaw);
+        const travel = wall.state.active?groundTravel.copy(wall.state.heading):groundTravel.copy(ramp.forward).applyAxisAngle(ramp.surfaceNormal,yaw);
         travel.addScaledVector(n, -travel.dot(n));
         if (travel.lengthSq() < 1e-6) travel.copy(ramp.forward);
         travel.normalize();
@@ -451,7 +475,7 @@ export function createBoardPlayer(
         velocity.copy(vel);
 
         followSurface = true;
-        surfaceUp.copy(n);
+        // surfaceUp is rate-limited above; wheel forces still use actual contacts.
         holdDeck(n);
       }
     } else {
@@ -463,8 +487,8 @@ export function createBoardPlayer(
       }
       else if(startingFlight)deckFrame.preserveLaunchAngle();
       // A seam or shallow skim keeps the last support plane instead of snapping to the base hill.
-      followSurface = !rideContact.airborne;
-      if(followSurface && nearRoad)surfaceUp.copy(rollingNormal);
+      followSurface = wall.state.active || wall.state.floorExit || !rideContact.airborne;
+      if(followSurface && nearRoad && rollingNormal.lengthSq()>.5 && !wall.state.active && !wall.state.floorExit)followNormal(rollingNormal,dt);
       // Air resistance acts on the ballistic motion too; the world still applies gravity once.
       const airSpeed=velocity.length();
       if(airSpeed>0) {
@@ -506,7 +530,7 @@ export function createBoardPlayer(
     originShift.set(0, 0, 0);
     if (!crash.active) holdDeck(followSurface ? surfaceUp : ramp.surfaceNormal);
     readPose();
-    if (!crash.active && liveTricks && crashDetection.impactFromContacts(impactVelocity,speed)) startCrash(liveTricks, impactVelocity, 'impact');
+    if (!crash.active && liveTricks && crashDetection.impactFromContacts(impactVelocity,speed,wall.allows)) startCrash(liveTricks, impactVelocity, 'impact');
     if (crash.active) { crash.sync(); position.copy(crash.focus); velocity.copy(crash.velocity); speed = velocity.length(); }
     // When you've ridden a full chunk downhill, snap origin and stream the next seeded stretch.
     // Keep the crash site streamed in while the ragdoll tumbles further downhill.
@@ -579,6 +603,7 @@ export function createBoardPlayer(
     aerial: air.state,
     slide: slide.state,
     grind: grind.state,
+    get wallRiding(){return wall.state.active;},
     originShift,
     mesh: visual.root,
     body,

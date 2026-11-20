@@ -18,6 +18,7 @@ export type BoardPlayer = {
   grounded: boolean;
   /** Confirmed flight; brief suspension gaps keep riding controls and animation. */
   readonly airborne:boolean;
+  readonly wallRiding:boolean;
   readonly landingCount:number;
   readonly landingImpact:number;
   readonly surfaceVerticalSpeed:number;

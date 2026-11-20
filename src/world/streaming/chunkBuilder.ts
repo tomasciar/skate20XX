@@ -21,6 +21,7 @@ import {makeBankFeatures} from '../structures/bankFeatures.ts';
 import {RAMP} from '../config.ts';
 import {placesForChunk,placeExclusions,placeHasSide} from '../planning/places.ts';
 import {writeArchitectureUV} from '../rendering/architectureFinish.ts';
+import {makeCurbCollision} from '../physics/curbSurface.ts';
 import {makePlaceMeshes} from '../structures/places.ts';
 import type {Chunk} from './types.ts';
 import type {makeSharedMaterials} from '../rendering/materials.ts';
@@ -119,7 +120,9 @@ export function* buildChunkContent({index,root,angle,sunOnHill,asphaltMaterial,m
   }
   for (const side of [-1,1]) {
     const path = new THREE.Mesh(new THREE.BoxGeometry(1.8,0.08,RAMP.chunkLength,1,1,RAMP.chunkLength/COURSE_STEP),mats.path);
-    path.position.set(side*10.5,0.44,-RAMP.chunkLength/2); path.receiveShadow = true; root.add(warpCourse(path));
+    path.position.set(side*10.5,0.44,-RAMP.chunkLength/2); path.receiveShadow = true;path.name='sidewalk';path.userData.collision=false;root.add(warpCourse(path));
+    const riding=new THREE.Mesh(makeCurbCollision(1.8,.08,RAMP.chunkLength),mats.path);
+    riding.name='sidewalk-support';riding.position.set(side*10.5,.44,-RAMP.chunkLength/2);riding.userData.collisionProxy=true;riding.visible=false;root.add(warpCourse(riding));
   }
   yield;
   const shadows = createShadowBuilder(sunOnHill), bounds = new THREE.Box3();

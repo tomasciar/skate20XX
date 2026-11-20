@@ -1,4 +1,4 @@
-/** Shared by the mesh and its contact solver; all distances are meters. */
+/** Shared by the mesh and its contact solver; distances are simulation units (see units.ts for the fixed metre calibration). */
 export const BOARD = {
   wheelRadius: 0.036,
   wheelY: -0.055,

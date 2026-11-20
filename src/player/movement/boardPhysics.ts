@@ -1,7 +1,7 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import type {Vector3} from 'three';
 
-/** Person-sized inertia so flips take a real moment, not a frisbee twitch. */
+/** Game-tuned inertia so flips take a real moment, not a frisbee twitch. */
 const BOARD_INERTIA={x:14,y:9,z:6};
 export const BOARD_MASS=72;
 

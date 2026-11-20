@@ -4,7 +4,7 @@ import {spawnSync} from 'node:child_process';
 
 // Explicit families keep routine checks small. `npm test` still discovers the entire suite.
 const groups={
-  movement:['airRotation','carve','flipLean','grabs','grind','groundTricks','landing','multiTricks','ollie','pump','ragdoll','respawn','rideContact','sensitivity','slide','speed'],
+  movement:['airRotation','carve','flipLean','grabs','grind','groundTricks','landing','multiTricks','ollie','pump','ragdoll','respawn','rideContact','sensitivity','slide','speed','surfaceRiding'],
   characters:['airPose','boards','characterLoading','characterRefinements','characterRegistry','characters','cruisePose','faceArtwork','nimbus','pose','refinedFaces','riderPortrait','sahur','trickFeet','weaponVisibility'],
   world:['city','course','districts','environment','environments','exploration','looseProps','places','rampShapes','ridingStructures','startPlatform','streaming','terrainAdventure','variety','worldExpansion'],
   ui:['audio','camera','hudOptions','mode','modeControls','renderQuality','score'],

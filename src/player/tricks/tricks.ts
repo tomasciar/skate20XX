@@ -54,6 +54,7 @@ const NOSE_MANUAL: GroundTrick = {name:'Nose Manual',manual:-1,grab:null};
 export type TrickState = {
   ground: GroundTrick | null;
   groundTime: number;
+  /** Legacy field name: source world units, converted by HUD/scoring. */
   groundMeters: number;
   grab: GrabDef | null;
   grabTime: number;

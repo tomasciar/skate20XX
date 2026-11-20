@@ -1,3 +1,4 @@
+import {metres} from '../units.ts';
 import type { LandingGrade } from "./movement/landing.ts";
 import type { TrickId, TrickState } from "./tricks/tricks.ts";
 
@@ -38,13 +39,13 @@ export const SCORE = {
 export type LandedTrick = { id: TrickId; spins: number };
 /** One fixed tick of the ride, sampled after the trick system has resolved it. */
 export type RideSample = {
-  /** Metres along the course. */
+  /** Source world units along the course; converted to metres when scored. */
   distance: number;
   grounded: boolean;
   crashed: boolean;
   /** Grade of a touchdown on this tick; read it before `tricks.update` clears it. */
   landing?: LandingGrade | null;
-  /** `name` is optional so grinds score before and after they are told apart. */
+  /** `meters` is the legacy world-unit counter; `name` may be unknown during a catch. */
   grind?: { active: boolean; meters: number; name?: unknown };
   /** Accumulated whole-body rotation, radians (see `AirRotationState`). */
   pitch?: number;
@@ -150,7 +151,7 @@ export function createScore() {
     if (!airborne && air.length) { bank(airPoints(air, ride.landing)); air.length = 0; }
 
     if (tricks.ground !== riding || tricks.groundMeters < rode) {
-      if (riding) bank(rode * (riding.manual ? SCORE.manual : SCORE.ridingGrab));
+      if (riding) bank(metres(rode) * (riding.manual ? SCORE.manual : SCORE.ridingGrab));
       riding = tricks.ground; rode = 0;
     }
     if (riding) rode = tricks.groundMeters;
@@ -158,7 +159,7 @@ export function createScore() {
     if (onRail) {
       const meters = ride.grind!.meters;
       // The name is read per tick, so changing position mid-grind pays each stretch at its own rate.
-      railPoints += (meters < railMeters ? meters : meters - railMeters) * grindRate(ride.grind!.name);
+      railPoints += metres(meters < railMeters ? meters : meters - railMeters) * grindRate(ride.grind!.name);
       railMeters = meters;
     } else if (railPoints) { bank(railPoints); railMeters = railPoints = 0; }
 
@@ -169,14 +170,14 @@ export function createScore() {
     const holding = grab ? grabPoints(held) : 0, turning = airborne ? flipPoints(pitch, roll) : 0;
     if (holding) preview.push(holding);
     if (turning) preview.push(turning);
-    pending = airPoints(preview) + railPoints + (riding ? rode * (riding.manual ? SCORE.manual : SCORE.ridingGrab) : 0);
+    pending = airPoints(preview) + railPoints + (riding ? metres(rode) * (riding.manual ? SCORE.manual : SCORE.ridingGrab) : 0);
     if (gained >= 1) { event.id++; event.points = Math.round(gained); event.lost = false; }
     gained = 0;
   }
 
   return {
     step, reset,
-    get total() { return Math.floor(banked + (far > origin ? far - origin : 0) * SCORE.distance); },
+    get total() { return Math.floor(banked + metres(far > origin ? far - origin : 0) * SCORE.distance); },
     /** Points from tricks, grinds and manuals alone. */
     get tricks() { return Math.floor(banked); },
     get ended() { return ended; },

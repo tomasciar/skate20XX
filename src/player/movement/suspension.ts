@@ -20,10 +20,10 @@ export function createSuspension(world:RAPIER.World,body:RAPIER.RigidBody,surfac
   const mount=new THREE.Vector3(),rayDir=new THREE.Vector3();
   const wheelRay=new RAPIER.Ray(mount,rayDir),departureRay=new RAPIER.Ray(position,rayDir);
   const nearbyNormal=new THREE.Vector3(),rollingNormal=new THREE.Vector3(),contactNormal=new THREE.Vector3();
-  const state={wheelsDown:0,nearbyWheels:0,rollingWheels:0,normal:contactNormal,nearbyNormal,rollingNormal};
-  function sample(dt:number,leaveGround:number,slideAmount:number) {
+  const state={wheelsDown:0,wallWheels:0,nearbyWheels:0,rollingWheels:0,normal:contactNormal,nearbyNormal,rollingNormal};
+  function sample(dt:number,leaveGround:number,slideAmount:number,wallNormal?:THREE.Vector3) {
     rayDir.copy(boardUp).multiplyScalar(-1);
-    let wheelsDown = 0;
+    let wheelsDown = 0,wallWheels=0;
     let nearbyWheels = 0;
     let rollingWheels=0;
     nearbyNormal.set(0,0,0);
@@ -40,7 +40,8 @@ export function createSuspension(world:RAPIER.World,body:RAPIER.RigidBody,surfac
       const nz = hit.normal.z;
       const upDot =
         nx * surfaceNormal.x + ny * surfaceNormal.y + nz * surfaceNormal.z;
-      if (upDot < 0.4) continue;
+      const onWall=!!wallNormal && nx*wallNormal.x+ny*wallNormal.y+nz*wallNormal.z>.8;
+      if (upDot < 0.4 && !onWall) continue;
       if(compressed>=-RIDE_CONTACT.gap) {
         rollingWheels++;rollingNormal.x+=nx;rollingNormal.y+=ny;rollingNormal.z+=nz;
       }
@@ -49,7 +50,7 @@ export function createSuspension(world:RAPIER.World,body:RAPIER.RigidBody,surfac
         nearbyNormal.x += nx; nearbyNormal.y += ny; nearbyNormal.z += nz;
       }
       if (compressed <= 0) continue;
-      wheelsDown++;
+      wheelsDown++;if(onWall)wallWheels++;
       contactN.x+=nx;contactN.y+=ny;contactN.z+=nz;
 
       // While popping, the springs would grab the deck and cancel the ollie.
@@ -72,7 +73,7 @@ export function createSuspension(world:RAPIER.World,body:RAPIER.RigidBody,surfac
       const sz = tz - forward.z * along;
       const sideMag = Math.hypot(sx, sy, sz);
       if (sideMag > 0.08) {
-        const grip = Math.min(sideMag * 18, 40) * dt * (1-slideAmount);
+        const grip = Math.min(sideMag * 18, 40) * dt * (1-slideAmount)*(onWall?.25:1);
         body.applyImpulse({ x: (-sx / sideMag) * grip, y: (-sy / sideMag) * grip, z: (-sz / sideMag) * grip }, true);
       }
     }
@@ -80,7 +81,7 @@ export function createSuspension(world:RAPIER.World,body:RAPIER.RigidBody,surfac
     if (contactN.lengthSq() > 0) contactN.normalize();
     else contactN.copy(surfaceNormal);
     rollingNormal.normalize();
-    state.wheelsDown=wheelsDown;state.nearbyWheels=nearbyWheels;state.rollingWheels=rollingWheels;
+    state.wheelsDown=wheelsDown;state.wallWheels=wallWheels;state.nearbyWheels=nearbyWheels;state.rollingWheels=rollingWheels;
     return state;
   }
   function isDeparting(surfaceUp:THREE.Vector3) {
