@@ -2,6 +2,7 @@ import type * as THREE from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import type {PlayerIntent} from './controller.ts';
 import type {TrickState} from './tricks/tricks.ts';
+import type {NitroState} from './movement/nitro.ts';
 import type {createPumpCycle} from './movement/pump.ts';
 import type {createGrindSystem} from './movement/grind.ts';
 import type {createAirRotation} from './movement/airRotation.ts';
@@ -28,6 +29,7 @@ export type BoardPlayer = {
   readonly crashCause: CrashCause | null;
   readonly resetCount: number;
   readonly ollieCount: number;
+  readonly nitro:Readonly<NitroState>;
   readonly pump: ReturnType<typeof createPumpCycle>["state"];
   readonly aerial: ReturnType<typeof createAirRotation>["state"];
   readonly slide: ReturnType<typeof createSlide>["state"];

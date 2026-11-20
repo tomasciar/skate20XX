@@ -16,6 +16,7 @@ import { createHud } from "./ui/hud";
 import { createSky } from "./render/sky";
 import { createSunRig, applySkyEnvironment } from "./render/lighting";
 import { createParticles, SPARK, DUST, SNOW } from "./render/particles";
+import {createNitroEffects} from './render/nitroEffects';
 import {loadRideMode} from './mode';
 import {createModeControls} from './ui/modes';
 import {createHudOptions} from './ui/hudOptions';
@@ -91,6 +92,7 @@ async function main() {
   scene.add(sky.mesh);
   applySkyEnvironment(renderer, scene, sky.mesh);
   const particles = createParticles();
+  const nitroEffects=createNitroEffects(particles);
   scene.add(particles.points);
 
   // Let the suspension settle on the launch platform before the first frame.
@@ -128,8 +130,8 @@ async function main() {
     if(snap)chase.snap(player.renderPosition,direction);
     else chase.update(dt,player.renderPosition,direction);
     const useFirstPerson=firstPerson&&!player.crashed;
-    const fov=useFirstPerson?80:62,near=useFirstPerson ? .025 : .1;
-    if(camera.fov!==fov || camera.near!==near) {
+    const fov=(useFirstPerson?80:62)+nitroEffects.strength*9,near=useFirstPerson ? .025 : .1;
+    if(Math.abs(camera.fov-fov)>.001 || camera.near!==near) {
       camera.fov=fov;camera.near=near;camera.updateProjectionMatrix();
     }
     if(useFirstPerson)firstPersonCamera.update();
@@ -165,7 +167,7 @@ async function main() {
     newScoreRun();
     mode=next;ramp.setMode!(mode);player.setMode(mode);hud.setMode(mode);
     sky.setMode(mode,(scene.fog as THREE.Fog).color);applySkyEnvironment(renderer,scene,sky.mesh);
-    particles.clear();pausedSceneDirty=true;
+    particles.clear();nitroEffects.reset();pausedSceneDirty=true;
     toBeat=bests[mode];showScore();
   });
   const alongCourse = new THREE.Vector3();
@@ -301,7 +303,7 @@ async function main() {
       world.step();
       player.sync(false);
       if (audioResetCount !== player.resetCount) {
-        audio.reset(); controller.reset(); tricks.reset(); particles.clear(); effect.landings=player.landingCount; audioResetCount = player.resetCount;
+        audio.reset(); controller.reset(); tricks.reset(); particles.clear();nitroEffects.reset(); effect.landings=player.landingCount; audioResetCount = player.resetCount;
         chase.snap(player.position,ramp.directionAt?.(player.position,courseDirection));
       }
       audio.step(fixedDt, audioState());
@@ -318,12 +320,14 @@ async function main() {
     if (alongCourse.copy(player.position).sub(ramp.anchor).dot(ramp.surfaceNormal) < -55 && !player.crashed) {
       player.respawn();
       audio.reset(); audioResetCount = player.resetCount;
-      particles.clear(); effect.landings=player.landingCount;
+      particles.clear();nitroEffects.reset(); effect.landings=player.landingCount;
       chase.snap(player.position,ramp.directionAt?.(player.position,courseDirection));
     }
 
     player.render(acc / fixedDt, raw);
     audio.mix(audioState());
+    ramp.directionAt?.(player.renderPosition,courseDirection);
+    nitroEffects.update(raw,player.nitro,player.renderPosition,player.velocity,ramp.surfaceNormal,player.forward,courseDirection,player.crashed);
     updateCamera(raw);
     sunRig.update(player.renderPosition);
     sky.update(raw);
@@ -331,7 +335,7 @@ async function main() {
     particles.update(raw, renderer.domElement.height, camera.fov);
     hudElapsed += raw;
     if (hudElapsed >= 0.1) {
-      hud.update(player.speed, tricks.state, ramp.distance + Math.max(0, alongCourse.copy(player.position).sub(ramp.anchor).dot(ramp.forward)), player.grind, player.aerial);
+      hud.update(player.speed, tricks.state, ramp.distance + Math.max(0, alongCourse.copy(player.position).sub(ramp.anchor).dot(ramp.forward)), player.grind, player.aerial,player.nitro);
       showScore();
       hudElapsed = 0;
     }

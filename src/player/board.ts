@@ -12,6 +12,7 @@ import {createWallRide,WALL_RIDE} from './movement/wallRide.ts';
 import {createSuspension} from './movement/suspension.ts';
 import {createCrashDetection} from './movement/crashDetection.ts';
 import {createCrashPhysics} from './movement/crashPhysics.ts';
+import {createNitro,nitroHeading} from './movement/nitro.ts';
 import {createPumpCycle} from './movement/pump.ts';
 import {createGrindSystem} from './movement/grind.ts';
 import {createAirRotation,describeAirRotation,AIR_YAW_SPEED,AIR_ROTATION_SPEED} from './movement/airRotation.ts';
@@ -42,7 +43,8 @@ export function createBoardPlayer(
   mode:RideMode='skate',character:CharacterId='boy',boardStyle:BoardStyleId='classic'
 ): BoardPlayer {
   const grind = createGrindSystem();
-  const pump = createPumpCycle();
+  const pump = createPumpCycle(),nitro=createNitro();
+  const nitroDirection=new THREE.Vector3();
   const air = createAirRotation();
   const slide = createSlide();
   const rideContact=createRideContact();
@@ -149,7 +151,7 @@ export function createBoardPlayer(
     }
     resetCount++;
     ollieCount=0;
-    pump.reset();
+    pump.reset();nitro.reset();
     rideContact.reset();surfaceUp.copy(ramp.surfaceNormal);
     slide.reset();
     air.reset();airOffset.set(0,0,0);previousAirOffset.set(0,0,0);
@@ -247,7 +249,7 @@ export function createBoardPlayer(
     // Capture the current articulated pose rather than spawning a different crash model.
     render(1, 0);
     crash.capture(momentum);
-    pump.reset(); grind.reset();wall.release(); crashElapsed = 0; grounded = false; followSurface = false;
+    pump.reset();nitro.cancel(); grind.reset();wall.release(); crashElapsed = 0; grounded = false; followSurface = false;
     slide.reset();
     ollieGrace = pendingOllie = 0; nearGround = false;
     air.reset();airOffset.set(0,0,0);previousAirOffset.set(0,0,0);
@@ -285,6 +287,17 @@ export function createBoardPlayer(
     if(originShift.lengthSq()>0 && !rideContact.airborne && leaveGround<=0 && !wasOnKicker)rebaseContactGrace=.025;
     rebaseContactGrace=Math.max(0,rebaseContactGrace-dt);
     if (tricks.bail) { startCrash(tricks, velocity, 'trick'); return; }
+    ramp.directionAt?.(position,courseForward);
+    const nitroSpeed=nitro.step(dt,!!intent.wantNitro);
+    if(nitroSpeed>0) {
+      if(grind.state.active)nitroDirection.copy(grind.tangent).multiplyScalar(courseForward.dot(grind.tangent)<0?-1:1);
+      else {
+        const normal=rideContact.airborne?ramp.surfaceNormal:surfaceUp;
+        nitroHeading(forward,courseForward,normal,nitroDirection);
+      }
+      velocity.addScaledVector(nitroDirection,nitroSpeed);
+      speed=velocity.length();body.setLinvel(velocity,true);
+    }
     const queriesReady=originShift.lengthSq()===0,wasOnWall=wall.state.active;
     wall.update(dt,velocity,(leaveGround<=0 || (ollieNormal.dot(ramp.surfaceNormal)>.4 && ollieCooldown<.22)) && !air.state.engaged && !grind.state.active && !intent.wantOllie,queriesReady);
     if(wall.entering){deckFrame.land();surfaceUp.copy(boardUp);wasOnKicker=false;leaveGround=0;}
@@ -292,7 +305,6 @@ export function createBoardPlayer(
     else if(wall.state.floorExit){deckFrame.land();followNormal(wall.state.floorNormal,dt);followSurface=true;holdDeck(surfaceUp);}
     else if(wasOnWall){deckFrame.preserveLaunchAngle();}
     if (crashDetection.obstacleAhead(dt,speed,wall.allows)) { startCrash(tricks, velocity, 'obstacle'); return; }
-    ramp.directionAt?.(position,courseForward);
     const courseYaw=Math.atan2(-courseForward.x,courseForward.dot(ramp.forward));
     const carveSensitivity=clampSensitivity(intent.carveSensitivity??1);
     const flipSensitivity=clampSensitivity(intent.flipSensitivity??1);
@@ -600,6 +612,7 @@ export function createBoardPlayer(
     get ollieCount() { return ollieCount; },
     get canOllie() { return canOllie(); },
     pump: pump.state,
+    nitro:nitro.state,
     aerial: air.state,
     slide: slide.state,
     grind: grind.state,

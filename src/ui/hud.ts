@@ -1,3 +1,4 @@
+import type {NitroState} from '../player/movement/nitro.ts';
 import {metres,mph} from '../units.ts';
 import type { GrindState } from "../player/movement/grind";
 import type { TrickState } from "../player/tricks/tricks";
@@ -7,6 +8,7 @@ import type {RideMode} from '../mode.ts';
 
 export function createHud() {
   const speedEl = document.getElementById("speed")!;
+  const nitroEl=document.getElementById('nitro');
   const distanceEl = document.getElementById("distance")!;
   const trickEl = document.getElementById("trick")!;
   const overlay = document.getElementById("overlay")!;
@@ -28,10 +30,14 @@ export function createHud() {
   /** A new run may show the flip-mode hint again. */
   function newRun() { flipHints=0;flipHintAir=wasEngaged=false;airMode.hidden=true; }
 
-  function update(speed: number, tricks: TrickState, distance = 0, grind?: GrindState, aerial?: AirRotationState) {
+  function update(speed: number, tricks: TrickState, distance = 0, grind?: GrindState, aerial?: AirRotationState,nitro?:Readonly<NitroState>) {
     // Simulation distances use the fixed default-rider calibration.
     speedEl.textContent = String(Math.round(mph(speed)));
     distanceEl.textContent = String(Math.round(metres(distance)));
+    if(nitroEl && nitro) {
+      nitroEl.textContent=nitro.active?`NITRO · ${nitro.remaining.toFixed(1)}s`:nitro.cooldown>0?`NITRO RECHARGING · ${Math.ceil(nitro.cooldown)}s`:'R · NITRO READY';
+      nitroEl.classList.toggle('active',nitro.active);nitroEl.classList.toggle('recharging',!nitro.active && nitro.cooldown>0);
+    }
     // The flip-mode reminder is a hint, not a readout: it shows for the first airs of a run that use flip mode.
     const engaged=!!aerial?.engaged;
     if(engaged && !wasEngaged) flipHintAir=flipHints++<FLIP_HINTS;

@@ -23,7 +23,8 @@ Open the local URL printed by Vite. Click or press Enter to start.
 | **Space** (air) | Toggle flip mode: W/S front/backflip, A/D barrel roll, combine for diagonals; press again to return to A/D steering |
 | **Arrow keys** (air) | Up shove-it, down 180, left kickflip, right heelflip; diagonals varial / hardflip |
 | **Shift + arrows** (air) | Press a screen direction to choose a grab/tweak; hold to lock it through spins |
-| **R** | Restart the run |
+| **R** | Activate nitro (also works while holding Shift) |
+| **Tab** | Restart the run |
 | **Esc** | Pause / resume |
 | **M** | Mute / unmute sound |
 | **V** | Toggle first-person / chase camera |
@@ -50,7 +51,7 @@ Switching tabs or losing window focus pauses the game and clears held keys.
 
 ## Course and rider
 
-The deterministic course streams through six districts: Cedar Grove, Old Town, Summit Ridge, Golden Acres farmland, the Timber Mill and Downtown. Downtown first appears at 210 m, with shopfronts, apartment and office blocks, skyline towers, pocket plazas, parked cars and urban street furniture. The same city layout supports skate and snowboard modes, including automatic winter coverage. Districts arrive in runs of 3 to 7 chunks (210 to 490 m) in a seeded order that never repeats one back to back; the run always opens in the grove and visits every district within the first two kilometres. A sign marks each district boundary. It stays mostly downhill, with smoothly changing grades, genuinely level stretches and short rises of about 0.35 degrees. After a straight 280 m opening, broad sweeping bends and a smaller wave meander through the landscape. Heading changes gradually, with kilometre-scale bend radii so high-speed turns need small corrections. The road, paint, barriers, footpaths, terrain, level foundations and baked shadows share the centerline. Props remain rigid and face the local road; grind rails and ledges stay straight and align with their section of the bend. Grade transitions extend over 210 m so they remain rideable at high speed. The view stays clear to 120 m and fades gently to the sky by 300 m (previously 45–120 m). Terrain streams beyond this range. Optional wedge jumps, raised pads, cones, grind rails, and low concrete ledges sit outside a clear center corridor; the first chunk is clear for learning the controls. The landscape extends 260 m to each side. The valley slowly changes shape along the route, with one flank rising into a hillside while the other opens out, and ground cover takes on each district's colour, blending over the first 20 m of a new district. Every building, tree, vehicle, fence and prop has collision generated from its mesh. R restarts the same course so you can practice a line.
+The deterministic course streams through six districts: Cedar Grove, Old Town, Summit Ridge, Golden Acres farmland, the Timber Mill and Downtown. Downtown first appears at 210 m, with shopfronts, apartment and office blocks, skyline towers, pocket plazas, parked cars and urban street furniture. The same city layout supports skate and snowboard modes, including automatic winter coverage. Districts arrive in runs of 3 to 7 chunks (210 to 490 m) in a seeded order that never repeats one back to back; the run always opens in the grove and visits every district within the first two kilometres. A sign marks each district boundary. It stays mostly downhill, with smoothly changing grades, genuinely level stretches and short rises of about 0.35 degrees. After a straight 280 m opening, broad sweeping bends and a smaller wave meander through the landscape. Heading changes gradually, with kilometre-scale bend radii so high-speed turns need small corrections. The road, paint, barriers, footpaths, terrain, level foundations and baked shadows share the centerline. Props remain rigid and face the local road; grind rails and ledges stay straight and align with their section of the bend. Grade transitions extend over 210 m so they remain rideable at high speed. The view stays clear to 120 m and fades gently to the sky by 300 m (previously 45–120 m). Terrain streams beyond this range. Optional wedge jumps, raised pads, cones, grind rails, and low concrete ledges sit outside a clear center corridor; the first chunk is clear for learning the controls. The landscape extends 260 m to each side. The valley slowly changes shape along the route, with one flank rising into a hillside while the other opens out, and ground cover takes on each district's colour, blending over the first 20 m of a new district. Every building, tree, vehicle, fence and prop has collision generated from its mesh. Tab restarts the same course so you can practice a line.
 
 Regional colourways add golden grass and orange, red, yellow, purple and deep-green foliage, with an autumn grove immediately after the start. Evergreen, meadow, copper, spring-pasture, sunlit-hills and olive-orchard palettes appear in later district runs. All grass stays green or yellow, including in the city and on higher ground. Ground colours blend at chunk seams; snowfall remains independent of the colourway. Existing building slots now also include joined rowhouses, open colonnades, gabled warehouses, stepped terraces and lofts with rooftop water tanks.
 
@@ -116,7 +117,7 @@ A touchdown is judged by how hard the wheels hit the surface and how well the bo
 
 ## Scoring
 
-Every run has a score, shown under the distance with the best score for the current board. It restarts from zero with the run (R, or local recovery after a crash) and is made of:
+Every run has a score, shown under the distance with the best score for the current board. It restarts from zero with the run (Tab, or local recovery after a crash) and is made of:
 
 - **Distance**: 1 point per metre down the course.
 - **Board tricks**: Pop Shove-It and FS 180 150, Kickflip and Heelflip 200, Varial Flip 350, Hardflip 400. A double is worth 2.5 times the single, a triple 4.5 times and a quadruple 7 times.
@@ -146,7 +147,7 @@ The ground uses the same deterministic height triangles for rendering, physics, 
 
 Hard obstacle impacts, severe landings, inverted or sideways touchdowns after a flip, failed flip tricks, and leaving the generated landscape trigger a ragdoll crash. The rider separates from the board with their incoming momentum; the existing character mesh is driven by 11 rigid bodies and 10 joints; hands and shoes share compound bodies with their forearms and shins. Knees and elbows use limited hinges, while shoulders, hips, neck, and waist remain flexible. The board tumbles independently and the course-following camera follows the rider.
 
-Ride controls are disabled during the tumble. After about 3.2 seconds, the rider recovers in the clear center lane at the crash's downhill location, with speed and score reset. The course stays at its current progress; the ragdoll rolling away does not move the recovery point. Press R to restart the course from the launch platform, or refresh for a fresh start. Pausing freezes the crash as well. Ragdoll bodies are created only on a crash and completely removed on recovery, including their joints; extra collision substeps are restored afterward.
+Ride controls are disabled during the tumble. After about 3.2 seconds, the rider recovers in the clear center lane at the crash's downhill location, with speed and score reset. The course stays at its current progress; the ragdoll rolling away does not move the recovery point. Press Tab to restart the course from the launch platform, or refresh for a fresh start. Pausing freezes the crash as well. Ragdoll bodies are created only on a crash and completely removed on recovery, including their joints; extra collision substeps are restored afterward.
 
 ## Rendering
 
@@ -221,3 +222,15 @@ reference. This corrects MPH, metres and distance-based scoring without changing
 world geometry or the established boost/acceleration tuning. The 20-mph push
 cutoff follows the calibrated readout. See [riding surfaces and world scale](docs/physics-surfaces.md)
 for the collision authoring rules, wall behavior and unit conversions.
+
+Press **R** for a two-second nitro boost, followed by six seconds of recharge.
+Thrust is three times the original strength. The HUD shows when it is ready again.
+Nitro follows the board's length along the riding plane, using whichever end points
+downhill: the nose in one stance, the tail when riding switch. It never adds thrust
+back up the course, even if you are rolling backward. The direction follows local
+course bends. On rails, thrust stays along the rail toward downhill; in the air,
+it stays in the course plane while gravity continues normally. R works the same
+with or without Shift, in both riding modes and during tricks. Cyan trails follow
+the boost direction, and the camera FOV widens smoothly before settling back.
+The effects reuse the fixed particle pool. **Tab** restarts the run; it keeps normal keyboard
+focus navigation while a menu control or text field is focused.

@@ -23,6 +23,7 @@ export type PlayerIntent = {
   wantOllie: boolean;
   olliePower: number;
   reset: boolean;
+  wantNitro?: boolean;
   flickDX: number;
   flickDY: number;
   flickReady: boolean;
@@ -82,6 +83,7 @@ export function createController() {
       wantOllie,
       olliePower,
       reset: input.reset,
+      wantNitro: !!input.nitro,
       flickDX: input.flickDX,
       flickDY: input.flickDY,
       flickReady: input.flickReady,
@@ -89,8 +91,8 @@ export function createController() {
       flickHoldDY: input.trickModifier ? input.arrowDY ?? 0 : 0,
     };
 
-    // consume one-shot reset
-    input.reset = false;
+    // Consume one-shot actions once per physics step, including quick taps between frames.
+    input.reset = input.nitro = false;
 
     return intent;
   }

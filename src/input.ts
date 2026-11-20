@@ -15,6 +15,7 @@ export type InputState = {
   crouchPressed: boolean;
   crouchReleased: boolean;
   reset: boolean;
+  nitro?: boolean;
   flickDX: number;
   flickDY: number;
   flickReady: boolean;
@@ -42,6 +43,7 @@ export function createInput(): {
     crouchPressed: false,
     crouchReleased: false,
     reset: false,
+    nitro: false,
     flickDX: 0,
     flickDY: 0,
     flickReady: false,
@@ -54,7 +56,8 @@ export function createInput(): {
 
   const onKeyDown = (e: KeyboardEvent) => {
     if (typeof HTMLElement !== "undefined" && e.target instanceof HTMLElement && e.target.closest("button, input, select, textarea")) return;
-    if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) {
+    if(e.ctrlKey || e.metaKey || e.altKey)return;
+    if (["Tab", "Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) {
       e.preventDefault();
     }
     if (e.repeat) return;
@@ -81,6 +84,9 @@ export function createInput(): {
         state.crouch = true;
         break;
       case "KeyR":
+        state.nitro = true;
+        break;
+      case "Tab":
         state.reset = true;
         break;
       case "ArrowUp":
@@ -174,7 +180,7 @@ export function createInput(): {
   }
 
   function consume() {
-    state.crouchPressed = state.crouchReleased = state.flickReady = state.reset = false;
+    state.crouchPressed = state.crouchReleased = state.flickReady = state.reset = state.nitro = false;
     state.flickDX = state.flickDY = 0;
   }
 
