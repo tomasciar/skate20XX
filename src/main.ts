@@ -278,6 +278,7 @@ async function main() {
 
     acc += raw;
     while (acc >= fixedDt) {
+      ramp.stepProps?.(fixedDt);
       const intent = controller.update(input.state, fixedDt, player.airborne && !player.grind.active && !player.crashed,
         player.canOllie || player.grind.active);
       lastSteer = player.aerial.active ? 0 : intent.steer;

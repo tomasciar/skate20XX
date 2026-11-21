@@ -69,6 +69,140 @@ Run `tests/variety.test.ts` for repeatability, shared collision, colour encoding
 
 Keep geometry, material, and collision complexity controlled per section. The current pipeline bakes solid visible meshes into chunk collision; set `object.userData.collision = false` for decorative parts that should not collide. Snow changes materials only. Existing placement metadata (`pad`, `slope`, upright) remains shared by both modes.
 
+## Authored places and the opening Foundry Quarter
+
+Prioritize a strong, permanent stretch over adding another random prop family.
+Compose its entrances, building edges, ground line, elevated line and return to
+the main route together. Large courts need internal circulation and usable
+features; empty asphalt and distant buildings do not make a place. Keep room for
+fast riding within those edges. Background lots can remain procedural.
+
+Foundry Quarter occupies source coordinates 210–600 near the start. Its red-brick
+shops, cream trim, covered pavement and teal/red awnings frame the existing
+warehouse rather than replacing it. Cafe seating stays under the awnings; low
+banks split the service court into optional lines. The left arcade roof exits
+diagonally onto the existing descending roof bank, leaving the plaza approach
+open below. The later launch bank remains clear.
+
+The warehouse roof has a broad, gently curved link into the inner riding lane of
+a three-level circular car park. A separate driveway leaves the outside branch
+road **after** its rollers. An eight-unit-wide spiral makes two continuous turns,
+gaining 9.2 units of real world height at roughly 3.5% grade; it can be ridden
+using normal carving and pushing. Level decks and a central four-faced clock
+tower give the district one recognizable silhouette. Upper landings extend
+after the ramp seam, leaving the incoming spiral's headroom clear. A broad exit
+descends back toward the lower court.
+
+Parking bays and stationary cars occupy the outside of the circular decks,
+leaving an inner lane open. Two slow kinematic cars maneuver in the service court
+at 465 and 535, beyond the warehouse landing corridor; they never cross the main
+road. Static shop details, cars, paint, tower and decks join the normal material
+batches. Only these two actors update each physics step. Collision remains exact,
+and summer/winter share the same routes and geometry.
+
+The design draws on connected retail courtyards and reused industrial buildings,
+including [Coal Drops Yard](https://heatherwick.com/projects/buildings/coal-drops-yard/),
+as a spatial reference rather than a replica. Build subsequent places with the
+same attention to connected movement and enclosure.
+
+`tests/foundryQuarter.test.ts` checks spiral collision and headroom, full climbs
+in both modes, the warehouse-to-deck ride, geometry budgets and moving-car
+rebasing/lifetime. For a browser inspection, import `scripts/previewFoundry.ts`
+through Vite and call `previewFoundry('overview' | 'street' | 'court' | 'spiral')`.
+The helper renders the actual world and stays out of the game bundle.
+
+## Biomes and full-width alternate roads
+
+The catalog now includes Harbor Heights, Red Rock Canyon, Blossom Gardens and
+Alpine Village alongside the original six environments. The opening still starts
+in Cedar Grove and reaches Downtown at 210 source units. Harbor begins at 490,
+the canyon at 910, gardens at 1,120 and alpine at 1,470. Later bags visit every
+registered environment in a seeded order. These preview positions refer to source
+coordinates, not the calibrated HUD metre readout.
+
+Each new layout has several lot arrangements: working harbor versus residential
+boathouses, adobe settlements versus roadside service stations, courtyard streets
+versus conservatory grounds, and lodge clusters versus lift stations. Shared
+building primitives and materials live in `props/districtBuildings.ts`. Eight
+building silhouettes, stepped mesas and harbor cranes add different massing rather
+than just more color variants. Seasonal coating and scenery tints remain shared.
+`terrain/biomes.ts` shapes distant canyon walls, alpine slopes, coastal lowlands
+and gentler gardens outside the riding belt, blending changes across boundaries.
+The new biome palettes also persist for whole district runs.
+
+`planning/branchRoads.ts` describes optional asphalt roads 14–18 source units
+wide and roughly 580–700 long. They split from and return to the main road,
+with boulevard, parkway, esplanade and rock-cut variants. The first fork starts
+at 55 and rejoins at 705, on the right. Subsequent sectors vary their side, reach,
+width and sweep; candidates that collide with existing buildings, banks or
+composed places are skipped. Planning uses a bounded cache and no runtime AI.
+
+The terrain sampler grades the road bed and shoulders before generating collision.
+`structures/branchRoads.ts` clips each asphalt skin to the **actual terrain
+triangles**, including the original cross-cell diagonal. Paint follows the same
+triangles with a small depth separation. The asphalt uses the main road's material
+and winter treatment. It adds no second collider, no bounding box and no raised
+platform. Ten-unit samples in the outer riding belt improve road-bed resolution
+without refining the entire valley. Road crossings remove both the visible
+sidewalk and its invisible support proxy. Never leave collision across a visible
+junction or inflate a narrow passage to make a road easier to ride.
+
+`structures/branchFeatures.ts` adds optional banked edges, rock cuts and open
+galleries with rideable roofs and outside access banks. The main lane beneath a
+gallery remains clear. Roofs and access banks share the same longitudinal height
+reference, so differing cross-section samples cannot introduce a step at a join.
+Beams sit below the slab rather than poking through the riding surface. All
+feature solids, including slab undersides, use exact
+visible collision; ordinary chunk ownership slices them at the course lattice.
+Approaches, riding surfaces, columns and landing space are reserved before filler
+scenery is built. District-colored building frontage can follow the outer road.
+The main downhill road remains available beside every branch.
+
+`tests/branchRoads.test.ts` covers deterministic planning/cache eviction, road
+clearings, road/terrain alignment, sidewalk openings, exact underpasses, seasonal
+materials and a complete split-to-rejoin ride in both modes. The biome tests cover
+early discovery, boundary continuity, shared assets and roof collision. Run
+`npm run bench:world` after expanding these families; keep the per-chunk budgets
+bounded instead of adding a separate scenery or collider layer.
+
+### Branch play lanes and architectural details
+
+`planning/branchPlay.ts` composes optional loading docks, roller lanes and transfer
+jumps beside alternate roads. The first fork previews a dock at 300–380 source
+units, its grind rail at 331–349, rollers at 395–460, and a rooftop transfer at
+352–429. Other branches vary the mix. The main road, branch center lane and outside
+roof access retain their flat bypasses. Transfers use actual launch and landing
+solids with a seven-unit gap; no trigger or artificial launch force is involved.
+
+Ground play lanes sample their own supporting terrain across their width so an
+entry cannot inherit a small step from a different road-center height. Rooftop
+ramps instead share the gallery's common height reference, with their solid bases
+confined above the roof. They never extend columns through the underpass. Curved
+surfaces use a one-unit longitudinal lattice, preserving the five-unit course
+seams. Rooftop asphalt has one cached depth-biased finish for stable zero-height
+joins. Ground asphalt reuses the main road material directly.
+
+`structures/branchPlay.ts` supplies these surfaces and the dock rails. Rail meshes
+and registry endpoints are rigid and already course-warped: do not warp them a
+second time in the chunk builder. Each rail has one owner chunk and uses the same
+catch, balance, ollie-out, seasonal appearance and origin rebase system as other
+rails. Thin edge paint and attached trim are decorative; the riding solids and
+rail geometry retain exact collision.
+
+`props/districtBuildingDetails.ts` adds attached shutters, signs, roof equipment,
+timberwork, planting boxes, gutters and glazing frames to the eight building
+families. Conservatory ribs follow the dome's actual meridian vertices rather
+than an approximate smooth arch. Signs reuse the existing shared atlas. Large
+roof equipment remains solid; small details against an existing wall do not add
+collision. `districtStreetProps.ts` supplies harbor crates and bollards, cacti,
+garden lanterns and ski racks. Layouts replace some bush placements with these
+props rather than adding an extra density layer.
+
+`tests/branchPlay.test.ts` verifies full dock/roller/transfer rides and catching and
+ollieing out of the new rails in both modes, including a later ground-level
+transfer. It also checks exact collision, underpass clearance and geometry
+budgets. Fork paint now opens at paved junctions alongside the sidewalk gaps.
+
 ## Rideable surroundings and roof routes
 
 `exploration.ts` describes shared terrain banks, winding ground corridors and taller building sites. The rolling belt near the road stays manageable; farther hills retain stronger relief. Road shoulders and footpaths meet the landscape within a few centimetres, and short ridge guardrails leave planned entrances open. The main road geometry and grade remain unchanged.

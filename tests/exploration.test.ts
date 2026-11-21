@@ -98,7 +98,7 @@ test('the rider can follow the natural bank onto a tall roof and leave it in bot
   }
 });
 
-test('the rider can cross the shoulder and follow a winding ground route beside the main road',async()=>{
+test('the rider can cross the shoulder and follow the ground route through the covered quarter',async()=>{
   await RAPIER.init();const world=new RAPIER.World({x:0,y:-18,z:0});world.timestep=dt;
   const scene=new THREE.Scene(),ramp=createRamp(scene,world,{startPlatform:false}),player=createBoardPlayer(scene,world,ramp),tricks=createTrickSystem();
   try {
@@ -112,6 +112,6 @@ test('the rider can cross the shoulder and follow a winding ground route beside 
       if(offset>12 && !player.airborne)outside++;furthest=Math.max(furthest,offset);
       if(along>470){complete=true;break;}
     }
-    assert.ok(complete && outside>240 && furthest>28,'ride a meaningful stretch of off-road ground through the scenery');
+    assert.ok(complete && outside>240 && furthest>16,`off-road route: complete=${complete}, grounded frames=${outside}, furthest=${furthest}`);
   } finally {world.free();}
 });

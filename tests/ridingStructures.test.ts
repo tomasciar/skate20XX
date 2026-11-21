@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import {makeLandscape} from '../src/world/terrain/landscape.ts';
 import {landscapeHeight} from '../src/world/terrain/landscape.ts';
-import {districtAt} from '../src/world/planning/generation.ts';
+import {DISTRICTS,districtAt} from '../src/world/planning/generation.ts';
 import {ridingSiteForChunk,ridingPathX} from '../src/world/planning/ridingSites.ts';
 import {makeRidingStructure,ridingStructureHeight} from '../src/world/structures/ridingStructures.ts';
 import {bakeSceneryCollision} from '../src/world/physics/collision.ts';
@@ -22,19 +22,20 @@ Object.assign(globalThis,{document:{createElement:()=>({getContext:()=>new Proxy
 const dt=1/120,idle:PlayerIntent={grabModifier:false,grabDX:0,grabDY:0,push:0,steer:0,crouch:false,crouchHold:0,
   wantOllie:false,olliePower:0,reset:false,flickDX:0,flickDY:0,flickReady:false};
 
-test('all districts retain saturated green and yellow ground, including cities and higher slopes',()=>{
+test('districts retain saturated green/yellow ground or warm canyon earth, including cities and higher slopes',()=>{
   const material=new THREE.MeshStandardMaterial(),color=new THREE.Color(),hsl={h:0,s:0,l:0},districts=new Set<string>();
   try {
     for(let index=0;index<140;index++) {
       districts.add(districtAt(index).district);const mesh=makeLandscape(index,material),colors=mesh.geometry.getAttribute('color');
+      const canyon=districtAt(index).district==='canyon'||districtAt(index-1).district==='canyon';
       for(let i=0;i<colors.count;i++) {
         color.fromBufferAttribute(colors,i).getHSL(hsl);
         assert.ok(hsl.s>.24,`grey terrain in ${districtAt(index).district} at ${index}, saturation ${hsl.s}`);
-        assert.ok(hsl.h>.09 && hsl.h<.36,'ground should remain in warm yellow/green hues');
+        assert.ok(hsl.h>(canyon?.055:.09) && hsl.h<.36,'ground should remain warm earth or yellow/green, never grey');
       }
       mesh.geometry.dispose();
     }
-    assert.equal(districts.size,6);
+    assert.equal(districts.size,DISTRICTS.length);
   } finally {material.dispose();}
 });
 

@@ -12,7 +12,7 @@ origin rebasing, physics activation and the world's runtime queries.
 | `props/` | Reusable scenery builders, visual variation and terrain placement |
 | `environments/` | District catalog, layouts, placement reservations and landscape colourways |
 | `rendering/` | Seasonal appearance, materials, textures, lighting, baked shadows and static batching |
-| `physics/` | Static collision baking and movable cone behavior |
+| `physics/` | Static collision baking, movable cones and bounded court traffic |
 | `streaming/` | Incremental chunk content construction and internal chunk ownership types |
 
 ## Chunk construction
@@ -44,6 +44,37 @@ create their own streaming windows or register untracked physics bodies.
 - Put district composition in `environments/`, independently of riding mode.
   See [the environment guide](../../docs/environments.md) for catalog registration,
   seeded variety and winter compatibility.
+
+Full-width road forks are planned in `planning/branchRoads.ts`. Their road beds
+belong to `terrain/landscape.ts`; `structures/branchRoads.ts` clips the visible
+asphalt and paint to that terrain, while `branchFeatures.ts` supplies optional
+rideable architecture. Junctions remove the visible sidewalk **and** its support
+proxy. Keep road reservations ahead of ordinary prop placement, and keep exact
+clearance under galleries. See the biome/road section of the environment guide
+for dimensions, early previews and regression rides.
+
+`planning/branchPlay.ts` and `structures/branchPlay.ts` add optional dock, roller
+and transfer lines within those reserved shoulders. Rooftop obstacles must keep
+their entire solid base above the roof so the ground passage remains open. Dock
+rails join the standard grind registry; their rigid meshes and endpoints are
+already course-warped. Building and street-scale detail lives in
+`props/districtBuildingDetails.ts` and `districtStreetProps.ts`, using shared
+primitive geometry, materials and the existing sign atlas.
+
+The permanent opening Foundry Quarter is planned in `planning/foundryQuarter.ts`
+and built in `structures/foundryQuarter.ts`. Its street, warehouse roof link and
+spiral car park are composed together. Preserve those connections when expanding
+the opening; generic scenery only fills the surrounding unreserved lots.
+`foundryPoint` converts a world-horizontal garage frame into absolute hill-frame
+coordinates. These meshes carry `courseWarped`, bypass ordinary course warping,
+and subtract their owning chunk's origin exactly once. Terrain grading uses the
+same frame. `terrainPaving.ts` clips paving to the exact landscape triangles.
+
+The two slow parking cars in `physics/quarterTraffic.ts` own kinematic bodies,
+merged render meshes and exact visible collision. The runtime steps them before
+physics and handles interpolation, season changes, rebasing and disposal with the
+owning chunk. Keep moving actors bounded and outside the main road. Do not add
+per-building update loops for static detail.
 
 Shared source geometries remain immutable. Course warping clones both their
 geometry and ownership metadata. Collision is baked before rendering batches are

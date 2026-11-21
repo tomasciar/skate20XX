@@ -1,6 +1,7 @@
 import type * as THREE from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import type {LooseCone} from '../physics/looseProps.ts';
+import type {QuarterTraffic} from '../physics/quarterTraffic.ts';
 
 export type PhysPart = {
   body: RAPIER.RigidBody;
@@ -14,6 +15,7 @@ export type Chunk = {
   root: THREE.Group;
   parts: PhysPart[];
   cones: LooseCone[];
+  traffic:QuarterTraffic[];
   rails: { id: string; start: THREE.Vector3; end: THREE.Vector3; normal?: THREE.Vector3 }[];
 };
 export type ChunkStep=void|'frame';

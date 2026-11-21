@@ -32,6 +32,9 @@ function environmentBag(cycle:number) {
   if (cycle === 0) { const at = order.indexOf('grove'); [order[0], order[at]] = [order[at]!, order[0]!]; }
   // The first city starts at 210 m, close enough to try immediately after the opening ramps.
   if (cycle === 0) { const at = order.indexOf('city'); [order[1], order[at]] = [order[at]!, order[1]!]; }
+  if(cycle===0)for(const [slot,id] of [[2,'harbor'],[3,'canyon'],[4,'gardens'],[5,'alpine']] as const) {
+    const at=order.indexOf(id);[order[slot],order[at]]=[order[at]!,order[slot]!];
+  }
   return order;
 }
 function environmentForRun(run:number):District {

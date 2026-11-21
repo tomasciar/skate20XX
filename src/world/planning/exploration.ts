@@ -64,6 +64,8 @@ export function sideRouteCenter(along:number,side:number) {
       distance+=(Math.max(distance,WAREHOUSE.far+8)-distance)*detour;
     }
   }
+  // The authored quarter has a readable covered street, rather than a clearing that snakes through shops.
+  if(side<0)distance+=(17-distance)*smooth(along,100,195)*(1-smooth(along,550,625));
   return side*distance;
 }
 
@@ -81,7 +83,8 @@ export function explorationExclusions(index:number):SceneryExclusion[] {
   const start=index*CHUNK_LENGTH,areas:SceneryExclusion[]=[];
   for(const side of [-1,1])for(let s=0;s<CHUNK_LENGTH;s+=10) {
     const a=sideRouteCenter(start+s,side),b=sideRouteCenter(start+s+10,side);
-    areas.push({minX:Math.min(a,b)-5,maxX:Math.max(a,b)+5,start:s-1,end:s+11});
+    // Leave recovery room around the line: a fast carve trails the center of a bend.
+    areas.push({minX:Math.min(a,b)-7.5,maxX:Math.max(a,b)+7.5,start:s-1,end:s+11});
   }
   const site=sideBuildingForChunk(index);
   if(site) {

@@ -23,6 +23,13 @@ import {placesForChunk,placeExclusions,placeHasSide} from '../planning/places.ts
 import {writeArchitectureUV} from '../rendering/architectureFinish.ts';
 import {makeCurbCollision} from '../physics/curbSurface.ts';
 import {makePlaceMeshes} from '../structures/places.ts';
+import {branchRoadsForChunk,branchRoadExclusions,branchRoadX} from '../planning/branchRoads.ts';
+import {makeBranchRoad,branchCrossesSidewalk} from '../structures/branchRoads.ts';
+import {makeBranchFeatures} from '../structures/branchFeatures.ts';
+import {makeBranchPlay,makeBranchDockRail} from '../structures/branchPlay.ts';
+import {foundryForChunk,foundryExclusions} from '../planning/foundryQuarter.ts';
+import {makeFoundryQuarter} from '../structures/foundryQuarter.ts';
+import {makeQuarterTraffic} from '../physics/quarterTraffic.ts';
 import type {Chunk} from './types.ts';
 import type {makeSharedMaterials} from '../rendering/materials.ts';
 
@@ -45,6 +52,18 @@ export function* buildChunkContent({index,root,angle,sunOnHill,asphaltMaterial,m
   const cosine=Math.cos(angle),sine=Math.sin(angle);
   const coneMeshes:THREE.Group[]=[];
   const places=placesForChunk(index);
+  const branches=branchRoadsForChunk(index);
+
+  function* unblockedSpans(crossingAt:(along:number)=>boolean) {
+    let start=0;
+    for(let end=COURSE_STEP;end<=RAMP.chunkLength;end+=COURSE_STEP) {
+      const crossing=[end-COURSE_STEP,end-COURSE_STEP/2,end].some(s=>crossingAt(index*RAMP.chunkLength+s));
+      if(!crossing&&end<RAMP.chunkLength)continue;
+      const stop=crossing?end-COURSE_STEP:end;
+      if(stop>start)yield [start,stop] as const;
+      start=end;
+    }
+  }
 
   function warpCourse(mesh: THREE.Mesh) {
     if(mesh.geometry.userData.shared) {
@@ -90,13 +109,11 @@ export function* buildChunkContent({index,root,angle,sunOnHill,asphaltMaterial,m
       root.add(warpCourse(rail));
     }
 
-    const edge = new THREE.Mesh(
-      new THREE.BoxGeometry(0.12,0.002,RAMP.chunkLength,1,1,RAMP.chunkLength/COURSE_STEP),
-      mats.edge
-    );
-    edge.position.set(side * (RAMP.width / 2 - 0.4), RAMP.thickness / 2 + 0.001, -RAMP.chunkLength / 2);
-    edge.userData.collision = false;
-    root.add(warpCourse(edge));
+    const x=side*(RAMP.width/2-.4);
+    for(const [start,end] of unblockedSpans(s=>branches.some(road=>road.side===side&&s>=road.start&&s<=road.end&&Math.abs(branchRoadX(road,s)-x)<road.width/2+.15))) {
+      const edge=new THREE.Mesh(new THREE.BoxGeometry(.12,.002,end-start,1,1,(end-start)/COURSE_STEP),mats.edge);
+      edge.position.set(x,RAMP.thickness/2+.001,-(start+end)/2);edge.userData.collision=false;edge.name='road-edge-paint';root.add(warpCourse(edge));
+    }
   }
 
   const dashes = Math.floor(RAMP.chunkLength / 7);
@@ -119,11 +136,15 @@ export function* buildChunkContent({index,root,angle,sunOnHill,asphaltMaterial,m
     }
   }
   for (const side of [-1,1]) {
-    const path = new THREE.Mesh(new THREE.BoxGeometry(1.8,0.08,RAMP.chunkLength,1,1,RAMP.chunkLength/COURSE_STEP),mats.path);
-    path.position.set(side*10.5,0.44,-RAMP.chunkLength/2); path.receiveShadow = true;path.name='sidewalk';path.userData.collision=false;root.add(warpCourse(path));
-    const riding=new THREE.Mesh(makeCurbCollision(1.8,.08,RAMP.chunkLength),mats.path);
-    riding.name='sidewalk-support';riding.position.set(side*10.5,.44,-RAMP.chunkLength/2);riding.userData.collisionProxy=true;riding.visible=false;root.add(warpCourse(riding));
+    for(const [start,stop] of unblockedSpans(s=>branches.some(road=>branchCrossesSidewalk(road,side,s)))) {
+      const length=stop-start;
+      const path=new THREE.Mesh(new THREE.BoxGeometry(1.8,.08,length,1,1,length/COURSE_STEP),mats.path);
+      path.position.set(side*10.5,.44,-(start+stop)/2);path.receiveShadow=true;path.name='sidewalk';path.userData.collision=false;root.add(warpCourse(path));
+      const riding=new THREE.Mesh(makeCurbCollision(1.8,.08,length),mats.path);
+      riding.name='sidewalk-support';riding.position.set(side*10.5,.44,-(start+stop)/2);riding.userData.collisionProxy=true;riding.visible=false;root.add(warpCourse(riding));
+    }
   }
+  for(const road of branches)for(const mesh of makeBranchRoad(index,road,asphaltMaterial,mats.dash))root.add(warpCourse(mesh));
   yield;
   const shadows = createShadowBuilder(sunOnHill), bounds = new THREE.Box3();
   const centerAt = (z: number) => courseX(index*RAMP.chunkLength-z)-baseX;
@@ -147,6 +168,8 @@ export function* buildChunkContent({index,root,angle,sunOnHill,asphaltMaterial,m
   const ridingSite=ridingSiteForChunk(index);
   const rooftop=index===2 || (!places.some(site=>placeHasSide(site,1)) && !warehouse && sideBuilding?.side!==1 && ridingSite?.side!==1 && index>2 && index%17===2 && encounters.every(item=>item.x<0));
   const exclusions:SceneryExclusion[]=explorationExclusions(index);
+  if(foundryForChunk(index))exclusions.push(...foundryExclusions(index));
+  for(const road of branches)exclusions.push(...branchRoadExclusions(road,index));
   for(const place of places)exclusions.push(...placeExclusions(place,index));
   if(rooftop)exclusions.push({minX:7.6,maxX:17,start:10,end:ROOFTOP.end+3});
   if(warehouse)exclusions.push({minX:8.4,maxX:32,start:warehouse.owner===index?WAREHOUSE.rampStart-2:warehouse.start-index*RAMP.chunkLength-4,end:warehouse.end-index*RAMP.chunkLength+warehouse.clearance});
@@ -172,11 +195,29 @@ export function* buildChunkContent({index,root,angle,sunOnHill,asphaltMaterial,m
     }
   }
   for(const mesh of makeBankFeatures(index))root.add(warpCourse(mesh));
+  for(const road of branches) {
+    let processed=0;
+    for(const mesh of makeBranchFeatures(index,road,asphaltMaterial)) {
+      root.add(warpCourse(mesh));if(++processed%8===0)yield;
+    }
+    for(const mesh of makeBranchPlay(index,road,asphaltMaterial)) {
+      root.add(warpCourse(mesh));if(++processed%8===0)yield;
+    }
+    const dock=makeBranchDockRail(index,road,mats.rail);
+    if(dock){root.add(...dock.meshes);rails.push(dock.rail);}
+  }
   for(const place of places) {
     let processed=0;
     for(const mesh of makePlaceMeshes(index,place,asphaltMaterial)) {
       root.add(warpCourse(mesh));if(++processed%8===0)yield;
     }
+  }
+  if(foundryForChunk(index)) {
+    let processed=0;
+    for(const mesh of makeFoundryQuarter(index,asphaltMaterial)) {
+      root.add(mesh.userData.courseWarped?mesh:warpCourse(mesh));if(++processed%6===0)yield;
+    }
+    const traffic=makeQuarterTraffic(index);if(traffic)root.add(traffic);
   }
 
   for (const item of encounters) {

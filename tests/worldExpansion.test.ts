@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import {ARCHITECTURE_STYLES,makeArchitecture} from '../src/world/structures/architecture.ts';
-import {LANDSCAPE_PALETTES,landscapePaletteAt} from '../src/world/environments/palettes.ts';
+import {LANDSCAPE_PALETTES,BIOME_PALETTES,landscapePaletteAt} from '../src/world/environments/palettes.ts';
 import {districtAt,seededRandom} from '../src/world/planning/generation.ts';
 import {makeLandscape,LANDSCAPE_X} from '../src/world/terrain/landscape.ts';
 import {ROOFTOP,rooftopHeight} from '../src/world/structures/workshop.ts';
@@ -39,7 +39,7 @@ test('regional colourways are coherent across a district run and blend without t
         } finally {a.geometry.dispose();b.geometry.dispose();}
       }
     }
-    assert.equal(seen.size,LANDSCAPE_PALETTES.length);
+    assert.equal(seen.size,LANDSCAPE_PALETTES.length+Object.keys(BIOME_PALETTES).length);
   } finally {material.dispose();}
 });
 

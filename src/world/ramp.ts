@@ -9,6 +9,7 @@ import {createWorldAppearance, surface} from './rendering/appearance.ts';
 import type {RideMode} from '../mode.ts';
 import {seasonForRideMode} from './rendering/season.ts';
 import {createLooseCone} from './physics/looseProps.ts';
+import {createQuarterTraffic} from './physics/quarterTraffic.ts';
 import {bankBoostSpeed} from './structures/bankFeatures.ts';
 import {RAMP} from './config.ts';
 import type {Chunk,PhysPart,ChunkStep} from './streaming/types.ts';
@@ -45,6 +46,7 @@ export type RampWorld = {
   prepareNextChunk: (budgetMs?: number) => boolean;
   flushDeferredDestroy: (budgetMs?: number) => void;
   syncProps?:()=>void;
+  stepProps?:(dt:number)=>void;
   renderProps?:(alpha:number)=>void;
 };
 
@@ -91,6 +93,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
     const chunk = chunks.get(index);
     if (!chunk) return;
     for(const cone of chunk.cones)cone.dispose();
+    for(const traffic of chunk.traffic)traffic.dispose();
     for (const part of chunk.parts) {
       world.removeCollider(part.collider, true);
       world.removeRigidBody(part.body);
@@ -121,7 +124,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
     root.position.set(baseX-courseX(cursor*RAMP.chunkLength),baseHeight-courseHeight(cursor*RAMP.chunkLength),zBase);
     hill.add(root);
 
-    const chunk: Chunk = { index, root, parts: [], cones:[], rails: [] };
+    const chunk: Chunk = { index, root, parts: [], cones:[], traffic:[],rails: [] };
     chunks.set(index, chunk);
 
     const {coneMeshes,shadows}=yield* buildChunkContent({
@@ -150,6 +153,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
     }
     yield;
     yield* batchChunk(root,appearance);
+    for(const object of root.children)if(object instanceof THREE.Group&&object.userData.quarterTraffic)chunk.traffic.push(createQuarterTraffic(world,object,index,appearance));
     for(const cone of coneMeshes) {
       root.add(cone);
       cone.traverse(object=>{
@@ -218,6 +222,7 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
     }
     const shift=new THREE.Vector3(deltaX,deltaY,delta).applyQuaternion(q);
     for(const cone of chunk.cones)cone.shift(shift);
+    for(const traffic of chunk.traffic)traffic.shift(shift);
   }
 
   function refreshRails() {
@@ -303,7 +308,10 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
   const reset = () => {
     if (preparation) { preparation.steps.return(undefined); destroyChunk(preparation.index); preparation = null; }
     if (cursor === 0 && distance === 0) {
-      for(const chunk of chunks.values())for(const cone of chunk.cones)cone.reset();
+      for(const chunk of chunks.values()) {
+        for(const cone of chunk.cones)cone.reset();
+        for(const traffic of chunk.traffic)traffic.reset();
+      }
       return;
     }
     distance = 0;
@@ -352,8 +360,9 @@ export function createRamp(scene: THREE.Scene, world: RAPIER.World, options:{sta
     get grindRails() { return grindRails; },
     prepareNextChunk,
     flushDeferredDestroy,
-    syncProps(){for(const chunk of chunks.values())for(const cone of chunk.cones)cone.sync();},
-    renderProps(alpha){for(const chunk of chunks.values())for(const cone of chunk.cones)cone.render(alpha);},
+    stepProps(dt){for(const chunk of chunks.values())for(const traffic of chunk.traffic)traffic.step(dt);},
+    syncProps(){for(const chunk of chunks.values()){for(const cone of chunk.cones)cone.sync();for(const traffic of chunk.traffic)traffic.sync();}},
+    renderProps(alpha){for(const chunk of chunks.values()){for(const cone of chunk.cones)cone.render(alpha);for(const traffic of chunk.traffic)traffic.render(alpha);}},
     get distance() {
       return distance;
     },

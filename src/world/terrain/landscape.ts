@@ -6,8 +6,13 @@ import {landscapePaletteAt} from '../environments/palettes.ts';
 import {sideRouteCenter,sideBuildingBank,sideBuildingAt} from '../planning/exploration.ts';
 import {terrainBankAt,terrainBankHeight} from '../planning/terrainBanks.ts';
 import {placeAt,placeGrading} from '../planning/places.ts';
+import {branchRoadAt,branchRoadGrade,branchRoadHeight} from '../planning/branchRoads.ts';
+import {biomeTerrainHeight} from './biomes.ts';
+import {foundryTerrain} from '../planning/foundryQuarter.ts';
 export const LANDSCAPE_HALF_WIDTH = 260;
-export const LANDSCAPE_X = [-260,-220,-180,-145,-115,-90,-84,-74,-70,-62,-52,-46,-38,-30,-26,-22,-18,-12,-11.4,-9.6,-8.3,0,8.3,9.6,11.4,12,18,22,26,30,38,46,52,62,70,74,84,90,115,145,180,220,260];
+// Ten-unit outer samples keep full-width road beds smooth without refining the entire valley.
+const OUTER_ROAD_X=Array.from({length:9},(_,i)=>100+i*10);
+export const LANDSCAPE_X = [...new Set([-260,-220,-180,-145,-115,-90,-84,-74,-70,-62,-52,-46,-38,-30,-26,-22,-18,-12,-11.4,-9.6,-8.3,0,8.3,9.6,11.4,12,18,22,26,30,38,46,52,62,70,74,84,90,115,145,180,220,260,...OUTER_ROAD_X,...OUTER_ROAD_X.map(x=>-x)])].sort((a,b)=>a-b);
 const STEP = COURSE_STEP;
 function elevation(x: number, along: number, roadHeight: number) {
   const side = Math.sign(x), distance = Math.abs(x);
@@ -18,6 +23,7 @@ function elevation(x: number, along: number, roadHeight: number) {
     + Math.sin(distance * 0.026 + along * 0.005) * 6 + Math.sin(along * 0.021 + distance * 0.019) * 2.5);
   const rolling=blend*(1.3*Math.sin(along*.009+side)+.7*Math.sin(along*.017+distance*.085)+.4*Math.sin(distance*.075));
   let height=.46+THREE.MathUtils.lerp(rolling,wild,THREE.MathUtils.smoothstep(distance,85,170));
+  height=biomeTerrainHeight(height,x,along);
   const trail=1-THREE.MathUtils.smoothstep(Math.abs(x-sideRouteCenter(along,side)),4,11);
   const trailHeight=.46+blend*(.65*Math.sin(along*.009+side)+.2*Math.sin(along*.021));
   height=THREE.MathUtils.lerp(height,trailHeight,trail*.7);
@@ -26,7 +32,10 @@ function elevation(x: number, along: number, roadHeight: number) {
   const standalone=terrainBankAt(x,along),mound=standalone?terrainBankHeight(standalone,x,along):0;
   if(standalone && mound>0)height=THREE.MathUtils.lerp(height,.46,mound/standalone.height);
   const place=placeAt(along),grading=place?placeGrading(place,x,along):0;
-  return roadHeight+THREE.MathUtils.lerp(height+bank+mound,.46,grading);
+  height=THREE.MathUtils.lerp(height+bank+mound,.46,grading);
+  const branch=branchRoadAt(along);
+  if(branch)height=THREE.MathUtils.lerp(height,branchRoadHeight(branch,along),branchRoadGrade(branch,x,along));
+  return foundryTerrain(roadHeight+height,x,along);
 }
 // Placement and normal sampling repeatedly visit the same grid vertices. Keep a bounded
 // set of height rows around streamed chunks instead of recomputing their terrain noise.

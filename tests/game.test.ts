@@ -47,8 +47,9 @@ test('districts arrive in varied runs that always start with a sign and never re
   assert.ok(Math.min(...runs) >= 3 && Math.max(...runs) <= 7);
   assert.ok(new Set(runs).size >= 4, 'run lengths should vary');
   for (const district of DISTRICTS) assert.ok(seen.get(district)! > 4000 / DISTRICTS.length * 0.75, `${district} is rare`);
-  // The first two kilometres already visit every district.
-  assert.equal(new Set(Array.from({ length: 30 }, (_, i) => districtAt(i).district)).size, DISTRICTS.length);
+  // One complete opening bag visits the entire catalog, even as new biomes are added.
+  const firstRuns=Array.from({length:DISTRICTS.length*7},(_,i)=>districtAt(i)).filter(run=>run.offset===0).slice(0,DISTRICTS.length);
+  assert.equal(new Set(firstRuns.map(run=>run.district)).size,DISTRICTS.length);
 });
 
 test('input edges survive render-only frames and are consumed once', () => {

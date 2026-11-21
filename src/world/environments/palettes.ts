@@ -11,9 +11,17 @@ export const LANDSCAPE_PALETTES=[
   {id:'olive-orchard',ground:[0x7b913d,0xa3aa4c],foliage:[0x456d3c,0x658240,0x315e45,0x8e9b48,0xb18c3b],autumn:[0xc89b3c,0xb57536,0x995847]},
 ] as const;
 
+export const BIOME_PALETTES={
+  harbor:{id:'coastal-meadow',ground:[0x8f9f58,0xc2b878],foliage:[0x386d59,0x67916a,0x7f9e62,0x4a7c68],autumn:[0xc99a46,0xd4b25f,0xa16c4c]},
+  canyon:{id:'red-rock',ground:[0xbf9857,0xd5b773],foliage:[0x7c8a47,0x8f9856,0x51694c,0x9b9858],autumn:[0xb7853f,0xc49c57,0x9b724b]},
+  gardens:{id:'blossom-green',ground:[0x669b4c,0x95b562],foliage:[0x56854f,0x6e995d,0x478160,0xa3ac65],autumn:[0xcf8790,0xe4b6b8,0xc57890,0xdfbf78]},
+  alpine:{id:'alpine-meadow',ground:[0x67844c,0xa4ac64],foliage:[0x315844,0x467452,0x6c8a58,0x859a67],autumn:[0xd2aa4a,0xb98b40,0xb9a15c]},
+} as const;
+
 /** Hold a coherent colourway for an entire district run. The opening deliberately previews autumn. */
 export function landscapePaletteAt(index:number) {
-  const {start}=districtAt(index);
+  const {start,district}=districtAt(index);
+  if(district in BIOME_PALETTES)return BIOME_PALETTES[district as keyof typeof BIOME_PALETTES];
   if(start===0)return LANDSCAPE_PALETTES[1];
   const seed=(Math.imul(start+11,0x45d9f3b)^(start>>>3))>>>0;
   return LANDSCAPE_PALETTES[seed%LANDSCAPE_PALETTES.length]!;

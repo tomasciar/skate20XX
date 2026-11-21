@@ -79,7 +79,7 @@ test('rolling or ollieing off the platform lands on the hill and keeps the downh
         const index=Math.round(f.ramp.distance/RAMP.chunkLength-chunk.position.z/RAMP.chunkLength);
         return count+planChunk(index).encounters.filter(item=>item.kind==='cones').length*3;
       },0);
-      assert.equal(f.world.colliders.len(),chunks.length+coneColliders+1,'one terrain collider per chunk, planned cones, and the player');
+      assert.equal(f.world.colliders.len(),chunks.length+coneColliders+2+1,'one terrain collider per chunk, planned cones, two court cars, and the player');
       if(launch==='ollie') {
         // A second 14 m drop would fit the intro's allowance, but must use normal crash rules.
         f.player.body.setTranslation(f.ramp.anchor.clone().addScaledVector(f.ramp.forward,40).addScaledVector(f.ramp.surfaceNormal,14),true);
@@ -100,7 +100,7 @@ test('reset after streaming restores the floating start and its collision withou
     for(let i=0;i<60;i++)f.tick();
     assert.equal(f.player.grounded,true);assert.equal(f.player.crashed,false);
     assert.ok(f.player.position.clone().sub(f.ramp.anchor).dot(f.ramp.surfaceNormal)>16);
-    assert.equal(f.world.colliders.len(),RAMP.chunksBehind+1+RAMP.chunksAhead+1); // One player collider.
+    assert.equal(f.world.colliders.len(),RAMP.chunksBehind+1+RAMP.chunksAhead+2+1); // Two court cars and one player collider.
   } finally {f.world.free();}
 });
 
