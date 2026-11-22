@@ -39,14 +39,14 @@ export function makeBranchSurface(index:number,road:BranchRoad,start:number,end:
   return new THREE.Mesh(geometry,material);
 }
 
-export function* makeBranchFeatures(index:number,road:BranchRoad,asphalt:THREE.Material) {
+export function* makeBranchFeatures(index:number,road:BranchRoad,finishMaterial:THREE.Material) {
   const from=index*CHUNK_LENGTH,to=from+CHUNK_LENGTH,a=road.start+road.lead+15,b=road.end-road.lead-15;
   if(to<a-55 || from>b+55)return;
   const gallery=road.kind==='boulevard'||road.kind==='parkway'&&road.seed%2===1;
   if(gallery) {
     // Begin the access bank after the fork's first turn, leaving room to line up.
     const start=a+50,end=b-12,h=7.6,half=road.width/2+13;
-    const roof=makeBranchSurface(index,road,start,end,-half,half,()=>h,asphalt,{slab:true,level:true});
+    const roof=makeBranchSurface(index,road,start,end,-half,half,()=>h,finishMaterial,{slab:true,level:true});
     if(roof){roof.name='branch-gallery-roof';yield roof;}
     for(const edge of [-half,half]) {
       const fascia=makeBranchSurface(index,road,start,end,edge-.06,edge+.06,()=>h-.18,M.steel,{slab:true,level:true});
@@ -55,7 +55,7 @@ export function* makeBranchFeatures(index:number,road:BranchRoad,asphalt:THREE.M
     // A narrow outside bank reaches the roof; the wide road below remains entirely open.
     const near=road.side>0?road.width/2+1:-road.width/2-13,far=near+12;
     for(const [s,e,profile] of [[start-55,start,0],[end,end+55,2]]) {
-      const access=makeBranchSurface(index,road,s!,e!,near,far,t=>h*(profile===0?smooth(t,s!,e!):1-smooth(t,s!,e!)),asphalt,{level:true});
+      const access=makeBranchSurface(index,road,s!,e!,near,far,t=>h*(profile===0?smooth(t,s!,e!):1-smooth(t,s!,e!)),finishMaterial,{level:true});
       if(access){access.name='branch-roof-access';yield access;}
     }
     for(let s=start+5;s<end;s+=25)if(s>=from && s<to) {
@@ -74,7 +74,7 @@ export function* makeBranchFeatures(index:number,road:BranchRoad,asphalt:THREE.M
       const bank=makeBranchSurface(index,road,a-20,b+20,near,far,(s,u)=>{
         const outer=side>0?u:1-u;
         return (road.kind==='cutting'?4:3.1)*outer*outer*smooth(s,a-20,a+12)*(1-smooth(s,b-12,b+20));
-      },asphalt);
+      },M.concrete);
       if(bank){bank.name='branch-carving-bank';yield bank;}
     }
     if(road.kind==='cutting')for(const side of [-1,1]) {

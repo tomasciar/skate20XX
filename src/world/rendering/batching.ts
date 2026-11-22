@@ -24,7 +24,7 @@ export function* batchChunk(root: THREE.Group,appearance:ReturnType<typeof creat
     if (!geometry.index) geometry.setIndex(Array.from({length:geometry.getAttribute('position').count},(_,i)=>i));
     if (!geometry.getAttribute("uv")) geometry.setAttribute("uv", new THREE.BufferAttribute(new Float32Array(geometry.getAttribute("position").count * 2), 2));
     const material=obj.material as THREE.Material;
-    if(material.userData.architectureFinish && material.userData.architectureFinish!=='asphalt' && !obj.userData.architectureUV)writeArchitectureUV(geometry,obj.matrix);
+    if(material.userData.architectureFinish && !obj.userData.architectureUV)writeArchitectureUV(geometry,obj.matrix);
     applySceneryTint(geometry,obj);
     geometry.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inverse, obj.matrixWorld));
     const list = batches.get(material) ?? [];

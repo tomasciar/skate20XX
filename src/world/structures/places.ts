@@ -25,7 +25,7 @@ function samples(start:number,end:number,step:number) {
 }
 
 /** Slice large surfaces into ordinary owner chunks; no extra retention window or physics bodies. */
-function* surface(index:number,site:PlaceSite,patch:PlacePatch,roadMaterial:THREE.Material) {
+function* surface(index:number,site:PlaceSite,patch:PlacePatch,deckMaterial:THREE.Material) {
   const base=index*CHUNK_LENGTH,start=Math.max(base,patch.start),end=Math.min(base+CHUNK_LENGTH,patch.end);if(end<=start)return;
   const along=samples(start,end,COURSE_STEP),across=patch.profile==='terrace'||patch.profile==='fall'?samples(patch.near,patch.far,6):
     patch.profile==='channel'?[103,104.75,106.5,109.5,112.5,114.25,116]:
@@ -40,7 +40,7 @@ function* surface(index:number,site:PlaceSite,patch:PlacePatch,roadMaterial:THRE
   for(let row=0;row<along.length-1;row++)for(let col=0;col<columns-1;col++) {
     const a=row*columns+col,b=a+1,c=a+columns,d=c+1;
     triangle(top,a,b,c);triangle(top,b,d,c);
-    triangle(indices,a,b,c);triangle(indices,b,d,c);
+    // The finish supplies the top triangles for both rendering and collision.
     // Ground-backed bases are buried in terrain; only elevated slabs expose an underside.
     if(patch.slab){triangle(indices,a+count,c+count,b+count);triangle(indices,b+count,c+count,d+count);}
   }
@@ -55,8 +55,9 @@ function* surface(index:number,site:PlaceSite,patch:PlacePatch,roadMaterial:THRE
   const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geometry.setIndex(indices);geometry.computeVertexNormals();
   const solid=landmarkPart(geometry,site.kind==='yard'?M.brick:M.concrete);solid.name=`place-${patch.name}`;yield solid;
   const finish=new THREE.BufferGeometry();finish.setAttribute('position',new THREE.Float32BufferAttribute(positions.slice(0,count*3),3));finish.setIndex(top);finish.computeVertexNormals();
-  const skin=site.kind==='plaza'?landmarkPart(finish,paving,true):new THREE.Mesh(finish,roadMaterial);
-  skin.userData.collision=false;skin.userData.sceneryTint=site.kind==='plaza'?0xe5decc:0xffffff;skin.name=site.kind==='plaza'?'plaza-paving':'place-asphalt';
+  const skin=site.kind==='plaza'?landmarkPart(finish,paving):new THREE.Mesh(finish,deckMaterial);
+  if(site.kind==='plaza')skin.userData.sceneryTint=0xe5decc;
+  skin.name=site.kind==='plaza'?'plaza-paving':'place-deck';
   if(site.kind!=='plaza'){const uv:number[]=[];for(const s of along)for(const d of across)uv.push(site.side*(d+placePatchShift(patch,s))/10,s/14);finish.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));}yield skin;
 }
 
@@ -75,8 +76,8 @@ function* prop(index:number,site:PlaceSite,build:()=>THREE.Object3D,x:number,alo
 }
 
 /** Reuse common materials and box profiles; every tall facade is clipped to its current chunk. */
-export function* makePlaceMeshes(index:number,site:PlaceSite,roadMaterial:THREE.Material=M.asphalt) {
-  if(roadMaterial instanceof THREE.MeshStandardMaterial)prepareArchitectureFinish(roadMaterial);
+export function* makePlaceMeshes(index:number,site:PlaceSite,deckMaterial:THREE.Material=M.deck) {
+  if(deckMaterial instanceof THREE.MeshStandardMaterial)prepareArchitectureFinish(deckMaterial);
   const from=index*CHUNK_LENGTH,to=from+CHUNK_LENGTH,s=site.start,rng=seededRandom(site.seed),side=site.side;
   const box=(material:THREE.MeshStandardMaterial,size:number[],x:number,y:number,along:number,decorative=false)=>landmarkBox(material,size,[x,y,-(along-from)],decorative,true);
   function* span(material:THREE.MeshStandardMaterial,x:number,width:number,a:number,b:number,y:number,height:number,name:string,decorative=false,levelBase?:number) {
@@ -151,7 +152,7 @@ export function* makePlaceMeshes(index:number,site:PlaceSite,roadMaterial:THREE.
       yield* span(M.brick,front+face*.19,.12,along-4.8,along+4.8,3.94,.4,`${name}-entrance-fascia`,true,along);
     }
   }
-  for(const patch of placePatches(site))yield* surface(index,site,patch,roadMaterial);
+  for(const patch of placePatches(site))yield* surface(index,site,patch,deckMaterial);
 
   if(site.kind==='plaza') {
     // A low colonnade frames the high terrace, leaving the central banks and view open.
@@ -198,7 +199,7 @@ export function* makePlaceMeshes(index:number,site:PlaceSite,roadMaterial:THREE.
     // An optional outer kicker has a flat lane beside it and a banked landing beyond.
     const lip=s+250;
     if(site.seed%2 && Math.floor((lip-1e-6)/CHUNK_LENGTH)===index) {
-      const kicker=makeRoofLaunch(index,lip,side*90,4.2+.46,roadMaterial);kicker.name='yard-roof-kicker';yield kicker;
+      const kicker=makeRoofLaunch(index,lip,side*90,4.2+.46,deckMaterial);kicker.name='yard-roof-kicker';yield kicker;
     }
   }
   yield* makePlaceDetails(index,site);

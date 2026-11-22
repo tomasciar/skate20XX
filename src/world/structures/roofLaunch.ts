@@ -11,11 +11,11 @@ function finishFor(material:THREE.Material) {
 }
 
 /** A physical roof-edge kicker with a wide flat bypass; no launch force is added to the rider. */
-export function makeRoofLaunch(owner:number,end:number,x:number,roofHeight:number,material:THREE.Material=LANDMARK_MATERIALS.asphalt) {
+export function makeRoofLaunch(owner:number,end:number,x:number,roofHeight:number,material:THREE.Material=LANDMARK_MATERIALS.deck) {
   if(material instanceof THREE.MeshStandardMaterial)prepareArchitectureFinish(material);
   const {width,length,height}=ROOF_LAUNCH;
   const geometry=createRampShapeGeometry({kind:'curved',side:1,width,length,height},end-length),points=geometry.getAttribute('position');
   for(let i=0;i<points.count;i++)points.setXYZ(i,points.getX(i)+x,points.getY(i)+roofHeight,points.getZ(i)-(end-owner*CHUNK_LENGTH-length/2));
   const uv:number[]=[];for(let i=0;i<points.count;i++)uv.push(points.getX(i)/10,(owner*CHUNK_LENGTH-points.getZ(i))/14);geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
-  geometry.computeVertexNormals();const mesh=new THREE.Mesh(geometry,finishFor(material));mesh.userData.sceneryTint=0xffffff;mesh.name='roof-exit-kicker';return mesh;
+  geometry.computeVertexNormals();const mesh=new THREE.Mesh(geometry,finishFor(material));mesh.name='roof-exit-kicker';return mesh;
 }

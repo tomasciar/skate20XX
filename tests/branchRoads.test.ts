@@ -63,7 +63,7 @@ test('alternate asphalt matches terrain collision instead of floating above a se
         if(Math.abs(x)<20)continue;
         for(const offset of [-preview.width*.35,0,preview.width*.35]) {
           const point=new THREE.Vector3(x+offset+courseX(along)-courseX(base),100,-s),down=new THREE.Vector3(0,-1,0);
-          const visual=new THREE.Raycaster(point,down).intersectObjects(skins.filter(mesh=>mesh.name==='branch-asphalt'))[0],physical=world.castRay(new RAPIER.Ray(point,down),200,true);
+          const visual=new THREE.Raycaster(point,down).intersectObjects(skins.filter(mesh=>mesh.name==='branch-paving'))[0],physical=world.castRay(new RAPIER.Ray(point,down),200,true);
           assert.ok(visual&&physical,`missing road/support at ${along}`);
           assert.ok(Math.abs(physical.timeOfImpact-visual.distance-.018)<.004,`road floats at ${along}: ${physical.timeOfImpact-visual.distance}`);
           assert.ok(visual.face!.normal.y>.85,'roads need drivable transverse slopes');
@@ -95,10 +95,10 @@ test('roof routes keep exact open underpasses and visible matching collision in 
   }
 });
 
-test('road crossings remove sidewalk support, and road skins use the shared summer/winter asphalt',()=>{
+test('road crossings remove sidewalk support, and branch paving meets the main road with its own summer/winter finish',()=>{
   let crossings=0,asphalt=0,paintOpenings=0;
   const appearance=createWorldAppearance('winter'),mats=makeSharedMaterials();
-  for(let index=0;index<=7;index++) {
+  for(let index=0;index<=10;index++) {
     const root=new THREE.Group();
     for(const _ of buildChunkContent({index,root,angle:RAMP.angleDeg*Math.PI/180,sunOnHill:new THREE.Vector3(-1,2,1).normalize(),asphaltMaterial:roadMaterial,mats,startPlatform:false,rails:[]})){void _;}
     root.updateMatrixWorld(true);
@@ -110,13 +110,18 @@ test('road crossings remove sidewalk support, and road skins use the shared summ
       const edge=RAMP.width/2-.4;
       if(Math.abs(branchRoadX(preview,along)-edge)<preview.width/2+.15) {
         paintOpenings++;
+        const junction=root.children.filter(o=>o.name==='branch-paving');
+        const seam=new THREE.Vector3(RAMP.width/2+.001+courseX(along)-courseX(index*70),50,z);
+        const hits=new THREE.Raycaster(seam,new THREE.Vector3(0,-1,0)).intersectObjects(junction);
+        assert.ok(hits.length && Math.abs(hits[0]!.point.y-(courseHeight(along)-courseHeight(index*70)+RAMP.thickness/2))<.002,'branch must meet the height and edge of the main deck');
         const point=new THREE.Vector3(edge+courseX(along)-courseX(index*70),50,z);
         assert.equal(new THREE.Raycaster(point,new THREE.Vector3(0,-1,0)).intersectObjects(root.children.filter(o=>o.name==='road-edge-paint')).length,0,'main-road edge paint should open into paved forks');
       }
     }
-    for(const mesh of root.children)if(mesh instanceof THREE.Mesh&&mesh.name==='branch-asphalt') {
-      asphalt++;assert.equal(mesh.material,roadMaterial);assert.equal(mesh.userData.collision,false);
-      assert.equal(appearance.materialFor(mesh.material),appearance.materialFor(roadMaterial));
+    for(const mesh of root.children)if(mesh instanceof THREE.Mesh&&mesh.name==='branch-paving') {
+      asphalt++;assert.notEqual(mesh.material,roadMaterial);assert.equal(mesh.userData.collision,false);
+      assert.notEqual(appearance.materialFor(mesh.material),appearance.materialFor(roadMaterial));
+      assert.equal(mesh.material.userData.architectureFinish,'setts');
     }
     dispose(root);
   }

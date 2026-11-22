@@ -1,19 +1,17 @@
 import * as THREE from 'three';
 import {seededRandom} from '../planning/generation.ts';
-import {makeAsphaltTexture} from './textures.ts';
 
-type Finish='brick'|'concrete'|'stone'|'metal'|'glass'|'paving'|'asphalt';
+type Finish='brick'|'concrete'|'stone'|'metal'|'glass'|'paving'|'setts';
 const textures=new Map<Finish,THREE.Texture>();
 
 /** One small repeating texture per finish, shared by every building and its winter variant. */
 function textureFor(kind:Finish) {
   const cached=textures.get(kind);if(cached)return cached;
-  if(kind==='asphalt') {const texture=makeAsphaltTexture();textures.set(kind,texture);return texture;}
   const canvas=document.createElement('canvas');canvas.width=canvas.height=256;
   const g=canvas.getContext('2d')!,rng=seededRandom(3181+kind.length*79);
   if(typeof CanvasRenderingContext2D!=='undefined' && g instanceof CanvasRenderingContext2D) {
     g.fillStyle='#ededeb';g.fillRect(0,0,256,256);
-    if(kind==='brick') {
+    if(kind==='brick'||kind==='setts') {
       g.fillStyle='#9a9b94';g.fillRect(0,0,256,256);
       for(let row=0;row<8;row++)for(let col=-1;col<5;col++) {
         const shade=213+Math.floor(rng()*38),x=col*64+(row%2)*32;
@@ -46,7 +44,7 @@ function textureFor(kind:Finish) {
   }
   const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;
   texture.wrapS=texture.wrapT=THREE.RepeatWrapping;texture.anisotropy=4;
-  const size=kind==='brick'?[4,2]:kind==='glass'?[7,5.6]:[6,6];texture.repeat.set(1/size[0]!,1/size[1]!);
+  const size=kind==='setts'?[2.4,2]:kind==='brick'?[4,2]:kind==='glass'?[7,5.6]:[6,6];texture.repeat.set(1/size[0]!,1/size[1]!);
   textures.set(kind,texture);return texture;
 }
 

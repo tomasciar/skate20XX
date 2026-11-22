@@ -16,12 +16,12 @@ function playFinish(material:THREE.Material) {
   return finish;
 }
 
-export function* makeBranchPlay(index:number,road:BranchRoad,asphalt:THREE.Material) {
+export function* makeBranchPlay(index:number,road:BranchRoad,finishMaterial:THREE.Material) {
   for(const lane of branchPlayLanes(road)) {
     const near=lane.offset-lane.width/2,far=lane.offset+lane.width/2;
     const spans=lane.kind==='transfer'?[[lane.start,lane.start+25],[lane.start+32,Math.min(lane.end,lane.start+77)]]:[[lane.start,lane.end]];
     for(const [a,b] of spans) {
-      const mesh=makeBranchSurface(index,road,a!,b!,near,far,s=>lane.baseHeight+playLaneHeight(lane,s),lane.baseHeight?playFinish(asphalt):asphalt,{level:lane.baseHeight>0,step:1,baseHeight:lane.baseHeight>0?lane.baseHeight:undefined});
+      const mesh=makeBranchSurface(index,road,a!,b!,near,far,s=>lane.baseHeight+playLaneHeight(lane,s),lane.baseHeight?playFinish(finishMaterial):finishMaterial,{level:lane.baseHeight>0,step:1,baseHeight:lane.baseHeight>0?lane.baseHeight:undefined});
       if(mesh){mesh.name=`branch-play-${lane.baseHeight?'roof-':''}${lane.kind}`;yield mesh;}
     }
     // Attached edge bands make the low platforms legible; no raised curb crosses a riding line.

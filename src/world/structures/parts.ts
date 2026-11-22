@@ -13,7 +13,8 @@ export const LANDMARK_MATERIALS={
   roof:architecturalFinish(sceneryMaterial(0x596c70,.15,.85,'roof'),'metal'),
   glass:architecturalFinish(sceneryMaterial(0x467685,.25,.42,'glass'),'glass'),
   paint:sceneryMaterial(0x587b78,0,.88,'paint'),
-  asphalt:architecturalFinish(sceneryMaterial(0xffffff,0,.94,'stone'),'asphalt'),
+  deck:architecturalFinish(sceneryMaterial(0x87867b,0,.94,'stone'),'concrete'),
+  setts:architecturalFinish(sceneryMaterial(0xaa8e76,0,.96,'stone'),'setts'),
   dark:sceneryMaterial(0x34494e,0,.86,'accent'),
 };
 

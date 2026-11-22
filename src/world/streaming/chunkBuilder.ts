@@ -20,7 +20,8 @@ import {makeRidingStructure} from '../structures/ridingStructures.ts';
 import {makeBankFeatures} from '../structures/bankFeatures.ts';
 import {RAMP} from '../config.ts';
 import {placesForChunk,placeExclusions,placeHasSide} from '../planning/places.ts';
-import {writeArchitectureUV} from '../rendering/architectureFinish.ts';
+import {LANDMARK_MATERIALS as finishes} from '../structures/parts.ts';
+import {prepareArchitectureFinish,writeArchitectureUV} from '../rendering/architectureFinish.ts';
 import {makeCurbCollision} from '../physics/curbSurface.ts';
 import {makePlaceMeshes} from '../structures/places.ts';
 import {branchRoadsForChunk,branchRoadExclusions,branchRoadX} from '../planning/branchRoads.ts';
@@ -75,8 +76,8 @@ export function* buildChunkContent({index,root,angle,sunOnHill,asphaltMaterial,m
     mesh.updateMatrix();
     const positions=mesh.geometry.getAttribute('position'),point=new THREE.Vector3();
     const material=mesh.material as THREE.MeshStandardMaterial;
-    const mapped=material.userData.architectureFinish && material.userData.architectureFinish!=='asphalt';
-    if(mapped){writeArchitectureUV(mesh.geometry,mesh.matrix,index*RAMP.chunkLength);mesh.userData.architectureUV=true;}
+    const mapped=material.userData.architectureFinish;
+    if(mapped){prepareArchitectureFinish(material);writeArchitectureUV(mesh.geometry,mesh.matrix,index*RAMP.chunkLength);mesh.userData.architectureUV=true;}
     const levelBase=mesh.userData.levelBase as number|undefined,levelHeight=levelBase===undefined?0:courseHeight(levelBase);
     for(let i=0;i<positions.count;i++) {
       point.fromBufferAttribute(positions,i).applyMatrix4(mesh.matrix);
@@ -144,7 +145,7 @@ export function* buildChunkContent({index,root,angle,sunOnHill,asphaltMaterial,m
       riding.name='sidewalk-support';riding.position.set(side*10.5,.44,-(start+stop)/2);riding.userData.collisionProxy=true;riding.visible=false;root.add(warpCourse(riding));
     }
   }
-  for(const road of branches)for(const mesh of makeBranchRoad(index,road,asphaltMaterial,mats.dash))root.add(warpCourse(mesh));
+  for(const road of branches)for(const mesh of makeBranchRoad(index,road,finishes.setts,mats.dash))root.add(warpCourse(mesh));
   yield;
   const shadows = createShadowBuilder(sunOnHill), bounds = new THREE.Box3();
   const centerAt = (z: number) => courseX(index*RAMP.chunkLength-z)-baseX;
@@ -197,10 +198,10 @@ export function* buildChunkContent({index,root,angle,sunOnHill,asphaltMaterial,m
   for(const mesh of makeBankFeatures(index))root.add(warpCourse(mesh));
   for(const road of branches) {
     let processed=0;
-    for(const mesh of makeBranchFeatures(index,road,asphaltMaterial)) {
+    for(const mesh of makeBranchFeatures(index,road,finishes.roof)) {
       root.add(warpCourse(mesh));if(++processed%8===0)yield;
     }
-    for(const mesh of makeBranchPlay(index,road,asphaltMaterial)) {
+    for(const mesh of makeBranchPlay(index,road,finishes.deck)) {
       root.add(warpCourse(mesh));if(++processed%8===0)yield;
     }
     const dock=makeBranchDockRail(index,road,mats.rail);
@@ -208,13 +209,13 @@ export function* buildChunkContent({index,root,angle,sunOnHill,asphaltMaterial,m
   }
   for(const place of places) {
     let processed=0;
-    for(const mesh of makePlaceMeshes(index,place,asphaltMaterial)) {
+    for(const mesh of makePlaceMeshes(index,place,finishes.deck)) {
       root.add(warpCourse(mesh));if(++processed%8===0)yield;
     }
   }
   if(foundryForChunk(index)) {
     let processed=0;
-    for(const mesh of makeFoundryQuarter(index,asphaltMaterial)) {
+    for(const mesh of makeFoundryQuarter(index,finishes.deck)) {
       root.add(mesh.userData.courseWarped?mesh:warpCourse(mesh));if(++processed%6===0)yield;
     }
     const traffic=makeQuarterTraffic(index);if(traffic)root.add(traffic);

@@ -23,16 +23,19 @@ export function prepareEnvironmentObject(root:THREE.Object3D) {
 /** Upward-facing roofs, branches and rocks get snow without extra meshes or colliders. */
 function snowCoating(material:THREE.MeshStandardMaterial,source:THREE.Material) {
   const compile=source.onBeforeCompile,key=source.customProgramCacheKey();
+  // Swept side streets keep their paving joints visible under a light dusting.
+  const coverage=source.userData.architectureFinish==='setts' ? 0.55 : 0.97;
   material.onBeforeCompile=(shader,renderer)=>{
     compile.call(material,shader,renderer);
     shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying float vSnowUp;')
       .replace('#include <beginnormal_vertex>','#include <beginnormal_vertex>\nvSnowUp = normalize(mat3(modelMatrix) * objectNormal).y;');
     shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying float vSnowUp;')
       .replace('#include <color_fragment>',`#include <color_fragment>
-        float snowCover = smoothstep(0.35, 0.84, vSnowUp) * 0.97;
+        float snowCover = smoothstep(0.35, 0.84, vSnowUp) * ${coverage};
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.82, 0.90, 0.98), snowCover);`);
   };
-  material.customProgramCacheKey=()=> `${key}|snow-coating-v1`;
+  const variant=source.userData.architectureFinish==='setts'?'|swept-setts':'';
+  material.customProgramCacheKey=()=> `${key}${variant}|snow-coating-v1`;
 }
 
 function snowTexture(packed:boolean) {

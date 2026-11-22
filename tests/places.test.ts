@@ -124,7 +124,7 @@ test('added architecture keeps bounded geometry, attached glazing and solid roof
   assert.equal(firstSign.geometry.userData.shared,true,'streamed details must preserve shared sign geometry');
 });
 
-test('parking decks and access banks use the actual road finish, including winter and roof kickers',()=>{
+test('parking decks, banks and kickers retain their concrete finish in both seasons',()=>{
   const map=new THREE.DataTexture(new Uint8Array([90,96,101,255]),1,1),road=surface(new THREE.MeshStandardMaterial({map}),'road');
   const mats=makeSharedMaterials();let surfaces=0,kickers=0;
   for(const index of [21,32]) {
@@ -133,13 +133,13 @@ test('parking decks and access banks use the actual road finish, including winte
     for(const season of ['summer','winter'] as const) {
       const appearance=createWorldAppearance(season);
       for(const object of root.children)if(object instanceof THREE.Mesh) {
-        if(object.name==='place-asphalt') {
-          surfaces++;assert.equal(object.material,road,'traffic surfaces must not get the pale paving finish');
-          assert.equal(object.userData.sceneryTint,0xffffff);assert.equal(appearance.materialFor(object.material),appearance.materialFor(road));
+        if(object.name==='place-deck') {
+          surfaces++;assert.equal(object.material,LANDMARK_MATERIALS.deck);
+          assert.notEqual(appearance.materialFor(object.material),appearance.materialFor(road));
           const uv=object.geometry.getAttribute('uv');assert.ok(uv && uv.count===object.geometry.getAttribute('position').count);
         }
         if(object.name==='yard-roof-kicker') {
-          kickers++;assert.equal((appearance.materialFor(object.material as THREE.Material) as THREE.MeshStandardMaterial).map,(appearance.materialFor(road) as THREE.MeshStandardMaterial).map);
+          kickers++;assert.equal((appearance.materialFor(object.material as THREE.Material) as THREE.MeshStandardMaterial).map,LANDMARK_MATERIALS.deck.map);
         }
       }
     }

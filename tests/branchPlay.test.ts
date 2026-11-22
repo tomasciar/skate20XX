@@ -7,7 +7,8 @@ import {branchPlayLanes,playLaneHeight,playLaneX} from '../src/world/planning/br
 import {makeBranchPlay,makeBranchDockRail} from '../src/world/structures/branchPlay.ts';
 import {makeBranchFeatures} from '../src/world/structures/branchFeatures.ts';
 import {bakeSceneryCollision} from '../src/world/physics/collision.ts';
-import {surface,createWorldAppearance} from '../src/world/rendering/appearance.ts';
+import {LANDMARK_MATERIALS as M} from '../src/world/structures/parts.ts';
+import {createWorldAppearance} from '../src/world/rendering/appearance.ts';
 import {createRamp} from '../src/world/ramp.ts';
 import {courseHeight,courseX} from '../src/world/terrain/course.ts';
 import {landscapeHeight} from '../src/world/terrain/landscape.ts';
@@ -34,12 +35,12 @@ test('early play lanes preview docks, rollers and a rooftop transfer without blo
   for(const side of [-1,1] as const)assert.deepEqual(branchPlayLanes({...road,side}).map(l=>Math.abs(l.offset)),lanes.map(l=>Math.abs(l.offset)));
 });
 
-test('new play structures retain open ground lanes, exact collision, bounded geometry and shared winter asphalt',async()=>{
+test('new play structures retain open ground lanes, exact collision, bounded geometry and shared winter deck finishes',async()=>{
   await RAPIER.init();
-  const asphalt=surface(new THREE.MeshStandardMaterial({color:0x555b5f}),'road'),winter=createWorldAppearance('winter');
+  const deck=M.deck,winter=createWorldAppearance('winter');
   let meshesChecked=0;
   for(let index=4;index<=6;index++) {
-    const root=new THREE.Group(),meshes=[...makeBranchPlay(index,road,asphalt)];root.add(...makeBranchFeatures(index,road,asphalt),...meshes);root.updateMatrixWorld(true);
+    const root=new THREE.Group(),meshes=[...makeBranchPlay(index,road,deck)];root.add(...makeBranchFeatures(index,road,deck),...meshes);root.updateMatrixWorld(true);
     const baked=bakeSceneryCollision(root)!,world=new RAPIER.World({x:0,y:0,z:0});world.createCollider(RAPIER.ColliderDesc.trimesh(baked.vertices,baked.indices));world.step();
     try {
       assert.ok(baked.indices.length/3<2000);
@@ -47,7 +48,7 @@ test('new play structures retain open ground lanes, exact collision, bounded geo
         for(const value of mesh.geometry.getAttribute('position').array)assert.ok(Number.isFinite(value));
         if(!mesh.name.startsWith('branch-play-'))continue;
         meshesChecked++;const material=mesh.material as THREE.MeshStandardMaterial;
-        assert.equal(material.userData.surface,'road');assert.equal((winter.materialFor(material) as THREE.MeshStandardMaterial).map,(winter.materialFor(asphalt) as THREE.MeshStandardMaterial).map);
+        assert.equal(material.userData.surface,'scenery');assert.equal((winter.materialFor(material) as THREE.MeshStandardMaterial).map,(winter.materialFor(deck) as THREE.MeshStandardMaterial).map);
         if(mesh.name.includes('roof'))assert.equal(material.polygonOffset,true);
       }
       const along=index*70+35,x=branchRoadX(road,along),y=landscapeHeight(x,along)-courseHeight(along);
