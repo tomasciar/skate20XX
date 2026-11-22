@@ -28,12 +28,23 @@ test('the authored quarter is bounded, detailed and uses shared mode-aware mater
     names.set(mesh.name,(names.get(mesh.name)??0)+1);
     triangles+=(mesh.geometry.index?.count??mesh.geometry.getAttribute('position').count)/3;
     for(const value of mesh.geometry.getAttribute('position').array)assert.ok(Number.isFinite(value));
-    if(mesh.name.includes('paving')||mesh.name.includes('spiral-ramp')||mesh.name.includes('parking-floor'))assert.equal(mesh.material,road);
+    if(mesh.name==='foundry-connected-paving')assert.equal((mesh.material as THREE.Material).userData.architectureFinish,'setts');
+    if(mesh.name.includes('spiral-ramp')||mesh.name.includes('parking-floor'))assert.equal(mesh.material,road);
     if(!mesh.geometry.userData.shared)mesh.geometry.dispose();
   }
   assert.equal(names.get('foundry-spiral-ramp'),1);assert.equal(names.get('foundry-parking-floor'),3);
   assert.ok(names.get('foundry-shop-glass')!>=7);assert.ok(names.get('foundry-cafe-seat')!>=20);
   assert.ok(names.get('foundry-parking-bay-line')!>50);assert.ok(triangles<30000,`bounded authored geometry: ${triangles}`);
+});
+
+test('the covered arcade and adjoining court each own exactly one floor surface',()=>{
+  const floors=[...makeFoundryQuarter(3,new THREE.MeshStandardMaterial())].filter(mesh=>
+    mesh.name==='foundry-connected-paving'||mesh.name==='foundry-covered-pavement');
+  for(const [x,along,expected] of [[-25.1,220.37,'foundry-connected-paving'],[-22.7,220.37,'foundry-covered-pavement'],
+      [-11.9,220.37,'foundry-connected-paving'],[-22.7,213.37,'foundry-connected-paving']] as const) {
+    const hits=new THREE.Raycaster(new THREE.Vector3(x,50,210-along),new THREE.Vector3(0,-1,0)).intersectObjects(floors);
+    assert.deepEqual(hits.map(hit=>hit.object.name),[expected]);
+  }
 });
 
 test('the spiral gains real height and has continuous collision and clear headroom around both turns',async()=>{

@@ -47,7 +47,7 @@ create their own streaming windows or register untracked physics bodies.
 
 Full-width road forks are planned in `planning/branchRoads.ts`. Their road beds
 belong to `terrain/landscape.ts`; `structures/branchRoads.ts` clips the visible
-asphalt and paint to that terrain, while `branchFeatures.ts` supplies optional
+stone paving and paint to that terrain, while `branchFeatures.ts` supplies optional
 rideable architecture. Junctions remove the visible sidewalk **and** its support
 proxy. Keep road reservations ahead of ordinary prop placement, and keep exact
 clearance under galleries. See the biome/road section of the environment guide
@@ -83,7 +83,7 @@ shared material identity and placement RNG order stable when reorganizing builde
 `structures/placeDetails.ts` and `placeFurnishings.ts` add facade-scale detail and
 recognizable furnishings. `rendering/architectureFinish.ts` caches their shared
 surface tiles and projects UVs in metres without expanding indexed geometry.
-Traffic surfaces share the main road material; plaza paving has its own finish.
+Only the main road uses asphalt. Branch roads use stone setts, and buildings use their architectural finishes.
 Tall buildings can carry a shared `levelBase` course anchor; chunk warping then
 keeps walls vertical and floors level, including across chunk boundaries.
 

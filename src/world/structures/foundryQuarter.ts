@@ -95,22 +95,29 @@ function ribbon(index:number,x:number,width:number,start:number,end:number,heigh
   const mesh=landmarkPart(geometry,material as THREE.MeshStandardMaterial);mesh.name=name;return mesh;
 }
 
-export function* makeFoundryQuarter(index:number,asphalt:THREE.Material) {
+export function* makeFoundryQuarter(index:number,deckMaterial:THREE.Material) {
   if(!foundryForChunk(index))return;
   const from=index*70,to=from+70,owns=(s:number)=>s>=from&&s<to;
   const box=(material:THREE.MeshStandardMaterial,size:number[],x:number,y:number,s:number,name:string,decorative=false)=>{
     const mesh=landmarkBox(material,size,[x,y,-(s-from)],decorative,true);mesh.name=name;return mesh;
   };
   // Continuous street/court surfaces give the buildings shared ground instead of isolated grassy pads.
-  for(const [near,far] of [[-52,-11.4],[11.4,52],[52,126]]) {
-    const paving=makeTerrainPaving(index,near!,far!,near===52?425:210,near===52?550:FOUNDRY.end,asphalt);if(paving)yield paving;
+  for(const [near,far] of [[11.4,52],[52,126]]) {
+    const paving=makeTerrainPaving(index,near!,far!,near===52?425:210,near===52?550:FOUNDRY.end,M.setts);if(paving)yield paving;
+  }
+  // Partition the left court at the arcade outline so each patch has one visible floor.
+  for(const [near,far,start,end] of [
+    [-52,-11.4,210,215],[-52,-24.5,215,315],[-12.5,-11.4,215,315],[-52,-11.4,315,FOUNDRY.end],
+  ]) {
+    const court=makeTerrainPaving(index,near,far,start,end,M.setts);
+    if(court)yield court;
   }
   const pavement=makeTerrainPaving(index,-24.5,-12.5,215,315,M.concrete);if(pavement){pavement.name='foundry-covered-pavement';yield pavement;}
   // Left shops and covered pavement form a street wall; the central opening leads into the existing plaza.
   for(const [start,end] of [[215,315]]) {
     const a=Math.max(from,start!),b=Math.min(to,end!);if(b<=a)continue;
     const rear=ribbon(index,-27,4,start!,end!,()=>8.2,M.brick,'foundry-shop-row');if(rear){rear.userData.sceneryTint=BRICK;yield rear;}
-    const roof=ribbon(index,-19,13,start!,end!,s=>4.4+floor(-27,s)-floor(-19,s),asphalt,'foundry-arcade-roof',true);if(roof)yield roof;
+    const roof=ribbon(index,-19,13,start!,end!,s=>4.4+floor(-27,s)-floor(-19,s),M.roof,'foundry-arcade-roof',true);if(roof)yield roof;
     for(let s=start!+7,bay=0;s<end!;s+=14,bay++)if(owns(s)) {
       const y=floor(-27,s);
       const base=floor(-13,s),top=y+4.25;
@@ -134,7 +141,7 @@ export function* makeFoundryQuarter(index:number,asphalt:THREE.Material) {
   }
   // The canopy rejoins the old roof's descending bank diagonally, leaving the plaza approach beneath it clear.
   if(index===4)yield bridge(index,new THREE.Vector3(-19+courseX(315),landscapeHeight(-27,315)+4.425,-315),
-    new THREE.Vector3(-38+courseX(370),landscapeHeight(-38,370)+.025,-370),7,asphalt,'foundry-arcade-roof-exit');
+    new THREE.Vector3(-38+courseX(370),landscapeHeight(-38,370)+.025,-370),7,M.roof,'foundry-arcade-roof-exit');
   // The service court is deliberately arranged around the warehouse's usable outer roof and landing lane.
   for(const [start,end,x] of [[250,340,52],[445,550,43]]) {
     const wall=ribbon(index,x!,7,start!,end!,()=>6.6,M.brick,'foundry-market-wing');if(wall){wall.userData.sceneryTint=BRICK;yield wall;}
@@ -154,20 +161,20 @@ export function* makeFoundryQuarter(index:number,asphalt:THREE.Material) {
   }
   // Low seating banks lead into a covered market roof: objects define two lines through the court.
   for(const [x,start,end,height] of [[38,267,289,.65],[38,312,334,.9],[38,425,451,1.1],[49,390,435,2.7],[-46,330,352,1.2]]) {
-    const deck=ribbon(index,x!,x===49?10:6,start!,end!,t=>height!*ease(t,start!,start!+8)*(1-ease(t,end!-8,end!)),asphalt,x===49?'foundry-market-roof-line':'foundry-seating-bank');if(deck)yield deck;
+    const deck=ribbon(index,x!,x===49?10:6,start!,end!,t=>height!*ease(t,start!,start!+8)*(1-ease(t,end!-8,end!)),x===49?M.roof:M.concrete,x===49?'foundry-market-roof-line':'foundry-seating-bank');if(deck)yield deck;
   }
   // The big rotunda is one bounded landmark, retained while all of its spiral is in the streaming window.
   if(index===FOUNDRY.owner) {
-    yield circularDeck(index,FOUNDRY.radius-FOUNDRY.rampWidth/2,FOUNDRY.radius+FOUNDRY.rampWidth/2,t=>.03+FOUNDRY.rise*t,.3,FOUNDRY.turns,Math.PI/2,asphalt,'foundry-spiral-ramp');
+    yield circularDeck(index,FOUNDRY.radius-FOUNDRY.rampWidth/2,FOUNDRY.radius+FOUNDRY.rampWidth/2,t=>.03+FOUNDRY.rise*t,.3,FOUNDRY.turns,Math.PI/2,deckMaterial,'foundry-spiral-ramp');
     yield circularDeck(index,16.82,17.02,t=>.23+FOUNDRY.rise*t,.2,FOUNDRY.turns,Math.PI/2,M.trim,'foundry-spiral-inner-curb');
     for(const h of [0,4.6,9.2]) {
-      yield circularDeck(index,FOUNDRY.innerRadius,FOUNDRY.outerRadius,()=>h+.03,.35,1,0,asphalt,'foundry-parking-floor');
+      yield circularDeck(index,FOUNDRY.innerRadius,FOUNDRY.outerRadius,()=>h+.03,.35,1,0,deckMaterial,'foundry-parking-floor');
       yield circularDeck(index,31.9,32.12,()=>h+.58,.55,1,0,M.brick,'foundry-parking-parapet',true);
       yield circularDeck(index,31.88,32.2,()=>h-.16,.2,1,0,M.trim,'foundry-parking-fascia');
       // Upper landings extend after the seam in the direction of travel. Extending one
       // over the incoming helix would put its underside through the last few meters.
       const side=h>0?-1:1;
-      yield garageBox(index,[36,.32,8],[88+side*18,h-.13,21],asphalt,'foundry-spiral-landing');
+      yield garageBox(index,[36,.32,8],[88+side*18,h-.13,21],deckMaterial,'foundry-spiral-landing');
       // Painted spaces explain the decks visually; they add no collision or unique materials.
       for(let slot=0;slot<32;slot++) {
         const a=slot*Math.PI/16;if(a>.7&&a<2.45)continue;
@@ -201,16 +208,16 @@ export function* makeFoundryQuarter(index:number,asphalt:THREE.Material) {
     }
     // Broad approaches connect the branch road, spiral and lower court with actual surfaces.
     const drivewayStart=new THREE.Vector3(142+courseX(FOUNDRY_DRIVEWAY_START),landscapeHeight(142,FOUNDRY_DRIVEWAY_START)+.025,-FOUNDRY_DRIVEWAY_START);
-    yield bridge(index,drivewayStart,foundryPoint(124,.03,21),11,asphalt,'foundry-garage-entry');
+    yield bridge(index,drivewayStart,foundryPoint(124,.03,21),11,deckMaterial,'foundry-garage-entry');
     const exit=new THREE.Vector3(58+courseX(550),landscapeHeight(58,550)+.025,-550);
-    yield bridge(index,foundryPoint(52,9.23,21),exit,9,asphalt,'foundry-garage-descent');
+    yield bridge(index,foundryPoint(52,9.23,21),exit,9,deckMaterial,'foundry-garage-descent');
     const sign=makeFoundrySign(2,8),at=foundryPoint(88,4,-4.2);
     sign.position.set(at.x-courseX(from),at.y-courseHeight(from),at.z+from);sign.rotation.x=RAMP.angleDeg*Math.PI/180;sign.userData.courseWarped=true;yield sign;
   }
   if(index===5) {
     const warehouseRoof=new THREE.Vector3(23.5+courseX(380),courseHeight(380)+4.5,-380);
     const roofEnd=foundryPoint(59.9,9.23,0),curve=bridgeCurve(warehouseRoof,roofEnd,true);
-    yield bridge(index,warehouseRoof,roofEnd,8,asphalt,'foundry-warehouse-roof-link',true);
+    yield bridge(index,warehouseRoof,roofEnd,8,M.roof,'foundry-warehouse-roof-link',true);
     for(const t of [.2,.5,.8]) {
       const top=curve.getPoint(t),along=-top.z,x=top.x-courseX(along);
       const ground=foundryLocal(new THREE.Vector3(top.x,landscapeHeight(x,along),top.z)),deck=foundryLocal(top);

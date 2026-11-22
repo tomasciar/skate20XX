@@ -130,7 +130,7 @@ than just more color variants. Seasonal coating and scenery tints remain shared.
 and gentler gardens outside the riding belt, blending changes across boundaries.
 The new biome palettes also persist for whole district runs.
 
-`planning/branchRoads.ts` describes optional asphalt roads 14–18 source units
+`planning/branchRoads.ts` describes optional stone-paved roads 14–18 source units
 wide and roughly 580–700 long. They split from and return to the main road,
 with boulevard, parkway, esplanade and rock-cut variants. The first fork starts
 at 55 and rejoins at 705, on the right. Subsequent sectors vary their side, reach,
@@ -138,10 +138,9 @@ width and sweep; candidates that collide with existing buildings, banks or
 composed places are skipped. Planning uses a bounded cache and no runtime AI.
 
 The terrain sampler grades the road bed and shoulders before generating collision.
-`structures/branchRoads.ts` clips each asphalt skin to the **actual terrain
+`structures/branchRoads.ts` clips each side-road surface to the **actual terrain
 triangles**, including the original cross-cell diagonal. Paint follows the same
-triangles with a small depth separation. The asphalt uses the main road's material
-and winter treatment. It adds no second collider, no bounding box and no raised
+triangles with a small depth separation. The paving meets the main deck at its exact edge and height. Its warm stone blocks keep their joints visible under a lighter winter coating. It adds no second collider, no bounding box and no raised
 platform. Ten-unit samples in the outer riding belt improve road-bed resolution
 without refining the entire valley. Road crossings remove both the visible
 sidewalk and its invisible support proxy. Never leave collision across a visible
@@ -179,8 +178,7 @@ entry cannot inherit a small step from a different road-center height. Rooftop
 ramps instead share the gallery's common height reference, with their solid bases
 confined above the roof. They never extend columns through the underpass. Curved
 surfaces use a one-unit longitudinal lattice, preserving the five-unit course
-seams. Rooftop asphalt has one cached depth-biased finish for stable zero-height
-joins. Ground asphalt reuses the main road material directly.
+seams. Rooftop ramps use a cached depth-biased deck finish for stable zero-height joins.
 
 `structures/branchPlay.ts` supplies these surfaces and the dock rails. Rail meshes
 and registry endpoints are rigid and already course-warped: do not warp them a
@@ -318,9 +316,6 @@ The flat interiors of deck surfaces need only their across-width endpoints;
 terrace banks, channel transitions and swept exits retain their required samples.
 This saves triangles for the additional furnishings.
 
-Parking decks, their entry/exit banks and loading yards use the **same asphalt
-material as the main road**, retaining that road's seasonal treatment. Roof kickers
-also use asphalt, with a cached depth-biased finish for their flush entry. Pale
-stone paving is confined to plaza surfaces. `tests/places.test.ts` checks the road
+Reserve asphalt for the main downhill road. Parking decks and loading yards use cast concrete, arcade roofs use sheet metal, and branch streets use warm stone setts. Roof kickers share the deck finish with a depth bias at their flush entry. Each plaza or deck surface supplies its own visible and physical top. `tests/places.test.ts` checks the road
 material contract in both seasons, shared texture ownership and metre-scale UVs,
 arch normals and physical headroom, full rides and the per-chunk geometry budget.
