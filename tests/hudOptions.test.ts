@@ -18,7 +18,7 @@ test('HUD toggle buttons flip independently, drive the root attributes, save, an
     setAttribute(name:string,value:string){this.attributes.set(name,value);}
     blur(){this.blurs++;}
   }
-  const buttons=[new Button('controls'),new Button('tricks')],values=new Map<string,string>([['skate5.hud.controls','off']]);
+  const buttons=[new Button('controls'),new Button('tricks')],values=new Map<string,string>([['skate20XX.hud.controls','off']]);
   const root={dataset:{} as Record<string,string>};
   const oldDocument=globalThis.document,oldStorage=Object.getOwnPropertyDescriptor(globalThis,'localStorage');
   Object.assign(globalThis,{document:{querySelectorAll:()=>buttons,documentElement:root}});

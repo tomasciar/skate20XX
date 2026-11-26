@@ -1,3 +1,4 @@
+import { readGameValue } from './storage.ts';
 import * as THREE from 'three';
 
 export const BOARD_STYLES=[
@@ -12,11 +13,11 @@ export const BOARD_STYLES=[
   {id:'nimbus',name:'Nimbus',description:'The golden flying cloud from Dragon Ball, in place of the deck and wheels',deck:0x8fd3f4,accent:0xf5b21f,ink:0xe0782a,wheels:0xffd34d},
 ] as const;
 export type BoardStyleId=(typeof BOARD_STYLES)[number]['id'];
-export const BOARD_STYLE_STORAGE_KEY='skate5.boardStyle';
+export const BOARD_STYLE_STORAGE_KEY='skate20XX.boardStyle';
 type StorageLike=Pick<Storage,'getItem'|'setItem'>;
 export function isBoardStyleId(value:unknown):value is BoardStyleId{return BOARD_STYLES.some(style=>style.id===value);}
 export function loadBoardStyle(storage?:StorageLike):BoardStyleId {
-  try{const value=(storage??globalThis.localStorage).getItem(BOARD_STYLE_STORAGE_KEY);return isBoardStyleId(value)?value:'classic';}catch{return 'classic';}
+  try{const value=readGameValue(storage ?? globalThis.localStorage, BOARD_STYLE_STORAGE_KEY);return isBoardStyleId(value)?value:'classic';}catch{return 'classic';}
 }
 export function saveBoardStyle(style:BoardStyleId,storage?:StorageLike) {
   try{(storage??globalThis.localStorage).setItem(BOARD_STYLE_STORAGE_KEY,style);}catch{/* Storage can be disabled. */}

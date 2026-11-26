@@ -1,4 +1,4 @@
-# SKATE5
+# skate20XX
 
 A browser downhill skateboarding game built with Three.js, Rapier physics, TypeScript, and Vite.
 

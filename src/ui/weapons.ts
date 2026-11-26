@@ -1,8 +1,9 @@
-export const WEAPON_STORAGE_KEY='skate5.heldWeapons';
+import { readGameValue } from '../storage.ts';
+export const WEAPON_STORAGE_KEY='skate20XX.heldWeapons';
 type StorageLike=Pick<Storage,'getItem'|'setItem'>;
 
 export function loadWeaponVisibility(storage?:Pick<StorageLike,'getItem'>) {
-  try {return (storage??globalThis.localStorage).getItem(WEAPON_STORAGE_KEY)!=='off';}
+  try {return readGameValue(storage ?? globalThis.localStorage, WEAPON_STORAGE_KEY)!=='off';}
   catch {return true;}
 }
 export function saveWeaponVisibility(shown:boolean,storage?:Pick<StorageLike,'setItem'>) {

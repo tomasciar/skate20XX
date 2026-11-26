@@ -352,6 +352,6 @@ main().catch((err) => {
   console.error(err);
   const overlay = document.getElementById("overlay");
   if (overlay) {
-    overlay.textContent = `Unable to start SKATE5: ${String(err)}`;
+    overlay.textContent = `Unable to start skate20XX: ${String(err)}`;
   }
 });

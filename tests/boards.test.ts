@@ -17,11 +17,11 @@ const dt=1/120,pose={dt,speed:25,push:0,verticalSpeed:0,grinding:false,crouch:0,
 const idle:PlayerIntent={grabModifier:false,grabDX:0,grabDY:0,push:0,steer:0,crouch:false,crouchHold:0,wantOllie:false,olliePower:0,reset:false,flickDX:0,flickDY:0,flickReady:false};
 
 test('board design preferences validate stored values and stay independent of character and riding mode',()=>{
-  const values=new Map<string,string>([['skate5.character','girl'],['skate5.rideMode','snowboard']]);
+  const values=new Map<string,string>([['skate20XX.character','girl'],['skate20XX.rideMode','snowboard']]);
   const storage={getItem:(key:string)=>values.get(key)??null,setItem:(key:string,value:string)=>{values.set(key,value);}};
   assert.equal(loadBoardStyle(storage),'classic');
   for(const {id} of BOARD_STYLES){saveBoardStyle(id,storage);assert.equal(loadBoardStyle(storage),id);}
-  assert.equal(values.get('skate5.character'),'girl');assert.equal(values.get('skate5.rideMode'),'snowboard');
+  assert.equal(values.get('skate20XX.character'),'girl');assert.equal(values.get('skate20XX.rideMode'),'snowboard');
   values.set(BOARD_STYLE_STORAGE_KEY,'missing');assert.equal(loadBoardStyle(storage),'classic');
   const blocked={getItem:()=>{throw Error('blocked');},setItem:()=>{throw Error('blocked');}};
   assert.equal(loadBoardStyle(blocked),'classic');assert.doesNotThrow(()=>saveBoardStyle('neon',blocked));

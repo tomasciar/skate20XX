@@ -1,3 +1,4 @@
+import { readGameValue } from '../storage.ts';
 import { synthesizeLoop } from './textures.ts';
 import type { RideTexture } from './textures.ts';
 import {speedFromMph} from '../units.ts';
@@ -5,10 +6,10 @@ import { createSoundEvents } from './events.ts';
 import type { RideAudioState, SoundEvent, RideSound } from './events.ts';
 
 export type AudioPreferences = { muted: boolean; volume: number };
-const PREF_KEY = 'skate5-audio';
+const PREF_KEY = 'skate20XX-audio';
 export function readAudioPreferences(storage?: Pick<Storage, 'getItem'>): AudioPreferences {
   try {
-    const value = JSON.parse(storage?.getItem(PREF_KEY) ?? '{}');
+    const value = JSON.parse((storage && readGameValue(storage, PREF_KEY)) ?? '{}');
     return { muted: value?.muted === true, volume: Number.isFinite(value?.volume) ? Math.max(0, Math.min(1, value.volume)) : 0.55 };
   } catch { return { muted: false, volume: 0.55 }; }
 }

@@ -1,12 +1,13 @@
+import { readGameValue } from './storage.ts';
 import type {RideMode} from './mode.ts';
 
 /** Best run per ride mode. Stored only in this browser; there are no accounts or servers behind it. */
-export const highScoreKey=(mode:RideMode)=>`skate5.highScore.${mode}`;
+export const highScoreKey=(mode:RideMode)=>`skate20XX.highScore.${mode}`;
 type ScoreStorage=Pick<Storage,'getItem'|'setItem'>;
 
 export function loadHighScore(mode:RideMode,storage?:Pick<Storage,'getItem'>) {
   try {
-    const value=(storage ?? globalThis.localStorage).getItem(highScoreKey(mode)),score=Number(value);
+    const value=readGameValue(storage ?? globalThis.localStorage, highScoreKey(mode)),score=Number(value);
     // Anything but a plain whole number is treated as no score rather than trusted.
     return value!==null && /^\d+$/.test(value) && Number.isSafeInteger(score)?score:0;
   } catch {return 0;}

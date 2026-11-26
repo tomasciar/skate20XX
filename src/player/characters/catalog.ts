@@ -1,3 +1,4 @@
+import { readGameValue } from '../../storage.ts';
 import type {RideMode} from '../../mode.ts';
 
 export const CHARACTERS=[
@@ -18,11 +19,11 @@ export const CHARACTERS=[
   {id:'sahur',name:'Triple T',modelName:'Tung Tung Tung Sahur'},
 ] as const;
 export type CharacterId=(typeof CHARACTERS)[number]['id'];
-export const CHARACTER_STORAGE_KEY='skate5.character';
+export const CHARACTER_STORAGE_KEY='skate20XX.character';
 type StorageLike=Pick<Storage,'getItem'|'setItem'>;
 export function isCharacterId(value:unknown):value is CharacterId {return CHARACTERS.some(character=>character.id===value);}
 export function loadCharacter(storage?:StorageLike):CharacterId {
-  try {const value=(storage ?? globalThis.localStorage).getItem(CHARACTER_STORAGE_KEY);return isCharacterId(value)?value:'boy';}
+  try {const value=readGameValue(storage ?? globalThis.localStorage, CHARACTER_STORAGE_KEY);return isCharacterId(value)?value:'boy';}
   catch {return 'boy';}
 }
 export function saveCharacter(character:CharacterId,storage?:StorageLike) {

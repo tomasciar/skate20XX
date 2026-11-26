@@ -1,10 +1,11 @@
+import { readGameValue } from '../storage.ts';
 /** HUD elements a player can hide. Each is shown unless it was switched off. */
 export const HUD_OPTIONS=['controls','tricks'] as const;
 export type HudOption=typeof HUD_OPTIONS[number];
-const storageKey=(option:HudOption)=>`skate5.hud.${option}`;
+const storageKey=(option:HudOption)=>`skate20XX.hud.${option}`;
 
 export function loadHudOption(option:HudOption,storage?:Pick<Storage,'getItem'>) {
-  try {return (storage ?? globalThis.localStorage).getItem(storageKey(option))!=='off';}
+  try {return readGameValue(storage ?? globalThis.localStorage, storageKey(option))!=='off';}
   catch {return true;}
 }
 export function saveHudOption(option:HudOption,shown:boolean,storage?:Pick<Storage,'setItem'>) {

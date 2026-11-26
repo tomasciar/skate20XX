@@ -1,8 +1,9 @@
+import { readGameValue } from '../storage.ts';
 import {SENSITIVITY,SENSITIVITY_CONTROLS,clampSensitivity} from '../player/movement/sensitivity.ts';
 import type {SensitivityControl,SensitivitySettings} from '../player/movement/sensitivity.ts';
 
-export const LEGACY_SENSITIVITY_STORAGE_KEY='skate5.turnSensitivity';
-const storageKey=(control:SensitivityControl)=>`skate5.sensitivity.${control}`;
+export const LEGACY_SENSITIVITY_STORAGE_KEY='skate20XX.turnSensitivity';
+const storageKey=(control:SensitivityControl)=>`skate20XX.sensitivity.${control}`;
 
 export function loadSensitivitySettings(storage?:Pick<Storage,'getItem'>):SensitivitySettings {
   const parse=(value:string|null,fallback:number)=>value===null || value.trim()==='' || !Number.isFinite(Number(value))
@@ -10,8 +11,8 @@ export function loadSensitivitySettings(storage?:Pick<Storage,'getItem'>):Sensit
   try {
     const source=storage??globalThis.localStorage;
     // Carry the previous shared preference into each control until it is adjusted independently.
-    const legacy=parse(source.getItem(LEGACY_SENSITIVITY_STORAGE_KEY),SENSITIVITY.default);
-    return Object.fromEntries(SENSITIVITY_CONTROLS.map(control=>[control,parse(source.getItem(storageKey(control)),legacy)])) as SensitivitySettings;
+    const legacy=parse(readGameValue(source, LEGACY_SENSITIVITY_STORAGE_KEY),SENSITIVITY.default);
+    return Object.fromEntries(SENSITIVITY_CONTROLS.map(control=>[control,parse(readGameValue(source, storageKey(control)),legacy)])) as SensitivitySettings;
   } catch {return {carve:1,flip:1,turn:1};}
 }
 export function saveSensitivity(control:SensitivityControl,value:number,storage?:Pick<Storage,'setItem'>) {

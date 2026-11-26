@@ -158,6 +158,17 @@ test('grind names are matched loosely and unknown ones fall back',()=>{
   for(const name of [undefined,null,7,'','Darkslide','constructor','toString'])assert.equal(grindRate(name),SCORE.grindDefault);
 });
 
+test('a returning player keeps their best score and can beat it in the renamed game',()=>{
+  const previousEdition=5;
+  const values=new Map([[`skate${previousEdition}.highScore.skate`,'900']]);
+  const storage={getItem:(key:string)=>values.get(key) ?? null,setItem:(key:string,value:string)=>values.set(key,value)};
+  assert.equal(loadHighScore('skate',storage),900);
+  assert.equal(saveHighScore('skate',800,storage),900);
+  assert.equal(saveHighScore('skate',1000,storage),1000);
+  assert.equal(values.get('skate20XX.highScore.skate'),'1000');
+  assert.equal(loadHighScore('skate',storage),1000);
+});
+
 test('high scores persist per mode, only improve, and tolerate blocked or invalid storage',()=>{
   const values=new Map<string,string>(),storage={getItem:(key:string)=>values.get(key) ?? null,setItem:(key:string,value:string)=>{values.set(key,value);}};
   assert.equal(loadHighScore('skate',storage),0);

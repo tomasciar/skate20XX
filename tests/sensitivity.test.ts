@@ -24,7 +24,7 @@ test('the three sensitivity preferences default to current handling, persist ind
   saveSensitivity('carve',.5,storage);saveSensitivity('flip',2,storage);saveSensitivity('turn',1.5,storage);
   assert.deepEqual(loadSensitivitySettings(storage),{carve:.5,flip:2,turn:1.5});
   for(const [stored,expected] of [['0',.5],['10',2],['bad',1],['',1],['Infinity',1]] as const) {
-    storage.values.set('skate5.sensitivity.flip',stored);assert.equal(loadSensitivitySettings(storage).flip,expected);
+    storage.values.set('skate20XX.sensitivity.flip',stored);assert.equal(loadSensitivitySettings(storage).flip,expected);
     assert.equal(loadSensitivitySettings(storage).carve,.5);assert.equal(loadSensitivitySettings(storage).turn,1.5);
   }
   const blocked={getItem:()=>{throw Error('blocked');},setItem:()=>{throw Error('blocked');}};
