@@ -20,7 +20,7 @@ export const FLIP_LEAN = {forward:0.744,back:0.696,side:0.672,head:1.1,tuck:0.36
 /** Pose only: every rig owns its blend state, IK buffers, and reset lifecycle. */
 export function createRiderPose(rig:RiderRig,equipment:BoardVisual,appearance:SkaterAppearance) {
   const {rider,hips,torso,head}=rig;
-  const {board,deck,wheels,nimbus}=equipment;
+  const {board,deck,wheels}=equipment;
   const arms=rig.arms.map(arm=>({...arm,restHand:new THREE.Vector3(),restReady:false,
     airHand:new THREE.Vector3(),airReady:false,shoulderTarget:new THREE.Vector3(),handTarget:new THREE.Vector3(),
     gripTarget:new THREE.Vector3(),pole:new THREE.Vector3(),sleeveEnd:new THREE.Vector3(),solve:createLimbSolver()}));
@@ -50,7 +50,7 @@ export function createRiderPose(rig:RiderRig,equipment:BoardVisual,appearance:Sk
   const stance=new THREE.Quaternion().setFromAxisAngle(axis,RIDER.stanceY),reverseStance=stance.clone().invert();
   const grabRotation=new THREE.Quaternion(),inverseHips=new THREE.Quaternion(),inverseTorso=new THREE.Quaternion();
   function setPose(opts:SkaterPose) {
-    const {mode,boardStyle}=appearance;
+    const {mode}=appearance;
     const {bodyScale,legScale,armScale,hipDrop,hipWidth,shoulderSpan}=appearance.proportions;
     const slide=opts.airborne || opts.grinding || opts.bail ? 0 : THREE.MathUtils.clamp(opts.slide ?? 0,-1,1);
     const m = motion.update(opts.dt, opts.crouch, opts.lean, opts.airborne && !opts.grinding, opts.push, opts.verticalSpeed, opts.speed, opts.pump, opts.grinding);
@@ -111,7 +111,7 @@ export function createRiderPose(rig:RiderRig,equipment:BoardVisual,appearance:Sk
     const breathing = Math.sin(m.time * 1.15) * .0012;
     const pushSwing = Math.sin(m.pushPhase) * m.push;
     for (const w of wheels) w.rotation.x = opts.wheelRoll;
-    if (boardStyle==='nimbus') nimbus.update(opts.dt,opts.speed,opts.airborne || opts.grinding ? undefined : opts.travelSide ?? 1);
+    equipment.activeShape?.update(opts.dt,opts.speed,opts.airborne || opts.grinding ? undefined : opts.travelSide ?? 1);
     // Wheel contacts stay fixed. Weight shifts belong to the rider, not a rolling wheel group.
     board.rotation.set(opts.boardSpin.x, opts.boardSpin.y, opts.boardSpin.z);
     if (grabBlend > 0) board.quaternion.premultiply(grabRotation.copy(stance).multiply(grabPose.rotation).multiply(reverseStance));
@@ -294,7 +294,7 @@ export function createRiderPose(rig:RiderRig,equipment:BoardVisual,appearance:Sk
     },
     resetPose() {
       motion.reset();resetCruise();grabBlend = 0; carve = manual = flipPitch = flipRoll = 0; heldGroundGrab = false;
-      headYaw=0.65;headAngles.set(0,0.65,0); deck.rotation.z = 0; deck.position.set(0,0,0); nimbus.reset(); heldGrab = null; board.position.set(0,0,0); board.quaternion.identity();
+      headYaw=0.65;headAngles.set(0,0.65,0); deck.rotation.z = 0; deck.position.set(0,0,0); equipment.activeShape?.reset(); heldGrab = null; board.position.set(0,0,0); board.quaternion.identity();
     },
   };
 }

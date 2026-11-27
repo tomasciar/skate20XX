@@ -1,3 +1,4 @@
+import {rigTraits} from './traits.ts';
 import {CapsuleGeometry,Mesh,MeshStandardMaterial} from 'three';
 import type {BufferGeometry,Object3D} from 'three';
 import {characterProportions,characterHasShorts,characterHasCartoonHands,isCharacterId} from './catalog.ts';
@@ -17,6 +18,7 @@ function restorePart(kind:'upperarm'|'forearm'|'pelvis'|'sleeve') {
 
 export function applyCharacterSkin(root:Object3D,character:CharacterId) {
   ensureCharacterVisuals(root,character);
+  const traits=rigTraits(character);
   const build=characterProportions(character);
   const model=CHARACTER_MODELS[character];
   root.traverse(object=>{
@@ -37,7 +39,7 @@ export function applyCharacterSkin(root:Object3D,character:CharacterId) {
       case 'thigh':case 'shin': {
         const kind=object.userData.characterBuild as 'thigh'|'shin';
         object.scale.x=object.scale.z=build[kind]*capturedScale;
-        if(object instanceof Mesh)object.geometry=characterLegGeometry(kind,characterHasShorts(character)?'bare':character==='shaggy'?'flared':character==='peter'?'stocky':character==='light'||character==='mj'?'tailored':'standard');
+        if(object instanceof Mesh)object.geometry=characterLegGeometry(kind,characterHasShorts(character)?'bare':traits.legStyle);
         break;
       }
       case 'knee':object.scale.setScalar(build.knee*capturedScale);break;
@@ -50,8 +52,8 @@ export function applyCharacterSkin(root:Object3D,character:CharacterId) {
       case 'forearm':object.scale.x=object.scale.z=build.forearm*capturedScale;break;
       case 'shoulder':object.scale.set(build.shoulder,build.shoulder*.96,build.shoulder*.92).multiplyScalar(capturedScale);break;
       case 'sleeve':
-        object.visible=character!=='goku'&&character!=='spiderman';
-        object.scale.x=object.scale.z=(character==='peter'||character==='bart'?build.upperarm:1)*capturedScale;
+        object.visible=!traits.hideSleeve;
+        object.scale.x=object.scale.z=(traits.scaleSleeve?build.upperarm:1)*capturedScale;
         break;
     }
     const role=object.userData.characterBuild as CharacterBodyPart|undefined;

@@ -362,3 +362,5 @@ html[data-hud-tricks="off"] #trick { display: none; }
 .nitro { font-family: "Bebas Neue", sans-serif; font-size: .95rem; letter-spacing: .08em; color: #b4e5df; }
 .nitro.active { color: #8dffe0; text-shadow: 0 0 12px rgba(96,255,213,.4); }
 .nitro.recharging { color: var(--foam); opacity: .55; }
+
+#weapon-toggle[hidden] { display: none; }

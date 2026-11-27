@@ -15,7 +15,10 @@
     "test:game": "node scripts/testGroup.mjs game",
     "bench": "node --experimental-strip-types scripts/benchmark.ts --split-render --prepare",
     "bench:rider": "node --experimental-strip-types scripts/benchmarkRider.ts",
-    "bench:world": "node --experimental-strip-types scripts/benchmarkWorld.ts"
+    "bench:world": "node --experimental-strip-types scripts/benchmarkWorld.ts",
+    "dev:dlc": "node scripts/dlc.mjs dev",
+    "build:dlc": "node scripts/dlc.mjs build",
+    "test:dlc": "node scripts/dlc.mjs test"
   },
   "devDependencies": {
     "@types/three": "^0.187.0",

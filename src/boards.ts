@@ -1,16 +1,21 @@
+import {editionBoards,paintEditionBoard,boardShapeId} from './boardEdition.ts';
 import { readGameValue } from './storage.ts';
 import * as THREE from 'three';
 
+export type BoardBrush={
+  rect:(x:number,y:number,width:number,height:number,color:number)=>void;
+  disk:(x:number,y:number,r:number,color:number,inner?:number)=>void;
+  line:(x:number,y:number,xx:number,yy:number,width:number,color:number)=>void;
+  polygon:(points:number[][],color:number)=>void;
+  star:(x:number,y:number,r:number,color:number)=>void;
+};
 export const BOARD_STYLES=[
   {id:'classic',name:'Workshop',description:'Maple grain, burnt orange and cream wheels',deck:0xd5ab73,accent:0xee693c,ink:0x23343a,wheels:0xf1e7cc},
   {id:'neon',name:'Night Circuit',description:'Electric mint and violet on a dark deck',deck:0x231b46,accent:0x63f0ce,ink:0xa276eb,wheels:0x9e7ae7},
   {id:'sakura',name:'Sakura',description:'Cherry blossoms on a warm ivory deck',deck:0xf6e6d5,accent:0xdb7097,ink:0x654263,wheels:0xe79cba},
-  {id:'dragon',name:'Dragon Spirit',description:'Orange sunburst, blue energy rings and blue wheels',deck:0xf2792d,accent:0x254b9a,ink:0xffe3a0,wheels:0x3c66b4},
-  {id:'shinobi',name:'Shinobi',description:'Orange and charcoal with a spiral crest',deck:0x202c37,accent:0xf39a3d,ink:0xc74e43,wheels:0xed9c48},
-  {id:'stunt',name:'Stunt Team',description:'Red racing stripes, stars and golden wheels',deck:0xf4f0df,accent:0xdc3c36,ink:0x26333b,wheels:0xf1c448},
   {id:'alpine',name:'Alpine',description:'Layered mountains, glacier blue and a warm sun',deck:0xcbe5e8,accent:0x287d95,ink:0xf3ae61,wheels:0xe8f1e2},
   {id:'midnight',name:'Midnight',description:'Bone-white geometry on charcoal with red wheels',deck:0x20252c,accent:0xe5dcc5,ink:0xb94e50,wheels:0xc96b67},
-  {id:'nimbus',name:'Nimbus',description:'The golden flying cloud from Dragon Ball, in place of the deck and wheels',deck:0x8fd3f4,accent:0xf5b21f,ink:0xe0782a,wheels:0xffd34d},
+  ...editionBoards,
 ] as const;
 export type BoardStyleId=(typeof BOARD_STYLES)[number]['id'];
 export const BOARD_STYLE_STORAGE_KEY='skate20XX.boardStyle';
@@ -83,24 +88,6 @@ export function boardTexture(id:BoardStyleId,grip=false):THREE.DataTexture {
       }
       for(let i=0;i<10;i++)disk(0.15+(i*0.213)%0.7,0.12+(i*0.137)%0.77,0.015,p.accent);
     }
-    if(id==='dragon') {
-      for(let i=0;i<12;i++){const angle=i*Math.PI/6;line(.5,.5,.5+Math.cos(angle),.5+Math.sin(angle)*.5,.06,p.ink);}
-      for(const r of [.37,.28,.19])disk(.5,.49,r,p.accent,r-.035);
-      polygon([[.54,.25],[.22,.5],[.48,.49],[.35,.71],[.79,.44],[.57,.45]],p.accent);
-      for(const y of [.15,.82]){disk(.5,y,.16,p.ink);star(.5,y,.085,p.accent);}
-    }
-    if(id==='shinobi') {
-      rect(.08,0,.11,1,p.accent);rect(.81,0,.11,1,p.accent);
-      polygon([[0,.73],[1,.56],[1,.84],[0,1]],p.accent);
-      for(let i=0;i<5;i++)disk(.5,.38,.35-i*.065,i%2?p.deck:p.ink);
-      line(.5,.38,.82,.29,.045,p.ink);line(.82,.29,.87,.22,.045,p.ink);
-      for(let i=0;i<4;i++)line(.27,.14+i*.022,.73,.14+i*.022,.015,0xb7c6cc);
-    }
-    if(id==='stunt') {
-      rect(.36,0,.28,1,p.accent);rect(.39,0,.04,1,0xf7edda);rect(.57,0,.04,1,0xf7edda);
-      for(const y of [.26,.48,.7]){disk(.5,y,.24,p.deck);star(.5,y,.18,p.ink);}
-      for(let i=0;i<8;i++)for(let j=0;j<2;j++)rect(i/8,.11+j*.03125,.125,.03125,(i+j)%2?p.ink:p.deck);
-    }
     if(id==='alpine') {
       disk(.72,.24,.19,p.ink);
       for(const [y,color] of [[.43,0x6ba8b5],[.59,p.accent],[.78,0x21485e]])polygon([[0,y as number],[.26,(y as number)-.13],[.45,(y as number)-.035],[.72,(y as number)-.17],[1,y as number],[1,1],[0,1]],color as number);
@@ -115,10 +102,7 @@ export function boardTexture(id:BoardStyleId,grip=false):THREE.DataTexture {
       }
       rect(.1,0,.025,1,p.ink);rect(.875,0,.025,1,p.ink);
     }
-    if(id==='nimbus') {
-      // Hidden by the cloud itself, but every design keeps its own graphic: golden puffs on sky blue.
-      for(const [x,y,r] of [[.3,.2,.16],[.55,.24,.2],[.75,.19,.13],[.4,.62,.18],[.65,.66,.15],[.25,.68,.12]] as const){disk(x,y+.02,r,p.ink);disk(x,y,r,p.accent);}
-    }
+    paintEditionBoard(id,p,{rect,disk,line,polygon,star});
     // Small maker bars unify the collection without depending on fonts or image downloads.
     rect(.3,.93,.4,.008,p.ink);for(let i=0;i<5;i++)rect(.34+i*.065,.948,.032,.008,p.accent);
   }
@@ -141,7 +125,7 @@ export function applyBoardStyle(root:THREE.Object3D,id:BoardStyleId) {
   const palette=boardStyle(id);
   root.traverse(object=>{
     // Shaped designs replace the deck, trucks and wheels; everything else keeps the board hardware.
-    const shape=object.userData.boardShape as string|undefined;if(shape)object.visible=(shape==='hardware')===(id!=='nimbus');
+    const shape=object.userData.boardShape as string|undefined;if(shape)object.visible=shape===boardShapeId(id);
     if(!(object instanceof THREE.Mesh))return;
     for(const source of Array.isArray(object.material)?object.material:[object.material]) {
       const mat=source as THREE.MeshStandardMaterial,surface=mat.userData.boardSurface as BoardSurface|undefined;

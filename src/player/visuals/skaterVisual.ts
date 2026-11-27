@@ -19,7 +19,7 @@ export {FLIP_LEAN} from '../animation/riderPose.ts';
 export function createSkaterVisual(initialMode:RideMode='skate',initialCharacter:CharacterId='boy',initialBoardStyle:BoardStyleId='classic'):SkaterVisual {
   const root=new THREE.Group(),equipment=createBoardVisual();
   const rig=createRiderRig(initialCharacter,equipment.accent);
-  const {board,deck,wheels,nimbus}=equipment;
+  const {board,deck,wheels}=equipment;
   root.add(board,rig.rider);
   const appearance:SkaterAppearance={mode:initialMode,character:initialCharacter,boardStyle:initialBoardStyle,
     proportions:characterProportions(initialCharacter)};
@@ -32,7 +32,7 @@ export function createSkaterVisual(initialMode:RideMode='skate',initialCharacter
   function setCharacter(next:CharacterId) {appearance.character=next;updateAppearance();}
   function setMode(next:RideMode) {appearance.mode=next;applyRideSkin(root,next);updateAppearance();}
   function setBoardStyle(next:BoardStyleId) {
-    if(next!==appearance.boardStyle)nimbus.reset();
+    equipment.selectShape(next);
     appearance.boardStyle=next;applyBoardStyle(root,next);
   }
   setMode(initialMode);setBoardStyle(initialBoardStyle);

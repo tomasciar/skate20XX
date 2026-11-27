@@ -1,3 +1,4 @@
+import {rigTraits} from '../characters/traits.ts';
 import * as THREE from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {FOOT_Y,RIDER} from '../dimensions.ts';
@@ -82,9 +83,10 @@ export function createRiderRig(initialCharacter:CharacterId,accent:THREE.Materia
     thighSurface.color.setHex(characterHasShorts(character)?palette.skin:palette.pants);
     shinSurface.color.setHex(characterHasShorts(character)?palette.skin:palette.pants);
     sleeveSurface.color.setHex(palette.sleeves);
-    shoulderSurface.color.setHex(character==='goku'?palette.shirt:palette.sleeves);
+    const traits=rigTraits(character);
+    shoulderSurface.color.setHex(traits.shirtShoulders?palette.shirt:palette.sleeves);
     shoes.color.setHex(palette.shoes);gloves.color.setHex(palette.gloves);kneeSurface.color.setHex(palette.knees);
-    sole.color.setHex(character==='peter'?0x3d2c23:character==='spiderman'?0x982731:character==='mj'?0x20232b:0xece1c7);
+    sole.color.setHex(traits.sole);
   }
   return {rider,hips,pelvis,hipDetails,torso,chest,head,arms,legs,updateAppearance};
 }

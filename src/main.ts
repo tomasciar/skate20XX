@@ -26,6 +26,7 @@ import {loadBoardStyle} from './boards';
 import {createBoardControls} from './ui/boards';
 import {createCharacterControls} from './ui/characters';
 import {createRiderPortrait} from './ui/riderPortrait';
+import {hasHeldWeapons} from './player/characters/catalog';
 import {createWeaponControls} from './ui/weapons';
 import {createSensitivityControls} from './ui/sensitivity';
 import {applyWeaponVisibility} from './player/characters/weapons';
@@ -149,7 +150,7 @@ async function main() {
   const riderPortrait=createRiderPortrait(renderer,player.mesh);
   createHudOptions();
   createSensitivityControls(values=>controller.setSensitivities(values));
-  createWeaponControls(shown=>{applyWeaponVisibility(scene,shown);pausedSceneDirty=true;});
+  if(hasHeldWeapons)createWeaponControls(shown=>{applyWeaponVisibility(scene,shown);pausedSceneDirty=true;});
   createCharacterControls(character,next=>{input.clear();controller.reset();player.setCharacter(next);pausedSceneDirty=true;void preloadCharacterFace(next).then(()=>{pausedSceneDirty=true;});});
   createBoardControls(boardStyle,next=>{input.clear();controller.reset();player.setBoardStyle(next);pausedSceneDirty=true;});
   // Scoring: one run per spawn, and a best per ride mode that is kept in memory in case storage is blocked.

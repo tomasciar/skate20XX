@@ -132,24 +132,3 @@ test('no body part outruns a high-speed crash, whatever pose it starts from', as
     rag.clear(); world.free();
   }
 });
-
-test('Peter keeps his stocky anatomy joined through high-speed crashes from a ride and a tucked grab',async()=>{
-  await RAPIER.init();
-  const scene=new THREE.Scene(),world=new RAPIER.World({x:0,y:-18,z:0});world.timestep=dt;
-  const floor=world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0,-.5,0));
-  world.createCollider(RAPIER.ColliderDesc.cuboid(2000,.5,2000),floor);
-  const visual=createSkaterVisual('skate','peter'),rag=createRagdoll(scene,world);visual.root.position.y=.15;
-  try {
-    for(const grab of [undefined,GRABS.tomahawk]) {
-      for(let frame=0;frame<180;frame++)visual.setPose({...pose,airborne:!!grab,grab});
-      rag.start(visual.captureRagdoll(),new THREE.Vector3(0,0,-89),new THREE.Vector3(0,1,0));
-      assert.equal(rag.bodyCount,11);checkAnchors(world,.001);
-      for(let frame=0;frame<240;frame++) {
-        rag.beginStep();world.step();rag.sync();rag.render(.5);checkAnchors(world);
-        assert.ok(Number.isFinite(rag.focus.y));
-        world.bodies.forEach(body=>{const v=body.linvel();assert.ok(Math.hypot(v.x,v.y,v.z)<114.01,'stocky colliders must not inject explosive speed');});
-      }
-      rag.clear();assert.equal(world.bodies.len(),1);assert.equal(world.impulseJoints.len(),0);
-    }
-  } finally {rag.clear();world.free();}
-});

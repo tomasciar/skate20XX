@@ -40,10 +40,10 @@ test('board selector saves valid changes once, updates its swatch and gives keyb
   try {
     const controls=createBoardControls('sakura',style=>changes.push(style));
     assert.equal(select.value,'sakura');assert.equal(select.options.length,BOARD_STYLES.length);assert.ok(swatch.style.background.includes('#db7097'));
-    select.value='stunt';select.dispatchEvent(new Event('change'));assert.deepEqual(changes,['stunt']);assert.equal(loadBoardStyle(),'stunt');
-    assert.equal(select.title,boardStyle('stunt').description);assert.ok(swatch.style.background.includes('#dc3c36'));
+    select.value='midnight';select.dispatchEvent(new Event('change'));assert.deepEqual(changes,['midnight']);assert.equal(loadBoardStyle(),'midnight');
+    assert.equal(select.title,boardStyle('midnight').description);assert.ok(swatch.style.background.includes('#e5dcc5'));
     select.dispatchEvent(new Event('change'));assert.equal(changes.length,1);
-    select.value='invalid';select.dispatchEvent(new Event('change'));assert.equal(select.value,'stunt');assert.equal(changes.length,1);assert.equal(select.blurs,3);
+    select.value='invalid';select.dispatchEvent(new Event('change'));assert.equal(select.value,'midnight');assert.equal(changes.length,1);assert.equal(select.blurs,3);
     controls.dispose();select.value='neon';select.dispatchEvent(new Event('change'));assert.equal(changes.length,1);
   } finally {
     if(oldDocument)globalThis.document=oldDocument;else delete (globalThis as Record<string,unknown>).document;
@@ -92,31 +92,13 @@ test('design swaps reuse meshes and materials and preserve every rider, mode, gr
   }
 });
 
-test('Nimbus swaps the deck, trucks and wheels for a cloud in both modes, and other designs bring them back',()=>{
-  const visual=createSkaterVisual('skate','goku'),visible=(name:'nimbus'|'hardware')=>{
-    const found:boolean[]=[];visual.root.traverse(object=>{if(object.userData.boardShape===name){let shown=true;for(let o:THREE.Object3D|null=object;o;o=o.parent)shown&&=o.visible;found.push(shown);}});
-    assert.ok(found.length>0);return found.every(Boolean)?true:found.some(Boolean)?'mixed':false;
-  };
-  assert.equal(visible('nimbus'),false);assert.equal(visible('hardware'),true);
-  for(const mode of ['skate','snowboard','skate'] as const) {
-    visual.setBoardStyle('nimbus');visual.setMode(mode);
-    assert.equal(visible('nimbus'),true);assert.equal(visible('hardware'),false);
-    visual.setBoardStyle('dragon');assert.equal(visible('nimbus'),false);assert.equal(visible('hardware'),true);
-  }
-  visual.setBoardStyle('nimbus');const cloud=visual.root.getObjectByName('nimbus')!,box=new THREE.Box3();
-  for(const speed of [0,80])for(const travelSide of [1,-1])for(let i=0;i<240;i++)visual.setPose({...pose,speed,travelSide});
-  visual.resetPose();visual.root.updateMatrixWorld(true);box.setFromObject(cloud);visual.board.worldToLocal(box.min);visual.board.worldToLocal(box.max);
-  // The rider stands in the cloud and its belly rests where the wheels touch the ground.
-  assert.ok(box.max.y>BOARD.gripY && box.max.y<BOARD.gripY+0.05);assert.ok(Math.abs(Math.min(box.min.y,box.max.y)-(BOARD.wheelY-BOARD.wheelRadius))<0.01);
-});
-
 async function fixture() {
   await RAPIER.init();
   const scene=new THREE.Scene(),world=new RAPIER.World({x:0,y:-18,z:0});world.timestep=dt;
   const ground=world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0,-0.1,-400));world.createCollider(RAPIER.ColliderDesc.cuboid(50,0.1,500),ground);
   const anchor=new THREE.Vector3(),ramp:RampWorld={mesh:new THREE.Group(),spawn:new THREE.Vector3(0,0.02,0),anchor,surfaceOrigin:anchor,endZ:-99999,
     surfaceNormal:new THREE.Vector3(0,1,0),forward:new THREE.Vector3(0,0,-1),distance:0,grindRails:[],scroll:()=>new THREE.Vector3(),reset:()=>{},prepareNextChunk:()=>true,flushDeferredDestroy:()=>{}};
-  const player=createBoardPlayer(scene,world,ramp,'skate','goku','dragon'),tricks=createTrickSystem();
+  const player=createBoardPlayer(scene,world,ramp,'skate','girl','sakura'),tricks=createTrickSystem();
   const tick=()=>{player.update(dt,idle,tricks.state);world.step();player.sync(false);};for(let i=0;i<90;i++)tick();
   return {scene,world,player,tricks,tick,ramp};
 }
@@ -135,8 +117,8 @@ test('live design changes keep momentum and physics identical, persist through r
     }
     subject.tricks.state.bail=true;subject.tick();assert.ok(subject.player.crashed);
     const crash=subject.scene.getObjectByName('crash-ragdoll')!;assert.ok(crash);
-    subject.player.setBoardStyle('stunt');assert.equal(subject.player.boardStyle,'stunt');assert.equal(subject.player.character,'goku');
-    let straps=0;crash.traverse(object=>{if(object instanceof THREE.Mesh && object.material.userData.boardSurface==='accent'){straps++;assert.equal(object.material.color.getHex(),boardStyle('stunt').accent);}});
-    assert.ok(straps>0);subject.player.reset(subject.ramp.spawn);assert.equal(subject.player.boardStyle,'stunt');
+    subject.player.setBoardStyle('midnight');assert.equal(subject.player.boardStyle,'midnight');assert.equal(subject.player.character,'girl');
+    let straps=0;crash.traverse(object=>{if(object instanceof THREE.Mesh && object.material.userData.boardSurface==='accent'){straps++;assert.equal(object.material.color.getHex(),boardStyle('midnight').accent);}});
+    assert.ok(straps>0);subject.player.reset(subject.ramp.spawn);assert.equal(subject.player.boardStyle,'midnight');
   } finally {control.world.free();subject.world.free();}
 });

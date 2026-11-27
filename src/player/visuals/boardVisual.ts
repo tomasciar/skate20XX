@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import {BOARD} from '../dimensions.ts';
 import {boardMaterial,boardUVs} from '../../boards.ts';
 import {createSnowboardVisual} from './snowboardVisual.ts';
-import {createNimbusVisual} from './nimbusVisual.ts';
+import {createBoardShape} from './boardShape.ts';
+import type {BoardStyleId} from '../../boards.ts';
 import {visualMaterial as mat,meshPart as mesh,boxPart as box,batchStaticMeshes} from './parts.ts';
 
 /** Build board geometry and its animated wheel groups; appearance and posing are separate. */
@@ -14,7 +15,13 @@ export function createBoardVisual() {
   const deckHardware=new THREE.Group(),gearHardware=new THREE.Group();
   deckHardware.userData.boardShape=gearHardware.userData.boardShape='hardware';
   deck.add(deckHardware);board.add(gearHardware);deckHardware.add(skateDeck);gearHardware.add(skateGear);
-  const nimbus=createNimbusVisual();deck.add(nimbus.root);
+  const alternate=createBoardShape();
+  if(alternate)deck.add(alternate.root);
+  let activeShape:typeof alternate|undefined;
+  function selectShape(style:BoardStyleId) {
+    activeShape?.reset();
+    activeShape=alternate?.root.userData.boardShape===style?alternate:undefined;
+  }
   const grip=boardMaterial('grip'),maple=boardMaterial('edge'),orange=boardMaterial('accent'),graphic=boardMaterial('graphic');
   const steel=mat(0xaab9bf,0.3,0.8),rubber=boardMaterial('wheel');
   // Rounded maple deck with a separate grip surface and lifted nose/tail.
@@ -51,6 +58,6 @@ export function createBoardVisual() {
   }
   batchStaticMeshes(skateDeck); batchStaticMeshes(skateGear);
   const snowboard=createSnowboardVisual();batchStaticMeshes(snowboard);deckHardware.add(snowboard);
-  return {board,deck,wheels,nimbus,accent:orange};
+  return {board,deck,wheels,selectShape,get activeShape(){return activeShape;},accent:orange};
 }
 export type BoardVisual=ReturnType<typeof createBoardVisual>;

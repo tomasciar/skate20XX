@@ -168,14 +168,14 @@ test('bank takeoffs retain the launch angle without snapping upright or throwing
   }
 });
 
-test('the generated purple bank launches a Nimbus rider smoothly in either riding mode',async()=>{
+test('the generated purple bank launches a rider smoothly in either riding mode',async()=>{
   await RAPIER.init();
   const context=new Proxy({},{get:()=>()=>{}});
   Object.assign(globalThis,{document:{createElement:()=>({getContext:()=>context})}});
   for(const mode of ['skate','snowboard'] as const)for(const speed of [20,70]) {
     const world=new RAPIER.World({x:0,y:-18,z:0});world.timestep=dt;
     const scene=new THREE.Scene(),ramp=createRamp(scene,world,{mode,startPlatform:false});
-    const player=createBoardPlayer(scene,world,ramp,mode,'goku','nimbus'),tricks=createTrickSystem();
+    const player=createBoardPlayer(scene,world,ramp,mode,'girl','alpine'),tricks=createTrickSystem();
     try {
       const bank=planChunk(2).encounters[0]!,entry=2*RAMP.chunkLength+bank.along-bank.length/2;
       const at=ramp.anchor.clone().addScaledVector(ramp.forward,entry-3).addScaledVector(ramp.surfaceNormal,.22);

@@ -112,7 +112,7 @@ test('manuals and nose manuals retain moving hips and shoulders, counterbalance 
   for(const mode of ['skate','snowboard'] as const)for(const {id} of CHARACTERS)for(const manual of [-1,1])for(const travelSide of [-1,1] as const) {
     const visual=createSkaterVisual(mode,id),groundTrick:GroundTrick={name:manual>0?'Manual':'Nose Manual',manual,grab:null};
     const torso=visual.root.getObjectByName('chest')!.parent!,hips=torso.parent!;
-    const moving=id==='boy'||id==='kick',samples:{x:number;yaw:number;shoulder:number}[]=[];
+    const moving=id==='boy',samples:{x:number;yaw:number;shoulder:number}[]=[];
     for(let frame=0;frame<(moving?840:180);frame++) {
       visual.setPose({...base,groundTrick,travelSide});
       if(frame%30===0){visual.root.updateMatrixWorld(true);assertPlanted(visual);}
@@ -130,7 +130,7 @@ test('manuals and nose manuals retain moving hips and shoulders, counterbalance 
 });
 
 test('riding grabs reach the deck without lifting wheels or detaching feet, including while carving',()=>{
-  for(const character of ['boy','peter','sasuke'] as const)for(const grab of [GRABS.indy,GRABS.melon,GRABS.nosegrab,GRABS.tailgrab]) for(const lean of [-1,0,1]) {
+  for(const {id:character} of CHARACTERS)for(const grab of [GRABS.indy,GRABS.melon,GRABS.nosegrab,GRABS.tailgrab]) for(const lean of [-1,0,1]) {
     const visual=createSkaterVisual('skate',character);
     const groundTrick:GroundTrick={name:grab.name,manual:0,grab};
     for(let i=0;i<180;i++)visual.setPose({...base,lean,carve:lean,groundTrick});

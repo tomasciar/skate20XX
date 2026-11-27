@@ -4,8 +4,6 @@ import * as THREE from 'three';
 import {createSkaterVisual} from '../src/player/visuals/skaterVisual.ts';
 import {CHARACTERS} from '../src/player/characters/catalog.ts';
 import {CHARACTER_MODELS} from '../src/player/characters/registry.ts';
-import {applyCharacterSkin} from '../src/player/characters/skin.ts';
-import {applyWeaponVisibility} from '../src/player/characters/weapons.ts';
 
 Object.assign(globalThis,{document:{createElement:()=>({getContext:()=>new Proxy({},{get:()=>()=>{}})})}});
 
@@ -33,22 +31,4 @@ test('riders author only selected models, reuse attachments, and keep visited lo
     assert.notEqual(firstMesh,secondMesh);assert.equal(firstMesh.geometry,secondMesh.geometry);assert.equal(firstMesh.material,secondMesh.material);
     assert.equal(calls.get('boy'),1);assert.equal(disposed,0,'cached assets must survive selection changes');
   } finally {for(const {id,build} of builders)CHARACTER_MODELS[id].buildLook=build;}
-});
-
-test('newly selected and cloned attachments inherit mode and weapon preferences before their first build',()=>{
-  const rider=createSkaterVisual('snowboard','boy');applyWeaponVisibility(rider.root,false);
-  for(const id of ['finn','sahur','sasuke','girl','goku'] as const) {
-    rider.setCharacter(id);
-    rider.root.traverse(object=>{
-      if(object.userData.rideSkin)assert.equal(object.visible,object.userData.rideSkin==='snowboard');
-      if(object.userData.heldWeapon)assert.equal(object.visible,false);
-    });
-  }
-  const clone=rider.root.clone(true);applyCharacterSkin(clone,'finn');
-  const sword=clone.getObjectByName('character-sword-finn')!;assert.equal(sword.visible,false);
-  applyWeaponVisibility(clone,true);assert.equal(sword.visible,true);
-  applyCharacterSkin(clone,'sahur');assert.equal(clone.getObjectByName('character-sword-finn'),undefined);
-  assert.equal(clone.getObjectByName('character-bat-sahur')!.visible,true);
-  applyCharacterSkin(clone,'finn');assert.equal(clone.getObjectByName(sword.name),sword);assert.equal(sword.visible,true);
-  assert.equal(rider.root.getObjectByName('character-head-goku')!.visible,true,'clone selection must not mutate the live rider');
 });

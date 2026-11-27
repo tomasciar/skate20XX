@@ -13,6 +13,7 @@ export function saveWeaponVisibility(shown:boolean,storage?:Pick<StorageLike,'se
 
 export function createWeaponControls(onChange:(shown:boolean)=>void) {
   const button=document.getElementById('weapon-toggle') as HTMLButtonElement;
+  button.hidden=false;
   let shown=loadWeaponVisibility();
   function paint(){button.setAttribute('aria-pressed',String(shown));onChange(shown);}
   function toggle(){shown=!shown;saveWeaponVisibility(shown);paint();button.blur();}

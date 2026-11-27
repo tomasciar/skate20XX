@@ -1,3 +1,4 @@
+import {rigTraits} from '../characters/traits.ts';
 import * as THREE from 'three';
 import {RIDER} from '../dimensions.ts';
 import {characterProportions,characterHasShorts} from '../characters/catalog.ts';
@@ -21,7 +22,7 @@ export function captureRiderRagdoll(root:THREE.Group,rig:RiderRig,character:Char
     }
     parts.push({ id, center, rotation: reference.getWorldQuaternion(new THREE.Quaternion()), objects, mass, shape });
   };
-  const stocky=character==='peter',build=characterProportions(character);
+  const {stocky,thighRadius,shinRadius}=rigTraits(character),build=characterProportions(character);
   const anatomy=CHARACTER_MODELS[character].ragdoll,torsoShape=anatomy?.torso,headShape=anatomy?.head;
   const limbWidths=stocky||anatomy?.matchLimbWidths;
   part('pelvis', pelvis, pelvis.getWorldPosition(new THREE.Vector3()), [pelvis,hipDetails], 12,
@@ -52,8 +53,8 @@ export function captureRiderRagdoll(root:THREE.Group,rig:RiderRig,character:Char
   for (const l of legs) {
     const thigh = `thigh${l.side}`, shin = `shin${l.side}`, foot = `foot${l.side}`;
     const hip = point(hips,l.side*0.095*hipWidth), knee = point(l.knee), ankle = point(l.foot,0,0.06);
-    part(thigh,l.thigh,l.thigh.getWorldPosition(new THREE.Vector3()),[l.thigh],7,{kind:'capsule',length:RIDER.upperLeg*legScale,radius:characterHasShorts(character)?.045:0.065*(character==='kick'?1.2535:limbWidths?build.thigh:1)});
-    part(shin,l.shin,l.shin.getWorldPosition(new THREE.Vector3()),[l.shin,l.knee],4,{kind:'capsule',length:RIDER.lowerLeg*legScale,radius:characterHasShorts(character)?.033:0.05*(character==='kick'?1.311:limbWidths?build.shin:1)});
+    part(thigh,l.thigh,l.thigh.getWorldPosition(new THREE.Vector3()),[l.thigh],7,{kind:'capsule',length:RIDER.upperLeg*legScale,radius:characterHasShorts(character)?.045:0.065*(limbWidths?build.thigh:thighRadius)});
+    part(shin,l.shin,l.shin.getWorldPosition(new THREE.Vector3()),[l.shin,l.knee],4,{kind:'capsule',length:RIDER.lowerLeg*legScale,radius:characterHasShorts(character)?.033:0.05*(limbWidths?build.shin:shinRadius)});
     part(foot,l.foot,point(l.foot,0,0.025,-0.02),[l.foot],1,{kind:'box',half:new THREE.Vector3(0.06,0.045,0.12)});
     joints.push({a:'pelvis',b:thigh,anchor:hip,kind:'ball'}, {a:shin,b:foot,anchor:ankle,kind:'fixed'});
     hinge(thigh,shin,hip,knee,ankle);
